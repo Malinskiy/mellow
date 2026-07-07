@@ -1,0 +1,20 @@
+package dev.mellow.core.model
+
+import java.time.Duration
+
+data class Track(
+    val id: String,
+    val name: String,
+    val albumId: String?,
+    val albumName: String?,
+    val artistId: String?,
+    val artistName: String?,
+    val trackNumber: Int?,
+    val discNumber: Int?,
+    val duration: Duration,
+    val genres: List<String>,
+    val imageId: String?,
+    val isFavorite: Boolean,
+    val playCount: Int,
+    val normalizationGain: Float?,
+)
