@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -74,6 +75,7 @@ fun AlbumDetailScreen(
     error: String? = null,
     onRetry: () -> Unit = {},
     onTrackClick: (String) -> Unit = {},
+    isFavorite: Boolean = false,
     onPlayAll: () -> Unit = {},
     onShuffle: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
@@ -104,6 +106,7 @@ fun AlbumDetailScreen(
                             year = year,
                             trackCount = displayTrackCount,
                             totalDuration = formatTotalDuration(tracks),
+                            isFavorite = isFavorite,
                             onPlayAll = onPlayAll,
                             onShuffle = onShuffle,
                             onFavoriteClick = onFavoriteClick,
@@ -186,6 +189,7 @@ private fun AlbumHero(
     year: Int?,
     trackCount: Int,
     totalDuration: String,
+    isFavorite: Boolean = false,
     onPlayAll: () -> Unit = {},
     onShuffle: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
@@ -275,7 +279,12 @@ private fun AlbumHero(
                     Icon(Icons.Filled.PlayArrow, "Play", tint = MellowPalette.Stone950, modifier = Modifier.size(26.dp))
                 }
                 IconButton(onClick = onFavoriteClick) {
-                    Icon(Icons.Outlined.FavoriteBorder, "Favorite", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
+                        tint = if (isFavorite) MellowTheme.colors.favorite else MellowTheme.colors.muted,
+                        modifier = Modifier.size(22.dp),
+                    )
                 }
                 IconButton(onClick = {}) {
                     Icon(Icons.Filled.Download, "Download", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))

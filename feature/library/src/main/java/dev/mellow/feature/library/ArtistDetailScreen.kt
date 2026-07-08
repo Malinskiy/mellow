@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,6 +66,7 @@ fun ArtistDetailScreen(
     onAlbumClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
     serverUrl: String? = null,
+    isFavorite: Boolean = false,
     onPlayAll: () -> Unit = {},
     onShuffle: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
@@ -104,6 +106,7 @@ fun ArtistDetailScreen(
                             artistName = artistName,
                             artistImageUrl = artistImageUrl,
                             albumCount = albumCount,
+                            isFavorite = isFavorite,
                             onPlayAll = onPlayAll,
                             onShuffle = onShuffle,
                             onFavoriteClick = onFavoriteClick,
@@ -163,6 +166,7 @@ private fun ArtistHero(
     artistName: String,
     artistImageUrl: String?,
     albumCount: Int,
+    isFavorite: Boolean = false,
     onPlayAll: () -> Unit = {},
     onShuffle: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
@@ -210,7 +214,12 @@ private fun ArtistHero(
                 Icon(Icons.Filled.PlayArrow, "Play", tint = MellowPalette.Stone950, modifier = Modifier.size(26.dp))
             }
             IconButton(onClick = onFavoriteClick) {
-                Icon(Icons.Outlined.FavoriteBorder, "Favorite", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
+                    tint = if (isFavorite) MellowTheme.colors.favorite else MellowTheme.colors.muted,
+                    modifier = Modifier.size(22.dp),
+                )
             }
         }
     }

@@ -39,6 +39,7 @@ import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.feature.home.FavoritesScreen
+import dev.mellow.feature.home.FavoritesViewModel
 import dev.mellow.feature.home.PlaylistsScreen
 import dev.mellow.feature.library.AlbumDetailScreen
 import dev.mellow.feature.library.AlbumDetailTrack
@@ -213,17 +214,33 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable(MellowNavDestination.Search.route) {
                     SearchScreen(
                         serverId = serverId,
+                        serverUrl = mainViewModel.serverUrl.collectAsState().value ?: "",
                         onPlayTracks = { tracks, index ->
                             scope.launch { mainViewModel.player.playTracks(tracks, index) }
                         },
                     )
                 }
                 composable(MellowNavDestination.Favorites.route) {
+                    val favVm: FavoritesViewModel = hiltViewModel()
+                    val favState by favVm.uiState.collectAsState()
                     FavoritesScreen(
                         serverId = serverId,
                         serverUrl = mainViewModel.serverUrl.collectAsState().value,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
+                        onTrackClick = { trackId ->
+                            val tracks = favState.tracks
+                            val idx = tracks.indexOfFirst { it.id == trackId }
+                            if (idx >= 0) {
+                                scope.launch { mainViewModel.player.playTracks(tracks, idx) }
+                            }
+                        },
+                        onShuffleAll = {
+                            val tracks = favState.tracks
+                            if (tracks.isNotEmpty()) {
+                                scope.launch { mainViewModel.player.playTracks(tracks.shuffled(), 0) }
+                            }
+                        },
                     )
                 }
                 composable(MellowNavDestination.Playlists.route) {
@@ -264,6 +281,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 isFavorite = track.isFavorite,
                             )
                         },
+                        isFavorite = albumState.album?.isFavorite ?: false,
                         isLoading = albumState.isLoading,
                         isSyncing = isSyncing,
                         error = albumState.error,
@@ -343,6 +361,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             }
                         },
                         serverUrl = sUrl,
+                        isFavorite = artistState.artist?.isFavorite ?: false,
                         onPlayAll = {
                             val tracks = artistState.topTracks
                             if (tracks.isNotEmpty()) {

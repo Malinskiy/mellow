@@ -41,8 +41,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -82,12 +87,17 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MellowPalette.Stone800)
-                .blur(80.dp),
-        )
+        if (albumImageUrl != null) {
+            AsyncImage(
+                model = albumImageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 0.2f }
+                    .blur(100.dp),
+            )
+        }
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -186,6 +196,7 @@ private fun TrackInfo(trackName: String, artistName: String, isFavorite: Boolean
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun ProgressBar(progress: Float, positionMs: Long, durationMs: Long, onSeekTo: (Long) -> Unit) {
     var isSeeking by remember { mutableStateOf(false) }
@@ -208,14 +219,32 @@ private fun ProgressBar(progress: Float, positionMs: Long, durationMs: Long, onS
                 val seekMs = (seekProgress * durationMs).toLong()
                 onSeekTo(seekMs)
             },
-            colors = SliderDefaults.colors(
-                thumbColor = MellowTheme.colors.foreground,
-                activeTrackColor = MellowTheme.colors.foreground,
-                inactiveTrackColor = MellowPalette.Stone700,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp),
+            thumb = {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .shadow(2.dp, CircleShape)
+                        .background(MellowTheme.colors.foreground, CircleShape),
+                )
+            },
+            track = { sliderState ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MellowPalette.Stone700),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(sliderState.value.coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(MellowTheme.colors.foreground),
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
         )
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,

@@ -1,5 +1,6 @@
 package dev.mellow.core.data.repository
 
+import android.util.Log
 import dev.mellow.core.data.mapper.toAlbumEntity
 import dev.mellow.core.data.mapper.toArtistEntity
 import dev.mellow.core.data.mapper.toModel
@@ -26,6 +27,10 @@ class LibraryRepositoryImpl @Inject constructor(
     private val serverDao: ServerDao,
     private val jellyfinDataSource: JellyfinDataSource,
 ) : LibraryRepository {
+
+    companion object {
+        private const val TAG = "LibraryRepository"
+    }
 
     override fun getAlbums(serverId: String): Flow<List<Album>> =
         albumDao.observeAlbumsByServer(serverId).map { entities -> entities.map { it.toModel() } }
@@ -76,16 +81,19 @@ class LibraryRepositoryImpl @Inject constructor(
         val userId = UUID.fromString(server.userId)
 
         val favAlbums = jellyfinDataSource.getFavoriteAlbums(userId)
+        Log.d(TAG, "syncFavorites: ${favAlbums.size} albums from API")
         if (favAlbums.isNotEmpty()) {
             albumDao.upsertAlbums(favAlbums.map { it.toAlbumEntity(serverId) })
         }
 
         val favArtists = jellyfinDataSource.getFavoriteArtists(userId)
+        Log.d(TAG, "syncFavorites: ${favArtists.size} artists from API")
         if (favArtists.isNotEmpty()) {
             artistDao.upsertArtists(favArtists.map { it.toArtistEntity(serverId) })
         }
 
         val favTracks = jellyfinDataSource.getFavoriteTracks(userId)
+        Log.d(TAG, "syncFavorites: ${favTracks.size} tracks from API")
         if (favTracks.isNotEmpty()) {
             trackDao.upsertTracks(favTracks.map { it.toTrackEntity(serverId) })
         }

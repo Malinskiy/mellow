@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
@@ -41,6 +42,7 @@ import dev.mellow.core.designsystem.theme.MellowTheme
 fun SearchScreen(
     modifier: Modifier = Modifier,
     serverId: String = "",
+    serverUrl: String = "",
     onPlayTracks: (List<Track>, Int) -> Unit = { _, _ -> },
 ) {
     val viewModel: SearchViewModel = hiltViewModel()
@@ -70,7 +72,7 @@ fun SearchScreen(
                     }
                 }
             },
-            shape = MellowShapes.Full,
+            shape = MellowShapes.Large,
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = MellowTheme.colors.surface,
                 unfocusedContainerColor = MellowTheme.colors.surface,
@@ -84,7 +86,7 @@ fun SearchScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = MellowSpacing.Sp4)
-                .border(1.dp, MellowTheme.colors.border, MellowShapes.Full),
+                .border(1.dp, MellowTheme.colors.border, MellowShapes.Large),
         )
 
         Spacer(Modifier.height(MellowSpacing.Sp6))
@@ -100,6 +102,15 @@ fun SearchScreen(
             }
             uiState.results.isNotEmpty() -> {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item {
+                        Text(
+                            "TRACKS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MellowTheme.colors.muted,
+                            letterSpacing = 0.08.sp,
+                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+                        )
+                    }
                     itemsIndexed(uiState.results, key = { _, track -> track.id }) { index, track ->
                         val totalSeconds = track.duration.seconds
                         val minutes = totalSeconds / 60
@@ -109,6 +120,9 @@ fun SearchScreen(
                             title = track.name,
                             subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
                             duration = durationStr,
+                            imageUrl = if (serverUrl.isNotEmpty() && track.imageId != null) {
+                                dev.mellow.core.common.jellyfinImageUrl(serverUrl, track.imageId!!)
+                            } else null,
                             onClick = { onPlayTracks(uiState.results, index) },
                             showDivider = index < uiState.results.lastIndex,
                             modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
