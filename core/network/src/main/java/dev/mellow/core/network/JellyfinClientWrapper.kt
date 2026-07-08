@@ -1,5 +1,7 @@
 package dev.mellow.core.network
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import org.jellyfin.sdk.Jellyfin
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.createJellyfin
@@ -9,10 +11,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class JellyfinClientWrapper @Inject constructor() {
-
+class JellyfinClientWrapper @Inject constructor(
+    @ApplicationContext context: Context,
+) {
     private val jellyfin: Jellyfin = createJellyfin {
         clientInfo = ClientInfo("Mellow", "0.1.0")
+        this.context = context
     }
 
     private var _api: ApiClient? = null

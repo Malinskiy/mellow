@@ -1,0 +1,5 @@
+[snapshot]
+baselines = ".marathon-snapshots/baselines"
+current = ".marathon-snapshots/current"
+threshold = 0.01
+anti_aliasing = true

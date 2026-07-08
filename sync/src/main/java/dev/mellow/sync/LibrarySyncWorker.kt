@@ -6,18 +6,40 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dev.mellow.core.data.repository.LibraryRepository
+import dev.mellow.core.database.dao.ServerDao
+import dev.mellow.core.network.JellyfinClientWrapper
+import org.jellyfin.sdk.model.DeviceInfo
+import java.util.UUID
 
 @HiltWorker
 class LibrarySyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
+    private val libraryRepository: LibraryRepository,
+    private val serverDao: ServerDao,
+    private val jellyfinClient: JellyfinClientWrapper,
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        // TODO: Sync library metadata from Jellyfin server to Room database
-        // 1. Fetch albums, artists, tracks from Jellyfin API (paginated)
-        // 2. Upsert into Room database
-        // 3. Sync favorites and play counts bidirectionally
-        return Result.success()
+        val serverId = inputData.getString(KEY_SERVER_ID) ?: return Result.failure()
+        return try {
+            ensureConnected()
+            libraryRepository.syncLibrary(serverId)
+            Result.success()
+        } catch (e: Exception) {
+            if (runAttemptCount < 3) Result.retry() else Result.failure()
+        }
+    }
+
+    private suspend fun ensureConnected() {
+        if (jellyfinClient.isConnected) return
+        val server = serverDao.getActiveServer() ?: return
+        jellyfinClient.connect(server.url, DeviceInfo(id = UUID.randomUUID().toString(), name = "Mellow"))
+        jellyfinClient.authenticate(server.accessToken)
+    }
+
+    companion object {
+        const val KEY_SERVER_ID = "server_id"
     }
 }

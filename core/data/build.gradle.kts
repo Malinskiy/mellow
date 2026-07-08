@@ -30,6 +30,8 @@ dependencies {
     implementation(project(":core:database"))
 
     implementation(libs.paging.runtime)
+    implementation(libs.jellyfin.model)
+    implementation(libs.jellyfin.api)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)

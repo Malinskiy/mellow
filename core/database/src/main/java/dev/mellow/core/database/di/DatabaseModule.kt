@@ -21,7 +21,12 @@ object DatabaseModule {
             context,
             MellowDatabase::class.java,
             "mellow.db",
-        ).build()
+        )
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
+
+    @Provides
+    fun provideServerDao(db: MellowDatabase) = db.serverDao()
 
     @Provides
     fun provideAlbumDao(db: MellowDatabase) = db.albumDao()

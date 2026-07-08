@@ -44,12 +44,16 @@ work = "2.10.1"
 security-crypto = "1.1.0-alpha07"
 
 # Testing
+robolectric = "4.14.1"
 junit = "4.13.2"
 junit-ext = "1.2.1"
 espresso = "3.6.1"
 coroutines-test = "1.10.1"
 turbine = "1.2.0"
 mockk = "1.14.2"
+
+# Logging
+slf4j = "2.0.16"
 
 # Tooling
 desugar-jdk = "2.1.5"
@@ -115,6 +119,7 @@ coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp"
 # WorkManager
 work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 work-hilt = { group = "androidx.hilt", name = "hilt-work", version.ref = "hilt-navigation-compose" }
+androidx-hilt-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hilt-navigation-compose" }
 
 # Security
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security-crypto" }
@@ -126,8 +131,11 @@ espresso-core = { group = "androidx.test.espresso", name = "espresso-core", vers
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines-test" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+compose-ui-test-junit4-desktop = { group = "androidx.compose.ui", name = "ui-test-junit4-android" }
 compose-ui-test = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
 
 # Tooling
 desugar-jdk = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar-jdk" }

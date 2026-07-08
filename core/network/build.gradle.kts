@@ -27,6 +27,7 @@ dependencies {
     implementation(project(":core:model"))
 
     implementation(libs.bundles.jellyfin)
+    implementation(libs.slf4j.nop)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
 

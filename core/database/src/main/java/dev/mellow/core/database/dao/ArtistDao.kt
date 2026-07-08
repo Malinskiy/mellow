@@ -13,6 +13,9 @@ interface ArtistDao {
     @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName ASC")
     fun getArtistsByServer(serverId: String): PagingSource<Int, ArtistEntity>
 
+    @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName ASC")
+    fun observeArtistsByServer(serverId: String): Flow<List<ArtistEntity>>
+
     @Query("SELECT * FROM artists WHERE id = :id")
     suspend fun getArtistById(id: String): ArtistEntity?
 

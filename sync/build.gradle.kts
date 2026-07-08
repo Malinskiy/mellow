@@ -29,12 +29,14 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:database"))
     implementation(project(":core:data"))
+    implementation(libs.jellyfin.model)
 
     implementation(libs.work.runtime.ktx)
     implementation(libs.work.hilt)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
+    ksp(libs.androidx.hilt.compiler)
 
     testImplementation(libs.bundles.testing)
 }

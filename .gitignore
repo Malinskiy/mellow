@@ -37,3 +37,6 @@ trace.json*
 
 mise.toml
 mise.local.toml
+
+.marathon-snapshots/current/
+.marathon-snapshots/diffs/

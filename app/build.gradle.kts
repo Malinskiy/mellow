@@ -45,10 +45,17 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
     implementation(project(":core:common"))
+    implementation(project(":core:designsystem"))
     implementation(project(":core:model"))
     implementation(project(":core:network"))
     implementation(project(":core:database"))
@@ -74,12 +81,19 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
 
     implementation(libs.bundles.coil)
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.work.hilt)
 
     coreLibraryDesugaring(libs.desugar.jdk)
 
     debugImplementation(libs.bundles.compose.debug)
 
     testImplementation(libs.bundles.testing)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4.desktop)
+    testImplementation(libs.compose.ui.tooling)
+
     androidTestImplementation(libs.bundles.android.testing)
     androidTestImplementation(platform(libs.compose.bom))
 }

@@ -64,7 +64,7 @@ class MellowMediaService : MediaLibraryService() {
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
-            params: MediaLibraryService.LibraryParams?,
+            params: LibraryParams?,
         ): ListenableFuture<LibraryResult<MediaItem>> {
             val root = MediaItem.Builder()
                 .setMediaId(ROOT_ID)
@@ -85,10 +85,21 @@ class MellowMediaService : MediaLibraryService() {
             parentId: String,
             page: Int,
             pageSize: Int,
-            params: MediaLibraryService.LibraryParams?,
+            params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            val children = when (parentId) {
+                ROOT_ID -> rootChildren()
+                TAB_RECENT -> emptyList()
+                TAB_LIBRARY -> libraryChildren()
+                TAB_PLAYLISTS -> emptyList()
+                TAB_FAVORITES -> emptyList()
+                LIBRARY_ALBUMS -> emptyList()
+                LIBRARY_ARTISTS -> emptyList()
+                LIBRARY_GENRES -> emptyList()
+                else -> emptyList()
+            }
             return Futures.immediateFuture(
-                LibraryResult.ofItemList(ImmutableList.of(), params)
+                LibraryResult.ofItemList(ImmutableList.copyOf(children), params)
             )
         }
 
@@ -98,15 +109,47 @@ class MellowMediaService : MediaLibraryService() {
             query: String,
             page: Int,
             pageSize: Int,
-            params: MediaLibraryService.LibraryParams?,
+            params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
             return Futures.immediateFuture(
                 LibraryResult.ofItemList(ImmutableList.of(), params)
             )
         }
+
+        private fun rootChildren(): List<MediaItem> = listOf(
+            browsableItem(TAB_RECENT, "Recent"),
+            browsableItem(TAB_LIBRARY, "Library"),
+            browsableItem(TAB_PLAYLISTS, "Playlists"),
+            browsableItem(TAB_FAVORITES, "Favorites"),
+        )
+
+        private fun libraryChildren(): List<MediaItem> = listOf(
+            browsableItem(LIBRARY_ALBUMS, "Albums"),
+            browsableItem(LIBRARY_ARTISTS, "Artists"),
+            browsableItem(LIBRARY_GENRES, "Genres"),
+        )
+
+        private fun browsableItem(mediaId: String, title: String): MediaItem =
+            MediaItem.Builder()
+                .setMediaId(mediaId)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setIsBrowsable(true)
+                        .setIsPlayable(false)
+                        .setTitle(title)
+                        .build()
+                )
+                .build()
     }
 
     companion object {
         private const val ROOT_ID = "mellow_root"
+        private const val TAB_RECENT = "tab_recent"
+        private const val TAB_LIBRARY = "tab_library"
+        private const val TAB_PLAYLISTS = "tab_playlists"
+        private const val TAB_FAVORITES = "tab_favorites"
+        private const val LIBRARY_ALBUMS = "library_albums"
+        private const val LIBRARY_ARTISTS = "library_artists"
+        private const val LIBRARY_GENRES = "library_genres"
     }
 }

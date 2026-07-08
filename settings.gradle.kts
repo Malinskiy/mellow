@@ -25,6 +25,7 @@ rootProject.name = "Mellow"
 
 include(":app")
 include(":core:common")
+include(":core:designsystem")
 include(":core:model")
 include(":core:network")
 include(":core:database")
