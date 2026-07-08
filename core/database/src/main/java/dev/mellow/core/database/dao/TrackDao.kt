@@ -37,6 +37,12 @@ interface TrackDao {
     @Query("UPDATE tracks SET playCount = playCount + 1 WHERE id = :trackId")
     suspend fun incrementPlayCount(trackId: String)
 
+    @Query("SELECT * FROM tracks WHERE artistId = :artistId ORDER BY playCount DESC LIMIT :limit")
+    fun getTracksByArtist(artistId: String, limit: Int = 20): Flow<List<TrackEntity>>
+
+    @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY dateAdded DESC LIMIT :limit")
+    fun observeRecentTracks(serverId: String, limit: Int = 500): Flow<List<TrackEntity>>
+
     @Query("DELETE FROM tracks WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 }

@@ -1,11 +1,8 @@
 package dev.mellow.feature.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,12 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -71,7 +65,7 @@ fun LoginScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MellowSpacing.Sp6),
     ) {
-        Spacer(Modifier.height(60.dp))
+        Spacer(Modifier.height(80.dp))
 
         Text(
             text = "Melowdy",
@@ -90,12 +84,6 @@ fun LoginScreen(
 
         Spacer(Modifier.height(MellowSpacing.Sp12))
 
-        DiscoveredServer()
-
-        DividerWithText("or enter manually")
-
-        Spacer(Modifier.height(MellowSpacing.Sp5))
-
         Text("Server address", style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.muted)
         Spacer(Modifier.height(MellowSpacing.Sp2))
         OutlinedTextField(
@@ -105,6 +93,7 @@ fun LoginScreen(
             shape = MellowShapes.Medium,
             colors = textFieldColors,
             singleLine = true,
+            enabled = !isLoading,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -120,6 +109,7 @@ fun LoginScreen(
             shape = MellowShapes.Medium,
             colors = textFieldColors,
             singleLine = true,
+            enabled = !isLoading,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -134,6 +124,7 @@ fun LoginScreen(
             shape = MellowShapes.Medium,
             colors = textFieldColors,
             singleLine = true,
+            enabled = !isLoading,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             modifier = Modifier.fillMaxWidth(),
@@ -162,7 +153,15 @@ fun LoginScreen(
                 .fillMaxWidth()
                 .height(52.dp),
         ) {
-            Text("Sign In", style = MaterialTheme.typography.labelLarge)
+            if (isLoading) {
+                CircularProgressIndicator(
+                    color = MellowPalette.Stone950,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp),
+                )
+            } else {
+                Text("Sign In", style = MaterialTheme.typography.labelLarge)
+            }
         }
 
         TextButton(
@@ -175,71 +174,5 @@ fun LoginScreen(
         }
 
         Spacer(Modifier.height(MellowSpacing.Sp12))
-    }
-}
-
-@Composable
-private fun DiscoveredServer() {
-    Column {
-        Text(
-            text = "FOUND ON NETWORK",
-            style = MaterialTheme.typography.labelSmall,
-            color = MellowTheme.colors.muted,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-        )
-        Spacer(Modifier.height(MellowSpacing.Sp3))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, MellowTheme.colors.border, MellowShapes.Medium)
-                .background(MellowTheme.colors.surface, MellowShapes.Medium)
-                .clickable {}
-                .padding(MellowSpacing.Sp3),
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(MellowPalette.Stone800, MellowShapes.Small),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Dns,
-                    contentDescription = null,
-                    tint = MellowTheme.colors.accentStrong,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = MellowSpacing.Sp3),
-            ) {
-                Text("Home Media Server", style = MaterialTheme.typography.titleMedium, color = MellowTheme.colors.foreground)
-                Text("192.168.1.100:8096", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-            }
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(MellowTheme.colors.online, MellowShapes.Full),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DividerWithText(text: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = MellowSpacing.Sp5),
-    ) {
-        HorizontalDivider(color = MellowTheme.colors.border, modifier = Modifier.weight(1f))
-        Text(
-            text = text.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MellowPalette.Stone600,
-            modifier = Modifier.padding(horizontal = MellowSpacing.Sp3),
-        )
-        HorizontalDivider(color = MellowTheme.colors.border, modifier = Modifier.weight(1f))
     }
 }

@@ -27,6 +27,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:model"))
     implementation(project(":core:data"))
+    implementation(project(":core:database"))
 
     implementation(libs.bundles.media3)
     implementation(libs.okhttp)

@@ -8,16 +8,21 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,21 +37,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
-import dev.mellow.core.designsystem.component.GenreCard
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.component.EmptyContent
+import dev.mellow.core.designsystem.component.LoadingContent
+import dev.mellow.core.common.jellyfinImageUrl
 
 private val TABS = listOf("Albums", "Artists", "Tracks", "Genres", "Folders")
+
+data class ArtistItem(val id: String, val name: String, val albumCount: Int, val imageId: String?)
+
+data class TrackItem(val id: String, val title: String, val artist: String, val album: String, val duration: String, val imageId: String?)
+
+data class AlbumItem(val id: String, val name: String, val artist: String, val imageId: String?)
 
 @Composable
 fun LibraryScreen(
     modifier: Modifier = Modifier,
-    albums: List<Pair<String, String>> = mockAlbums,
-    artists: List<Pair<String, Int>> = mockArtists,
-    tracks: List<MockTrack> = mockTracks,
+    albumItems: List<AlbumItem> = emptyList(),
+    artists: List<ArtistItem> = emptyList(),
+    tracks: List<TrackItem> = emptyList(),
+    genres: List<String> = emptyList(),
     serverUrl: String? = null,
+    isLoading: Boolean = false,
+    isSyncing: Boolean = false,
+    onAlbumClick: (String) -> Unit = {},
+    onArtistClick: (String) -> Unit = {},
+    onTrackClick: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -64,14 +84,29 @@ fun LibraryScreen(
             modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
         )
 
-        SortRow(tab = TABS[selectedTab], albumCount = albums.size, artistCount = artists.size, trackCount = tracks.size)
+        SortRow(
+            tab = TABS[selectedTab],
+            albumCount = albumItems.size,
+            artistCount = artists.size,
+            trackCount = tracks.size,
+            genreCount = genres.size,
+        )
 
+        val showLoading = isLoading || isSyncing
         when (selectedTab) {
-            0 -> AlbumsPanel(albums, serverUrl)
-            1 -> ArtistsPanel(artists, serverUrl)
-            2 -> TracksPanel(tracks, serverUrl)
-            3 -> GenresPanel()
-            4 -> FoldersPanel()
+            0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
+                 else if (albumItems.isEmpty()) EmptyContent("No albums yet")
+                 else AlbumsPanel(albumItems, serverUrl, onAlbumClick)
+            1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
+                 else if (artists.isEmpty()) EmptyContent("No artists yet")
+                 else ArtistsPanel(artists, serverUrl, onArtistClick)
+            2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
+                 else if (tracks.isEmpty()) EmptyContent("No tracks yet")
+                 else TracksPanel(tracks, serverUrl, onTrackClick)
+            3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
+                 else if (genres.isEmpty()) EmptyContent("No genres yet")
+                 else GenresPanel(genres)
+            4 -> EmptyContent("Coming soon")
         }
     }
 }
@@ -110,17 +145,21 @@ private fun LibraryTopBar() {
 }
 
 @Composable
-private fun SortRow(tab: String, albumCount: Int = 0, artistCount: Int = 0, trackCount: Int = 0) {
+private fun SortRow(
+    tab: String,
+    albumCount: Int = 0,
+    artistCount: Int = 0,
+    trackCount: Int = 0,
+    genreCount: Int = 0,
+) {
     val counts = mapOf(
         "Albums" to "$albumCount albums",
         "Artists" to "$artistCount artists",
         "Tracks" to "$trackCount tracks",
-        "Genres" to "8 genres",
-        "Folders" to "3 folders",
+        "Genres" to "$genreCount genres",
     )
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp1),
@@ -129,62 +168,101 @@ private fun SortRow(tab: String, albumCount: Int = 0, artistCount: Int = 0, trac
             text = counts[tab] ?: "",
             style = MaterialTheme.typography.bodySmall,
             color = MellowTheme.colors.muted,
+            modifier = Modifier.weight(1f),
         )
-        Text(
-            text = "Recently Added ▾",
-            style = MaterialTheme.typography.bodySmall,
-            color = MellowTheme.colors.muted,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp2),
+        ) {
+            Text(
+                text = "Recently Added ▾",
+                style = MaterialTheme.typography.bodySmall,
+                color = MellowTheme.colors.muted,
+            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .width(32.dp)
+                    .height(32.dp)
+                    .background(MellowPalette.Stone800, RoundedCornerShape(MellowSpacing.Sp2)),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.GridView,
+                    contentDescription = "Grid view",
+                    tint = MellowTheme.colors.foreground,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .width(32.dp)
+                    .height(32.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ViewList,
+                    contentDescription = "List view",
+                    tint = MellowTheme.colors.muted,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun AlbumsPanel(albums: List<Pair<String, String>>, serverUrl: String?) {
+private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
         horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
         verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
     ) {
-        items(albums, key = { it.first }) { (title, artist) ->
+        items(albums, key = { it.id.ifEmpty { it.name } }) { album ->
             AlbumCard(
-                title = title,
-                artist = artist,
-                imageUrl = null,
-                onClick = {},
+                title = album.name,
+                artist = album.artist,
+                imageUrl = if (serverUrl != null && album.imageId != null) {
+                    jellyfinImageUrl(serverUrl, album.imageId)
+                } else null,
+                onClick = { onAlbumClick(album.id) },
             )
         }
     }
 }
 
 @Composable
-private fun ArtistsPanel(artists: List<Pair<String, Int>>, serverUrl: String?) {
+private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit) {
     LazyColumn(
         contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
     ) {
-        items(artists, key = { it.first }) { (name, count) ->
+        items(artists, key = { it.id.ifEmpty { it.name } }) { artist ->
             ArtistRow(
-                name = name,
-                albumCount = count,
-                imageUrl = null,
-                onClick = {},
+                name = artist.name,
+                albumCount = artist.albumCount,
+                imageUrl = if (serverUrl != null && artist.imageId != null) {
+                    jellyfinImageUrl(serverUrl, artist.imageId)
+                } else null,
+                onClick = { onArtistClick(artist.id) },
             )
         }
     }
 }
 
 @Composable
-private fun TracksPanel(tracks: List<MockTrack>, serverUrl: String?) {
+private fun TracksPanel(tracks: List<TrackItem>, serverUrl: String?, onTrackClick: (String) -> Unit) {
     LazyColumn(
         contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
     ) {
-        items(tracks, key = { it.title }) { track ->
+        items(tracks, key = { it.id }) { track ->
             TrackRow(
                 title = track.title,
                 subtitle = "${track.artist} · ${track.album}",
                 duration = track.duration,
-                imageUrl = null,
-                onClick = {},
+                imageUrl = if (serverUrl != null && track.imageId != null) {
+                    jellyfinImageUrl(serverUrl, track.imageId)
+                } else null,
+                onClick = { onTrackClick(track.id) },
                 showDivider = true,
             )
         }
@@ -192,88 +270,19 @@ private fun TracksPanel(tracks: List<MockTrack>, serverUrl: String?) {
 }
 
 @Composable
-private fun GenresPanel() {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
-        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-        verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-    ) {
-        items(mockGenres, key = { it.first }) { (name, count) ->
-            GenreCard(
-                name = name,
-                count = count,
-                onClick = {},
-            )
-        }
-    }
-}
-
-@Composable
-private fun FoldersPanel() {
+private fun GenresPanel(genres: List<String>) {
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
     ) {
-        items(mockFolders, key = { it.first }) { (name, sub) ->
-            TrackRow(
-                title = name,
-                subtitle = sub,
-                duration = "",
-                onClick = {},
-                showDivider = true,
+        items(genres, key = { it }) { genre ->
+            Text(
+                text = genre,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MellowTheme.colors.foreground,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = MellowSpacing.Sp3),
             )
         }
     }
 }
-
-private val mockAlbums = listOf(
-    "In Rainbows" to "Radiohead",
-    "Currents" to "Tame Impala",
-    "Blonde" to "Frank Ocean",
-    "To Pimp a Butterfly" to "Kendrick Lamar",
-    "Vespertine" to "Bjork",
-    "The Dark Side of the Moon" to "Pink Floyd",
-    "OK Computer" to "Radiohead",
-    "Loveless" to "My Bloody Valentine",
-    "Lift Your Skinny Fists" to "Godspeed You! Black Emperor",
-    "Remain in Light" to "Talking Heads",
-)
-
-private val mockArtists = listOf(
-    "Radiohead" to 9,
-    "Tame Impala" to 4,
-    "Frank Ocean" to 2,
-    "Bjork" to 10,
-    "Pink Floyd" to 15,
-    "Kendrick Lamar" to 5,
-    "My Bloody Valentine" to 3,
-    "Talking Heads" to 8,
-)
-
-data class MockTrack(val title: String, val artist: String, val album: String, val duration: String)
-
-private val mockTracks = listOf(
-    MockTrack("15 Step", "Radiohead", "In Rainbows", "3:58"),
-    MockTrack("Bodysnatchers", "Radiohead", "In Rainbows", "4:02"),
-    MockTrack("Let It Happen", "Tame Impala", "Currents", "7:47"),
-    MockTrack("Nikes", "Frank Ocean", "Blonde", "5:14"),
-    MockTrack("Alright", "Kendrick Lamar", "To Pimp a Butterfly", "3:39"),
-    MockTrack("Pagan Poetry", "Bjork", "Vespertine", "5:14"),
-)
-
-private val mockGenres = listOf(
-    "Rock" to "42 albums",
-    "Electronic" to "28 albums",
-    "Hip-Hop" to "19 albums",
-    "Jazz" to "15 albums",
-    "Classical" to "11 albums",
-    "Ambient" to "8 albums",
-    "Folk" to "6 albums",
-    "Post-Punk" to "4 albums",
-)
-
-private val mockFolders = listOf(
-    "Music" to "12 folders, 847 files",
-    "Audiobooks" to "3 folders, 24 files",
-    "Podcasts" to "5 folders, 112 files",
-)

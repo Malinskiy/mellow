@@ -34,103 +34,111 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.AlbumCard
+import dev.mellow.core.designsystem.component.ErrorContent
+import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 
+data class ArtistTrack(val id: String, val title: String, val duration: String, val albumName: String)
+
+data class ArtistAlbum(val id: String, val name: String, val year: Int?, val imageId: String?)
+
 @Composable
 fun ArtistDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    artistName: String = "",
+    artistImageUrl: String? = null,
+    albumCount: Int = 0,
+    overview: String? = null,
+    topTracks: List<ArtistTrack> = emptyList(),
+    albums: List<ArtistAlbum> = emptyList(),
+    isLoading: Boolean = false,
+    isSyncing: Boolean = false,
+    error: String? = null,
+    onRetry: () -> Unit = {},
+    onAlbumClick: (String) -> Unit = {},
+    onTrackClick: (String) -> Unit = {},
+    serverUrl: String? = null,
 ) {
-    LazyColumn(
-        contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) {
-        item {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MellowTheme.colors.foreground)
-                }
-                IconButton(onClick = {}) {
-                    Icon(Icons.Filled.MoreVert, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
-                }
-            }
-        }
-
-        item { ArtistHero() }
-
-        item {
-            SectionHeader("Top Tracks", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
-        }
-
-        itemsIndexed(mockTopTracks, key = { _, t -> t.first }) { index, (title, duration) ->
-            TrackRow(
-                title = title,
-                subtitle = "Radiohead",
-                duration = duration,
-                trackNumber = "${index + 1}",
-                onClick = {},
-                showDivider = index < mockTopTracks.lastIndex,
-                modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
-            )
-        }
-
-        item {
-            SectionHeader("Discography", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
-        }
-
-        item {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
-                horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-            ) {
-                items(mockDiscography, key = { it.first }) { (title, year) ->
-                    AlbumCard(
-                        title = title,
-                        artist = year,
-                        imageUrl = null,
-                        onClick = {},
-                        modifier = Modifier.size(width = 150.dp, height = 200.dp),
-                    )
-                }
-            }
-        }
-
-        item {
-            SectionHeader("Similar Artists", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
-        }
-
-        item {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
-                horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
-            ) {
-                items(mockSimilar, key = { it }) { name ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
+        when {
+            isLoading -> LoadingContent(message = "Loading artist…")
+            error != null -> ErrorContent(message = error, onRetry = onRetry)
+            else -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(MellowTheme.colors.surface),
-                        )
-                        Text(
-                            text = name,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MellowTheme.colors.foreground,
-                            modifier = Modifier.padding(top = MellowSpacing.Sp2),
-                        )
+                                .fillMaxWidth()
+                                .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
+                        ) {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MellowTheme.colors.foreground)
+                            }
+                            IconButton(onClick = {}) {
+                                Icon(Icons.Filled.MoreVert, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+
+                    item { ArtistHero(artistName, artistImageUrl, albumCount) }
+
+                    if (topTracks.isNotEmpty()) {
+                        item {
+                            SectionHeader("Top Tracks", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
+                        }
+
+                        itemsIndexed(topTracks, key = { _, t -> t.id }) { index, track ->
+                            TrackRow(
+                                title = track.title,
+                                subtitle = track.albumName,
+                                duration = track.duration,
+                                trackNumber = "${index + 1}",
+                                onClick = { onTrackClick(track.id) },
+                                showDivider = index < topTracks.lastIndex,
+                                modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
+                            )
+                        }
+                    }
+
+                    if (albums.isNotEmpty()) {
+                        item {
+                            SectionHeader("Discography", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
+                        }
+
+                        item {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+                                horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                            ) {
+                                items(albums, key = { it.id }) { album ->
+                                    AlbumCard(
+                                        title = album.name,
+                                        artist = album.year?.toString() ?: "",
+                                        imageUrl = if (serverUrl != null && album.imageId != null) {
+                                            jellyfinImageUrl(serverUrl, album.imageId)
+                                        } else null,
+                                        onClick = { onAlbumClick(album.id) },
+                                        modifier = Modifier.size(width = 150.dp, height = 200.dp),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -139,7 +147,7 @@ fun ArtistDetailScreen(
 }
 
 @Composable
-private fun ArtistHero() {
+private fun ArtistHero(artistName: String, artistImageUrl: String?, albumCount: Int) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -147,7 +155,7 @@ private fun ArtistHero() {
             .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp4),
     ) {
         AsyncImage(
-            model = null,
+            model = artistImageUrl,
             contentDescription = "Artist photo",
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -156,8 +164,15 @@ private fun ArtistHero() {
                 .background(MellowTheme.colors.surface),
         )
         Spacer(Modifier.height(MellowSpacing.Sp5))
-        Text("Radiohead", style = MaterialTheme.typography.displaySmall, color = MellowTheme.colors.foreground)
-        Text("9 albums · 127 tracks", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted, modifier = Modifier.padding(top = MellowSpacing.Sp2))
+        Text(artistName, style = MaterialTheme.typography.displaySmall, color = MellowTheme.colors.foreground)
+        if (albumCount > 0) {
+            Text(
+                "$albumCount albums",
+                style = MaterialTheme.typography.bodySmall,
+                color = MellowTheme.colors.muted,
+                modifier = Modifier.padding(top = MellowSpacing.Sp2),
+            )
+        }
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
@@ -186,21 +201,3 @@ private fun ArtistHero() {
 private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
     Text(title, style = MaterialTheme.typography.headlineMedium, color = MellowTheme.colors.foreground, modifier = modifier)
 }
-
-private val mockTopTracks = listOf(
-    "Reckoner" to "4:50",
-    "Weird Fishes/Arpeggi" to "5:18",
-    "15 Step" to "3:58",
-    "Everything in Its Right Place" to "4:11",
-    "Idioteque" to "5:09",
-)
-
-private val mockDiscography = listOf(
-    "In Rainbows" to "2007",
-    "Kid A" to "2000",
-    "OK Computer" to "1997",
-    "A Moon Shaped Pool" to "2016",
-    "The Bends" to "1995",
-)
-
-private val mockSimilar = listOf("Thom Yorke", "Atoms for Peace", "Portishead", "Massive Attack", "Sigur Rós")

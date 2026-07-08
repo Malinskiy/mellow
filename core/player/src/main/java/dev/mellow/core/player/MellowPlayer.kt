@@ -1,0 +1,200 @@
+package dev.mellow.core.player
+
+import android.content.ComponentName
+import android.content.Context
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.MoreExecutors
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.common.jellyfinStreamUrl
+import dev.mellow.core.database.dao.ServerDao
+import dev.mellow.core.model.Track
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.time.Duration
+import javax.inject.Inject
+import javax.inject.Singleton
+
+data class PlaybackState(
+    val isPlaying: Boolean = false,
+    val currentTrack: Track? = null,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val queue: List<Track> = emptyList(),
+    val error: String? = null,
+)
+
+@Singleton
+class MellowPlayer @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val serverDao: ServerDao,
+) {
+    private var controller: MediaController? = null
+
+    private val _state = MutableStateFlow(PlaybackState())
+    val state: StateFlow<PlaybackState> = _state.asStateFlow()
+
+    private var serverUrl: String = ""
+    private var apiKey: String = ""
+    private var currentQueue: List<Track> = emptyList()
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val positionUpdateRunnable = object : Runnable {
+        override fun run() {
+            controller?.let { c ->
+                if (c.isPlaying) {
+                    _state.value = _state.value.copy(
+                        positionMs = c.currentPosition,
+                        durationMs = c.duration.coerceAtLeast(0L),
+                    )
+                }
+            }
+            handler.postDelayed(this, POSITION_UPDATE_INTERVAL_MS)
+        }
+    }
+
+    fun connect() {
+        val sessionToken = SessionToken(context, ComponentName(context, MellowMediaService::class.java))
+        val future = MediaController.Builder(context, sessionToken).buildAsync()
+        future.addListener({
+            try {
+                controller = future.get()
+                controller?.addListener(playerListener)
+                startPositionUpdates()
+                Log.d(TAG, "MediaController connected")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to connect MediaController", e)
+            }
+        }, MoreExecutors.directExecutor())
+    }
+
+    suspend fun playTracks(tracks: List<Track>, startIndex: Int = 0) {
+        val server = serverDao.getActiveServer() ?: run {
+            Log.e(TAG, "No active server found")
+            return
+        }
+        serverUrl = server.url
+        apiKey = server.accessToken
+        currentQueue = tracks
+
+        val ctrl = controller ?: run {
+            Log.e(TAG, "MediaController not connected, cannot play")
+            _state.value = _state.value.copy(
+                currentTrack = tracks.getOrNull(startIndex),
+                queue = tracks,
+                error = "Player not ready, try again",
+            )
+            return
+        }
+
+        val mediaItems = tracks.map { it.toMediaItem() }
+        Log.d(TAG, "Playing ${mediaItems.size} tracks starting at $startIndex")
+        Log.d(TAG, "Stream URL: ${mediaItems.getOrNull(startIndex)?.localConfiguration?.uri}")
+
+        _state.value = _state.value.copy(
+            currentTrack = tracks.getOrNull(startIndex),
+            queue = tracks,
+            error = null,
+        )
+
+        ctrl.setMediaItems(mediaItems, startIndex, 0L)
+        ctrl.prepare()
+        ctrl.play()
+    }
+
+    fun playPause() {
+        controller?.let { c ->
+            if (c.isPlaying) c.pause() else c.play()
+        }
+    }
+
+    fun skipNext() { controller?.seekToNextMediaItem() }
+    fun skipPrevious() { controller?.seekToPreviousMediaItem() }
+    fun seekTo(positionMs: Long) { controller?.seekTo(positionMs) }
+
+    private fun Track.toMediaItem(): MediaItem {
+        val streamUri = Uri.parse(jellyfinStreamUrl(serverUrl, id, apiKey))
+        val artUri = imageId?.let { Uri.parse(jellyfinImageUrl(serverUrl, it, 300)) }
+
+        return MediaItem.Builder()
+            .setMediaId(id)
+            .setUri(streamUri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(name)
+                    .setArtist(artistName)
+                    .setAlbumTitle(albumName)
+                    .setArtworkUri(artUri)
+                    .setIsPlayable(true)
+                    .setIsBrowsable(false)
+                    .build()
+            )
+            .build()
+    }
+
+    private val playerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            _state.value = _state.value.copy(isPlaying = isPlaying)
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val idx = controller?.currentMediaItemIndex ?: return
+            _state.value = _state.value.copy(
+                currentTrack = currentQueue.getOrNull(idx),
+                error = null,
+            )
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            when (playbackState) {
+                Player.STATE_READY -> {
+                    controller?.let { c ->
+                        _state.value = _state.value.copy(
+                            durationMs = c.duration.coerceAtLeast(0L),
+                            positionMs = c.currentPosition,
+                        )
+                    }
+                }
+                Player.STATE_ENDED -> {
+                    _state.value = _state.value.copy(isPlaying = false, positionMs = 0L)
+                }
+                else -> {}
+            }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            Log.e(TAG, "Playback error: ${error.errorCodeName}", error)
+            _state.value = _state.value.copy(
+                isPlaying = false,
+                error = "Playback error: ${error.localizedMessage}",
+            )
+        }
+    }
+
+    private fun startPositionUpdates() {
+        handler.removeCallbacks(positionUpdateRunnable)
+        handler.post(positionUpdateRunnable)
+    }
+
+    fun release() {
+        handler.removeCallbacks(positionUpdateRunnable)
+        controller?.removeListener(playerListener)
+        controller?.release()
+        controller = null
+    }
+
+    companion object {
+        private const val TAG = "MellowPlayer"
+        private const val POSITION_UPDATE_INTERVAL_MS = 250L
+    }
+}

@@ -56,6 +56,7 @@ fun MiniPlayer(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
+                .align(Alignment.CenterStart)
                 .fillMaxWidth()
                 .padding(horizontal = MellowSpacing.Sp3),
         ) {

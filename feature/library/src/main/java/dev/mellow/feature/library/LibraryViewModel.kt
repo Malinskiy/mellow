@@ -37,5 +37,9 @@ class LibraryViewModel @Inject constructor(
         libraryRepository.getArtists(serverId)
             .onEach { artists -> _uiState.value = _uiState.value.copy(artists = artists) }
             .launchIn(viewModelScope)
+
+        libraryRepository.getRecentTracks(serverId)
+            .onEach { tracks -> _uiState.value = _uiState.value.copy(tracks = tracks) }
+            .launchIn(viewModelScope)
     }
 }

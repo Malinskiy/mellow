@@ -17,19 +17,27 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Lyrics
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.QueueMusic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -46,8 +54,21 @@ import dev.mellow.core.designsystem.theme.MellowTheme
 @Composable
 fun PlayerScreen(
     modifier: Modifier = Modifier,
+    trackName: String = "",
+    artistName: String = "",
+    albumName: String = "",
+    albumImageUrl: String? = null,
+    isPlaying: Boolean = false,
+    progress: Float = 0f,
+    positionMs: Long = 0L,
+    durationMs: Long = 0L,
+    isFavorite: Boolean = false,
     onCollapse: () -> Unit = {},
     onQueueClick: () -> Unit = {},
+    onPlayPauseClick: () -> Unit = {},
+    onSkipNextClick: () -> Unit = {},
+    onSkipPreviousClick: () -> Unit = {},
+    onSeekTo: (Long) -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -64,18 +85,18 @@ fun PlayerScreen(
         Column(
             modifier = Modifier.fillMaxSize(),
         ) {
-            NowPlayingTopBar(onCollapse, onQueueClick)
-            AlbumArt(modifier = Modifier.weight(1f))
-            TrackInfo()
-            ProgressBar()
-            PlaybackControls()
+            NowPlayingTopBar(albumName, onCollapse, onQueueClick)
+            AlbumArt(albumImageUrl, modifier = Modifier.weight(1f))
+            TrackInfo(trackName, artistName, isFavorite)
+            ProgressBar(progress, positionMs, durationMs, onSeekTo)
+            PlaybackControls(isPlaying, onPlayPauseClick, onSkipPreviousClick, onSkipNextClick)
             BottomActions()
         }
     }
 }
 
 @Composable
-private fun NowPlayingTopBar(onCollapse: () -> Unit, onQueueClick: () -> Unit) {
+private fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -88,7 +109,7 @@ private fun NowPlayingTopBar(onCollapse: () -> Unit, onQueueClick: () -> Unit) {
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("PLAYING FROM", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
-            Text("In Rainbows", style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.foreground)
+            Text(albumName.ifEmpty { "Unknown" }, style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.foreground)
         }
         IconButton(onClick = onQueueClick) {
             Icon(Icons.Outlined.QueueMusic, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
@@ -97,7 +118,7 @@ private fun NowPlayingTopBar(onCollapse: () -> Unit, onQueueClick: () -> Unit) {
 }
 
 @Composable
-private fun AlbumArt(modifier: Modifier = Modifier) {
+private fun AlbumArt(albumImageUrl: String?, modifier: Modifier = Modifier) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -105,7 +126,7 @@ private fun AlbumArt(modifier: Modifier = Modifier) {
             .padding(horizontal = MellowSpacing.Sp8),
     ) {
         AsyncImage(
-            model = null,
+            model = albumImageUrl,
             contentDescription = "Album art",
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -118,7 +139,7 @@ private fun AlbumArt(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TrackInfo() {
+private fun TrackInfo(trackName: String, artistName: String, isFavorite: Boolean) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -126,45 +147,78 @@ private fun TrackInfo() {
             .padding(horizontal = MellowSpacing.Sp6),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Reckoner", style = MaterialTheme.typography.headlineLarge, color = MellowTheme.colors.foreground)
-            Text("Radiohead", style = MaterialTheme.typography.titleLarge, color = MellowTheme.colors.accentStrong, modifier = Modifier.padding(top = 2.dp))
+            Text(
+                trackName.ifEmpty { "No track" },
+                style = MaterialTheme.typography.headlineLarge,
+                color = MellowTheme.colors.foreground,
+            )
+            Text(
+                artistName.ifEmpty { "Unknown artist" },
+                style = MaterialTheme.typography.titleLarge,
+                color = MellowTheme.colors.accentStrong,
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
         IconButton(onClick = {}) {
-            Icon(Icons.Filled.Favorite, "Favorite", tint = MellowTheme.colors.favorite, modifier = Modifier.size(24.dp))
+            Icon(
+                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                contentDescription = "Favorite",
+                tint = if (isFavorite) MellowTheme.colors.favorite else MellowTheme.colors.muted,
+                modifier = Modifier.size(24.dp),
+            )
         }
     }
 }
 
 @Composable
-private fun ProgressBar() {
+private fun ProgressBar(progress: Float, positionMs: Long, durationMs: Long, onSeekTo: (Long) -> Unit) {
+    var isSeeking by remember { mutableStateOf(false) }
+    var seekProgress by remember { mutableFloatStateOf(0f) }
+    val displayProgress = if (isSeeking) seekProgress else progress
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp5),
     ) {
-        LinearProgressIndicator(
-            progress = { 0.35f },
-            color = MellowTheme.colors.foreground,
-            trackColor = MellowPalette.Stone700,
+        Slider(
+            value = displayProgress.coerceIn(0f, 1f),
+            onValueChange = { value ->
+                isSeeking = true
+                seekProgress = value
+            },
+            onValueChangeFinished = {
+                isSeeking = false
+                val seekMs = (seekProgress * durationMs).toLong()
+                onSeekTo(seekMs)
+            },
+            colors = SliderDefaults.colors(
+                thumbColor = MellowTheme.colors.foreground,
+                activeTrackColor = MellowTheme.colors.foreground,
+                inactiveTrackColor = MellowPalette.Stone700,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(4.dp)
-                .clip(MellowShapes.Full),
+                .height(24.dp),
         )
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = MellowSpacing.Sp2),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("1:42", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-            Text("4:50", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+            val displayMs = if (isSeeking) (seekProgress * durationMs).toLong() else positionMs
+            Text(formatMs(displayMs), style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+            Text(formatMs(durationMs), style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
         }
     }
 }
 
 @Composable
-private fun PlaybackControls() {
+private fun PlaybackControls(
+    isPlaying: Boolean,
+    onPlayPauseClick: () -> Unit,
+    onSkipPreviousClick: () -> Unit,
+    onSkipNextClick: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
@@ -176,20 +230,25 @@ private fun PlaybackControls() {
             Icon(Icons.Filled.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
-        IconButton(onClick = {}, modifier = Modifier.size(44.dp)) {
+        IconButton(onClick = onSkipPreviousClick, modifier = Modifier.size(44.dp)) {
             Icon(Icons.Filled.SkipPrevious, "Previous", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
         IconButton(
-            onClick = {},
+            onClick = onPlayPauseClick,
             modifier = Modifier
                 .size(64.dp)
                 .background(MellowTheme.colors.foreground, MellowShapes.Full),
         ) {
-            Icon(Icons.Filled.Pause, "Pause", tint = MellowTheme.colors.background, modifier = Modifier.size(28.dp))
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = if (isPlaying) "Pause" else "Play",
+                tint = MellowTheme.colors.background,
+                modifier = Modifier.size(28.dp),
+            )
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
-        IconButton(onClick = {}, modifier = Modifier.size(44.dp)) {
+        IconButton(onClick = onSkipNextClick, modifier = Modifier.size(44.dp)) {
             Icon(Icons.Filled.SkipNext, "Next", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
@@ -224,4 +283,11 @@ private fun BottomActions() {
             Text("Lossless", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
         }
     }
+}
+
+private fun formatMs(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "$minutes:${seconds.toString().padStart(2, '0')}"
 }

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,44 +34,114 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.ErrorContent
+import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 
+data class AlbumDetailTrack(
+    val id: String,
+    val title: String,
+    val artistName: String,
+    val duration: String,
+    val trackNumber: Int?,
+    val isFavorite: Boolean = false,
+    val isPlaying: Boolean = false,
+)
+
 @Composable
 fun AlbumDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    albumName: String = "In Rainbows",
+    artistName: String = "Radiohead",
+    albumImageUrl: String? = null,
+    year: Int? = 2007,
+    expectedTrackCount: Int = 10,
+    tracks: List<AlbumDetailTrack> = mockAlbumTracks,
+    isLoading: Boolean = false,
+    isSyncing: Boolean = false,
+    error: String? = null,
+    onRetry: () -> Unit = {},
+    onTrackClick: (String) -> Unit = {},
 ) {
+    val tracksLoading = tracks.isEmpty() && (isSyncing || expectedTrackCount > 0)
+    val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) {
-        LazyColumn(
-            contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
-        ) {
-            item { AlbumDetailTopBar(onBack) }
-            item { AlbumHero() }
-            itemsIndexed(mockAlbumTracks, key = { _, t -> t.title }) { index, track ->
-                TrackRow(
-                    title = track.title,
-                    subtitle = "",
-                    duration = track.duration,
-                    trackNumber = if (track.isPlaying) null else "${index + 1}",
-                    isPlaying = track.isPlaying,
-                    isFavorite = track.isFavorite,
-                    onFavoriteClick = {},
-                    onMenuClick = {},
-                    onClick = {},
-                    showDivider = index < mockAlbumTracks.lastIndex,
-                    modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
-                )
+        when {
+            isLoading -> LoadingContent(message = "Loading album…")
+            error != null -> ErrorContent(message = error, onRetry = onRetry)
+            else -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
+                ) {
+                    item { AlbumDetailTopBar(onBack) }
+                    item {
+                        AlbumHero(
+                            albumName = albumName,
+                            artistName = artistName,
+                            imageUrl = albumImageUrl,
+                            year = year,
+                            trackCount = displayTrackCount,
+                            totalDuration = formatTotalDuration(tracks),
+                        )
+                    }
+                    if (tracksLoading) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = MellowSpacing.Sp8),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(
+                                        color = MellowTheme.colors.foreground,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                    Spacer(Modifier.height(MellowSpacing.Sp3))
+                                    Text(
+                                        "Loading tracks…",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MellowTheme.colors.muted,
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
+                            TrackRow(
+                                title = track.title,
+                                subtitle = "",
+                                duration = track.duration,
+                                trackNumber = if (track.isPlaying) null else "${track.trackNumber ?: (index + 1)}",
+                                isPlaying = track.isPlaying,
+                                isFavorite = track.isFavorite,
+                                onFavoriteClick = {},
+                                onMenuClick = {},
+                                onClick = { onTrackClick(track.id) },
+                                showDivider = index < tracks.lastIndex,
+                                modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -100,15 +171,33 @@ private fun AlbumDetailTopBar(onBack: () -> Unit) {
 }
 
 @Composable
-private fun AlbumHero() {
+private fun AlbumHero(
+    albumName: String,
+    artistName: String,
+    imageUrl: String?,
+    year: Int?,
+    trackCount: Int,
+    totalDuration: String,
+) {
     Box(modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp)
-                .background(MellowPalette.Stone800)
-                .blur(60.dp),
-        )
+        if (imageUrl != null) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer { alpha = 0.35f }
+                    .blur(60.dp),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(MellowPalette.Stone800)
+                    .blur(60.dp),
+            )
+        }
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -117,8 +206,8 @@ private fun AlbumHero() {
                 .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp4),
         ) {
             AsyncImage(
-                model = null,
-                contentDescription = "Album art",
+                model = imageUrl,
+                contentDescription = "Album art for $albumName",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .width(240.dp)
@@ -128,17 +217,34 @@ private fun AlbumHero() {
             )
 
             Spacer(Modifier.height(MellowSpacing.Sp5))
-            Text("In Rainbows", style = MaterialTheme.typography.displaySmall, color = MellowTheme.colors.foreground)
-            Text("Radiohead", style = MaterialTheme.typography.titleLarge, color = MellowTheme.colors.accentStrong, modifier = Modifier.padding(top = MellowSpacing.Sp1))
+            Text(
+                albumName,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.02).em,
+                ),
+                color = MellowTheme.colors.foreground,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                artistName,
+                style = MaterialTheme.typography.titleLarge,
+                color = MellowTheme.colors.accentStrong,
+                modifier = Modifier.padding(top = MellowSpacing.Sp1),
+            )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                 modifier = Modifier.padding(top = MellowSpacing.Sp2),
             ) {
-                Text("2007", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                Text("10 tracks", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                Text("42:34", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                if (year != null) {
+                    Text("$year", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                    Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                }
+                Text("$trackCount tracks", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                if (totalDuration.isNotEmpty()) {
+                    Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                    Text(totalDuration, style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                }
             }
 
             Spacer(Modifier.height(MellowSpacing.Sp5))
@@ -168,17 +274,34 @@ private fun AlbumHero() {
     }
 }
 
-private data class AlbumTrack(val title: String, val duration: String, val isPlaying: Boolean = false, val isFavorite: Boolean = false)
+private fun formatTotalDuration(tracks: List<AlbumDetailTrack>): String {
+    var totalSeconds = 0L
+    for (track in tracks) {
+        val parts = track.duration.split(":")
+        if (parts.size == 2) {
+            totalSeconds += (parts[0].toLongOrNull() ?: 0) * 60 + (parts[1].toLongOrNull() ?: 0)
+        }
+    }
+    if (totalSeconds == 0L) return ""
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        "$hours:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
+    } else {
+        "$minutes:${seconds.toString().padStart(2, '0')}"
+    }
+}
 
 private val mockAlbumTracks = listOf(
-    AlbumTrack("15 Step", "3:58", isPlaying = true),
-    AlbumTrack("Bodysnatchers", "4:02", isFavorite = true),
-    AlbumTrack("Nude", "4:15"),
-    AlbumTrack("Weird Fishes/Arpeggi", "5:18", isFavorite = true),
-    AlbumTrack("All I Need", "3:49"),
-    AlbumTrack("Faust Arp", "2:10"),
-    AlbumTrack("Reckoner", "4:50", isFavorite = true),
-    AlbumTrack("House of Cards", "5:28"),
-    AlbumTrack("Jigsaw Falling into Place", "4:09"),
-    AlbumTrack("Videotape", "4:24"),
+    AlbumDetailTrack("mock-1", "15 Step", "Radiohead", "3:58", 1, isPlaying = true),
+    AlbumDetailTrack("mock-2", "Bodysnatchers", "Radiohead", "4:02", 2, isFavorite = true),
+    AlbumDetailTrack("mock-3", "Nude", "Radiohead", "4:15", 3),
+    AlbumDetailTrack("mock-4", "Weird Fishes/Arpeggi", "Radiohead", "5:18", 4, isFavorite = true),
+    AlbumDetailTrack("mock-5", "All I Need", "Radiohead", "3:49", 5),
+    AlbumDetailTrack("mock-6", "Faust Arp", "Radiohead", "2:10", 6),
+    AlbumDetailTrack("mock-7", "Reckoner", "Radiohead", "4:50", 7, isFavorite = true),
+    AlbumDetailTrack("mock-8", "House of Cards", "Radiohead", "5:28", 8),
+    AlbumDetailTrack("mock-9", "Jigsaw Falling into Place", "Radiohead", "4:09", 9),
+    AlbumDetailTrack("mock-10", "Videotape", "Radiohead", "4:24", 10),
 )

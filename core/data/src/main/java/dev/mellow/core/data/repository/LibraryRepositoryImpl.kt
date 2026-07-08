@@ -45,6 +45,12 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun getArtist(artistId: String): Artist? =
         artistDao.getArtistById(artistId)?.toModel()
 
+    override fun getArtistTracks(artistId: String): Flow<List<Track>> =
+        trackDao.getTracksByArtist(artistId).map { entities -> entities.map { it.toModel() } }
+
+    override fun getRecentTracks(serverId: String): Flow<List<Track>> =
+        trackDao.observeRecentTracks(serverId).map { entities -> entities.map { it.toModel() } }
+
     override suspend fun search(serverId: String, query: String): List<Track> =
         trackDao.search(serverId, query).map { it.toModel() }
 

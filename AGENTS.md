@@ -182,6 +182,47 @@ gradle wrapper --gradle-version 8.12
    - Build image URLs: `${serverUrl}/Items/${itemId}/Images/Primary?maxWidth=600&quality=90`
    - Use `ImageBlurHashes` for progressive loading placeholders
 
+## UI State Pattern (MANDATORY for all data-dependent screens)
+
+Every screen or section that loads data from a repository, API, or database MUST handle all four states:
+
+```kotlin
+sealed interface UiState<out T> {
+    data object Loading : UiState<Nothing>
+    data class Success<T>(val data: T) : UiState<T>
+    data class Error(val message: String) : UiState<Nothing>
+    data object Empty : UiState<Nothing>
+}
+```
+
+### Rules
+
+1. **Never show placeholder/fake data as if it were real** — if data hasn't loaded, show a loading indicator
+2. **Never show a blank screen** — always show either loading spinner, empty state message, or error with retry
+3. **Loading**: `CircularProgressIndicator` centered, or shimmer placeholders for lists/grids
+4. **Empty**: Icon + message explaining why it's empty ("No albums yet", "No servers found on network")
+5. **Error**: Error message + "Retry" button. Never crash or show raw exception text
+6. **Success**: Render the actual data
+
+### Where this applies
+
+- Library tabs (albums, artists, tracks, genres, folders)
+- Album detail (track list)
+- Artist detail (top tracks, discography)
+- Search results
+- Favorites (tracks, albums, artists)
+- Playlists list + playlist detail
+- Login screen server discovery section
+- Settings server status
+
+### Mock data for screenshot tests
+
+Screenshot tests call composables with mock data directly — they bypass ViewModels entirely.
+Mock data is passed via default parameter values on screen composables. This means:
+- Production: ViewModel provides real state (loading/empty/error/success)
+- Screenshot tests: Call `LibraryScreen(albumItems = mockData)` — always gets success path
+- The loading/empty/error paths need separate screenshot test cases if visual testing is desired
+
 ## Bug Fix Workflow
 
 1. **Reproduce first**: Write a test (unit or instrumented) that fails
@@ -206,6 +247,10 @@ This runs: compile, lint, unit tests. Fix all issues before committing.
 - `FEATURES.md` — Complete feature list with priorities
 - `core/player/src/main/java/dev/mellow/core/player/MellowMediaService.kt` — The media service
 - `core/database/src/main/java/dev/mellow/core/database/MellowDatabase.kt` — Room database
+
+## Emulator Image Interaction Rule
+
+When taking screenshots or interacting with images via EMU MCP or any visual tool, the widest dimension must be under 2000px. Agents will break/error on images with 2000+ px widest dimension. Always verify device screen dimensions before capturing screenshots (`device_info` tool), and use appropriate `maxWidth`/`maxHeight` parameters when building image URLs.
 
 ## Android Auto Testing
 
