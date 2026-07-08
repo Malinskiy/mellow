@@ -19,4 +19,5 @@ interface LibraryRepository {
     fun getFavoriteAlbums(serverId: String): Flow<List<Album>>
     fun getFavoriteArtists(serverId: String): Flow<List<Artist>>
     suspend fun syncLibrary(serverId: String)
+    suspend fun syncFavorites(serverId: String)
 }

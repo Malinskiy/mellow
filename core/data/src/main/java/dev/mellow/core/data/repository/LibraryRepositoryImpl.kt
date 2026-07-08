@@ -71,6 +71,26 @@ class LibraryRepositoryImpl @Inject constructor(
         syncTracks(serverId, userId)
     }
 
+    override suspend fun syncFavorites(serverId: String) {
+        val server = serverDao.getActiveServer() ?: return
+        val userId = UUID.fromString(server.userId)
+
+        val favAlbums = jellyfinDataSource.getFavoriteAlbums(userId)
+        if (favAlbums.isNotEmpty()) {
+            albumDao.upsertAlbums(favAlbums.map { it.toAlbumEntity(serverId) })
+        }
+
+        val favArtists = jellyfinDataSource.getFavoriteArtists(userId)
+        if (favArtists.isNotEmpty()) {
+            artistDao.upsertArtists(favArtists.map { it.toArtistEntity(serverId) })
+        }
+
+        val favTracks = jellyfinDataSource.getFavoriteTracks(userId)
+        if (favTracks.isNotEmpty()) {
+            trackDao.upsertTracks(favTracks.map { it.toTrackEntity(serverId) })
+        }
+    }
+
     private suspend fun syncAlbums(serverId: String, userId: UUID) {
         var startIndex = 0
         val pageSize = 200

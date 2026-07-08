@@ -159,6 +159,48 @@ class JellyfinDataSource @Inject constructor(
         private const val TAG = "JellyfinDataSource"
     }
 
+    suspend fun getFavoriteAlbums(userId: UUID): List<BaseItemDto> {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
+            recursive = true,
+            isFavorite = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
+            enableUserData = true,
+        )
+        return response.items.orEmpty()
+    }
+
+    suspend fun getFavoriteArtists(userId: UUID): List<BaseItemDto> {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.MUSIC_ARTIST),
+            recursive = true,
+            isFavorite = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW),
+            enableUserData = true,
+        )
+        return response.items.orEmpty()
+    }
+
+    suspend fun getFavoriteTracks(userId: UUID): List<BaseItemDto> {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.AUDIO),
+            recursive = true,
+            isFavorite = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS),
+            enableUserData = true,
+        )
+        return response.items.orEmpty()
+    }
+
     data class AuthResult(
         val userId: String,
         val accessToken: String,
