@@ -6,10 +6,15 @@ import androidx.room.TypeConverters
 import dev.mellow.core.database.converter.Converters
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistDao
+import dev.mellow.core.database.dao.PendingPlaybackEventDao
+import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
+import dev.mellow.core.database.entity.PendingPlaybackEventEntity
+import dev.mellow.core.database.entity.PlaylistEntity
+import dev.mellow.core.database.entity.PlaylistTrackCrossRef
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.database.entity.TrackEntity
 
@@ -19,8 +24,11 @@ import dev.mellow.core.database.entity.TrackEntity
         AlbumEntity::class,
         ArtistEntity::class,
         TrackEntity::class,
+        PlaylistEntity::class,
+        PlaylistTrackCrossRef::class,
+        PendingPlaybackEventEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -29,4 +37,6 @@ abstract class MellowDatabase : RoomDatabase() {
     abstract fun albumDao(): AlbumDao
     abstract fun artistDao(): ArtistDao
     abstract fun trackDao(): TrackDao
+    abstract fun playlistDao(): PlaylistDao
+    abstract fun pendingPlaybackEventDao(): PendingPlaybackEventDao
 }

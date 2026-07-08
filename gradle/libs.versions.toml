@@ -24,6 +24,9 @@ hilt-navigation-compose = "1.2.0"
 # Room
 room = "2.7.1"
 
+# DataStore
+datastore = "1.1.4"
+
 # Paging
 paging = "3.3.6"
 paging-compose = "3.3.6"
@@ -97,6 +100,9 @@ room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
+
+# DataStore
+datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
 # Paging
 paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }

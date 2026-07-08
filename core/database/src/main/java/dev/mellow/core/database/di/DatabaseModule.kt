@@ -8,6 +8,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.mellow.core.database.MellowDatabase
+import dev.mellow.core.database.migration.Migrations
 import javax.inject.Singleton
 
 @Module
@@ -22,7 +23,7 @@ object DatabaseModule {
             MellowDatabase::class.java,
             "mellow.db",
         )
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .addMigrations(Migrations.MIGRATION_2_3)
             .build()
 
     @Provides
@@ -36,4 +37,10 @@ object DatabaseModule {
 
     @Provides
     fun provideTrackDao(db: MellowDatabase) = db.trackDao()
+
+    @Provides
+    fun providePlaylistDao(db: MellowDatabase) = db.playlistDao()
+
+    @Provides
+    fun providePendingPlaybackEventDao(db: MellowDatabase) = db.pendingPlaybackEventDao()
 }

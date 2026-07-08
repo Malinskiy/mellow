@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:model"))
+    implementation(project(":core:network"))
     implementation(project(":core:data"))
 
     implementation(libs.bundles.lifecycle)

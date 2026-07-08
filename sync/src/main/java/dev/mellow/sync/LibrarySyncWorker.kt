@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.network.JellyfinClientWrapper
@@ -19,6 +20,7 @@ class LibrarySyncWorker @AssistedInject constructor(
     private val libraryRepository: LibraryRepository,
     private val serverDao: ServerDao,
     private val jellyfinClient: JellyfinClientWrapper,
+    private val syncPreferences: SyncPreferences,
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -26,6 +28,7 @@ class LibrarySyncWorker @AssistedInject constructor(
         return try {
             ensureConnected()
             libraryRepository.syncLibrary(serverId)
+            syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
             Result.success()
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.failure()

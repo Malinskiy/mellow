@@ -257,6 +257,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     SettingsScreen(
                         onBack = { navController.popBackStack() },
                         serverUrl = mainViewModel.serverUrl.collectAsState().value ?: "",
+                        connectionState = mainViewModel.connectionState.collectAsState().value,
+                        lastSyncTimestamp = mainViewModel.lastSyncTimestamp.collectAsState().value,
+                        isSyncing = mainViewModel.isSyncing.collectAsState().value,
+                        isForceOffline = mainViewModel.isForceOffline.collectAsState().value,
+                        autoSyncIntervalHours = mainViewModel.autoSyncIntervalHours.collectAsState().value,
+                        onSyncNow = mainViewModel::syncNow,
+                        onForceOfflineChange = mainViewModel::setForceOffline,
+                        onAutoSyncIntervalChange = mainViewModel::setAutoSyncInterval,
                     )
                 }
                 composable("album/{albumId}") {

@@ -29,6 +29,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:database"))
 
+    implementation(libs.datastore.preferences)
     implementation(libs.paging.runtime)
     implementation(libs.jellyfin.model)
     implementation(libs.jellyfin.api)
