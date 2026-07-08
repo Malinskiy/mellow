@@ -218,6 +218,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onPlayTracks = { tracks, index ->
                             scope.launch { mainViewModel.player.playTracks(tracks, index) }
                         },
+                        onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
+                        onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                     )
                 }
                 composable(MellowNavDestination.Favorites.route) {

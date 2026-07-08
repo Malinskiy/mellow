@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.repository.LibraryRepository
+import dev.mellow.core.model.Album
+import dev.mellow.core.model.Artist
 import dev.mellow.core.model.Track
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,11 +16,23 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+sealed interface SearchResult {
+    data class TrackResult(val track: Track) : SearchResult
+    data class AlbumResult(val album: Album) : SearchResult
+    data class ArtistResult(val artist: Artist) : SearchResult
+}
+
 data class SearchUiState(
     val query: String = "",
-    val results: List<Track> = emptyList(),
+    val tracks: List<Track> = emptyList(),
+    val albums: List<Album> = emptyList(),
+    val artists: List<Artist> = emptyList(),
+    val topResult: SearchResult? = null,
     val isSearching: Boolean = false,
-)
+) {
+    val hasResults: Boolean
+        get() = tracks.isNotEmpty() || albums.isNotEmpty() || artists.isNotEmpty()
+}
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
@@ -33,14 +48,56 @@ class SearchViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(query = query)
         searchJob?.cancel()
         if (query.length < 2) {
-            _uiState.value = _uiState.value.copy(results = emptyList(), isSearching = false)
+            _uiState.value = SearchUiState(query = query)
             return
         }
         searchJob = viewModelScope.launch {
             delay(300)
             _uiState.value = _uiState.value.copy(isSearching = true)
-            val results = libraryRepository.search(serverId, query)
-            _uiState.value = _uiState.value.copy(results = results, isSearching = false)
+
+            val tracksDeferred = async { libraryRepository.search(serverId, query) }
+            val albumsDeferred = async { libraryRepository.searchAlbums(serverId, query) }
+            val artistsDeferred = async { libraryRepository.searchArtists(serverId, query) }
+
+            val tracks = tracksDeferred.await()
+            val albums = albumsDeferred.await()
+            val artists = artistsDeferred.await()
+
+            val queryLower = query.lowercase()
+            val topResult = pickTopResult(queryLower, tracks, albums, artists)
+
+            _uiState.value = _uiState.value.copy(
+                tracks = tracks,
+                albums = albums,
+                artists = artists,
+                topResult = topResult,
+                isSearching = false,
+            )
         }
+    }
+
+    private fun pickTopResult(
+        query: String,
+        tracks: List<Track>,
+        albums: List<Album>,
+        artists: List<Artist>,
+    ): SearchResult? {
+        data class Candidate(val name: String, val result: SearchResult)
+
+        val candidates = mutableListOf<Candidate>()
+        artists.forEach { candidates.add(Candidate(it.name.lowercase(), SearchResult.ArtistResult(it))) }
+        albums.forEach { candidates.add(Candidate(it.name.lowercase(), SearchResult.AlbumResult(it))) }
+        tracks.take(3).forEach { candidates.add(Candidate(it.name.lowercase(), SearchResult.TrackResult(it))) }
+
+        if (candidates.isEmpty()) return null
+
+        val exact = candidates.find { it.name == query }
+        if (exact != null) return exact.result
+
+        val startsWith = candidates.filter { it.name.startsWith(query) }
+            .minByOrNull { it.name.length }
+        if (startsWith != null) return startsWith.result
+
+        return candidates.minByOrNull { it.name.length }?.result
     }
 }

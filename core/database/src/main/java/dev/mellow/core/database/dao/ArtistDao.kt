@@ -25,6 +25,9 @@ interface ArtistDao {
     @Query("SELECT * FROM artists WHERE isFavorite = 1 AND serverId = :serverId")
     fun getFavoriteArtists(serverId: String): Flow<List<ArtistEntity>>
 
+    @Query("SELECT * FROM artists WHERE serverId = :serverId AND name LIKE '%' || :query || '%' ORDER BY sortName ASC LIMIT :limit")
+    suspend fun search(serverId: String, query: String, limit: Int = 10): List<ArtistEntity>
+
     @Upsert
     suspend fun upsertArtists(artists: List<ArtistEntity>)
 
