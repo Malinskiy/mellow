@@ -47,8 +47,14 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun getAlbum(albumId: String): Album? =
         albumDao.getAlbumById(albumId)?.toModel()
 
+    override fun observeAlbum(albumId: String): Flow<Album?> =
+        albumDao.observeAlbumById(albumId).map { it?.toModel() }
+
     override suspend fun getArtist(artistId: String): Artist? =
         artistDao.getArtistById(artistId)?.toModel()
+
+    override fun observeArtist(artistId: String): Flow<Artist?> =
+        artistDao.observeArtistById(artistId).map { it?.toModel() }
 
     override fun getArtistTracks(artistId: String): Flow<List<Track>> =
         trackDao.getTracksByArtist(artistId).map { entities -> entities.map { it.toModel() } }

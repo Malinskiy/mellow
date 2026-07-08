@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ArtistDetailUiState(
@@ -40,22 +39,15 @@ class ArtistDetailViewModel @Inject constructor(
     }
 
     private fun loadArtistDetail() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            try {
-                val artist = libraryRepository.getArtist(artistId)
+        libraryRepository.observeArtist(artistId)
+            .onEach { artist ->
                 if (artist != null) {
                     _uiState.value = _uiState.value.copy(artist = artist, isLoading = false)
                 } else {
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Artist not found")
                 }
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = e.message ?: "Failed to load artist",
-                )
             }
-        }
+            .launchIn(viewModelScope)
 
         libraryRepository.getArtistAlbums(artistId)
             .onEach { albums -> _uiState.value = _uiState.value.copy(albums = albums) }

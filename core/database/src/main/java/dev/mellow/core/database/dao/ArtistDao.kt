@@ -19,6 +19,9 @@ interface ArtistDao {
     @Query("SELECT * FROM artists WHERE id = :id")
     suspend fun getArtistById(id: String): ArtistEntity?
 
+    @Query("SELECT * FROM artists WHERE id = :id")
+    fun observeArtistById(id: String): Flow<ArtistEntity?>
+
     @Query("SELECT * FROM artists WHERE isFavorite = 1 AND serverId = :serverId")
     fun getFavoriteArtists(serverId: String): Flow<List<ArtistEntity>>
 
