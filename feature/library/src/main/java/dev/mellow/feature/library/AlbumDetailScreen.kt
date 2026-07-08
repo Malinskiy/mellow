@@ -63,12 +63,12 @@ data class AlbumDetailTrack(
 fun AlbumDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    albumName: String = "In Rainbows",
-    artistName: String = "Radiohead",
+    albumName: String = "",
+    artistName: String = "",
     albumImageUrl: String? = null,
-    year: Int? = 2007,
-    expectedTrackCount: Int = 10,
-    tracks: List<AlbumDetailTrack> = mockAlbumTracks,
+    year: Int? = null,
+    expectedTrackCount: Int = 0,
+    tracks: List<AlbumDetailTrack> = emptyList(),
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
     error: String? = null,
@@ -304,15 +304,4 @@ private fun formatTotalDuration(tracks: List<AlbumDetailTrack>): String {
     }
 }
 
-private val mockAlbumTracks = listOf(
-    AlbumDetailTrack("mock-1", "15 Step", "Radiohead", "3:58", 1, isPlaying = true),
-    AlbumDetailTrack("mock-2", "Bodysnatchers", "Radiohead", "4:02", 2, isFavorite = true),
-    AlbumDetailTrack("mock-3", "Nude", "Radiohead", "4:15", 3),
-    AlbumDetailTrack("mock-4", "Weird Fishes/Arpeggi", "Radiohead", "5:18", 4, isFavorite = true),
-    AlbumDetailTrack("mock-5", "All I Need", "Radiohead", "3:49", 5),
-    AlbumDetailTrack("mock-6", "Faust Arp", "Radiohead", "2:10", 6),
-    AlbumDetailTrack("mock-7", "Reckoner", "Radiohead", "4:50", 7, isFavorite = true),
-    AlbumDetailTrack("mock-8", "House of Cards", "Radiohead", "5:28", 8),
-    AlbumDetailTrack("mock-9", "Jigsaw Falling into Place", "Radiohead", "4:09", 9),
-    AlbumDetailTrack("mock-10", "Videotape", "Radiohead", "4:24", 10),
-)
+

@@ -17,4 +17,6 @@ data class Track(
     val isFavorite: Boolean,
     val playCount: Int,
     val normalizationGain: Float?,
+    val codec: String? = null,
+    val container: String? = null,
 )

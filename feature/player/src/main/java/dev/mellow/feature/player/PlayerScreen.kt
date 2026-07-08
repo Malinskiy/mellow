@@ -75,6 +75,7 @@ fun PlayerScreen(
     onShuffleClick: () -> Unit = {},
     onRepeatClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
+    codec: String? = null,
 ) {
     Box(
         modifier = modifier
@@ -105,7 +106,7 @@ fun PlayerScreen(
                 onShuffleClick = onShuffleClick,
                 onRepeatClick = onRepeatClick,
             )
-            BottomActions()
+            BottomActions(codec = codec)
         }
     }
 }
@@ -288,7 +289,13 @@ private fun PlaybackControls(
 }
 
 @Composable
-private fun BottomActions() {
+private fun BottomActions(codec: String? = null) {
+    val qualityLabel = when (codec?.lowercase()) {
+        "flac", "alac", "wav", "pcm" -> "Lossless"
+        "aac", "mp3", "opus", "vorbis", "ogg" -> "Lossy"
+        else -> codec?.uppercase() ?: "Unknown"
+    }
+
     Row(
         horizontalArrangement = Arrangement.SpaceAround,
         modifier = Modifier
@@ -307,9 +314,9 @@ private fun BottomActions() {
             Text("Lyrics", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            QualityBadge(codec = "FLAC")
+            QualityBadge(codec = codec?.uppercase() ?: "\u2014")
             Spacer(Modifier.height(4.dp))
-            Text("Lossless", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
+            Text(qualityLabel, style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
         }
     }
 }

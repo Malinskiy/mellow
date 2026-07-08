@@ -45,4 +45,6 @@ fun TrackEntity.toModel() = Track(
     isFavorite = isFavorite,
     playCount = playCount,
     normalizationGain = normalizationGain,
+    codec = codec,
+    container = container,
 )

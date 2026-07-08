@@ -15,5 +15,8 @@ interface LibraryRepository {
     fun getArtistTracks(artistId: String): Flow<List<Track>>
     fun getRecentTracks(serverId: String): Flow<List<Track>>
     suspend fun search(serverId: String, query: String): List<Track>
+    fun getFavoriteTracks(serverId: String): Flow<List<Track>>
+    fun getFavoriteAlbums(serverId: String): Flow<List<Album>>
+    fun getFavoriteArtists(serverId: String): Flow<List<Artist>>
     suspend fun syncLibrary(serverId: String)
 }

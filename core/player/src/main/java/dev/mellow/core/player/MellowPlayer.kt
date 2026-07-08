@@ -14,6 +14,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.mellow.core.common.PlaybackReporter
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.common.jellyfinStreamUrl
 import dev.mellow.core.database.dao.ServerDao
@@ -21,6 +22,10 @@ import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,15 +46,19 @@ data class PlaybackState(
 class MellowPlayer @Inject constructor(
     @ApplicationContext private val context: Context,
     private val serverDao: ServerDao,
+    private val playbackReporter: PlaybackReporter,
 ) {
     private var controller: MediaController? = null
 
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
+    private val reportingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private var serverUrl: String = ""
     private var apiKey: String = ""
     private var currentQueue: List<Track> = emptyList()
+    private var positionUpdateCount = 0
 
     private val handler = Handler(Looper.getMainLooper())
     private val positionUpdateRunnable = object : Runnable {
@@ -60,6 +69,16 @@ class MellowPlayer @Inject constructor(
                         positionMs = c.currentPosition,
                         durationMs = c.duration.coerceAtLeast(0L),
                     )
+                    positionUpdateCount++
+                    if (positionUpdateCount % PROGRESS_REPORT_INTERVAL == 0) {
+                        val track = _state.value.currentTrack
+                        val posMs = c.currentPosition
+                        if (track != null) {
+                            reportingScope.launch {
+                                playbackReporter.reportProgress(track.id, posMs)
+                            }
+                        }
+                    }
                 }
             }
             handler.postDelayed(this, POSITION_UPDATE_INTERVAL_MS)
@@ -135,9 +154,14 @@ class MellowPlayer @Inject constructor(
     }
 
     fun clearQueue() {
+        val track = _state.value.currentTrack
+        val pos = controller?.currentPosition ?: 0L
         controller?.let { c ->
             c.stop()
             c.clearMediaItems()
+        }
+        if (track != null) {
+            reportingScope.launch { playbackReporter.reportStopped(track.id, pos) }
         }
         currentQueue = emptyList()
         _state.value = PlaybackState()
@@ -187,11 +211,16 @@ class MellowPlayer @Inject constructor(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val idx = controller?.currentMediaItemIndex ?: return
+            val track = currentQueue.getOrNull(idx)
             _state.value = _state.value.copy(
-                currentTrack = currentQueue.getOrNull(idx),
+                currentTrack = track,
                 currentIndex = idx,
                 error = null,
             )
+            positionUpdateCount = 0
+            if (track != null) {
+                reportingScope.launch { playbackReporter.reportStarted(track.id) }
+            }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -205,7 +234,12 @@ class MellowPlayer @Inject constructor(
                     }
                 }
                 Player.STATE_ENDED -> {
+                    val track = _state.value.currentTrack
+                    val pos = controller?.currentPosition ?: 0L
                     _state.value = _state.value.copy(isPlaying = false, positionMs = 0L)
+                    if (track != null) {
+                        reportingScope.launch { playbackReporter.reportStopped(track.id, pos) }
+                    }
                 }
                 else -> {}
             }
@@ -243,5 +277,6 @@ class MellowPlayer @Inject constructor(
     companion object {
         private const val TAG = "MellowPlayer"
         private const val POSITION_UPDATE_INTERVAL_MS = 250L
+        private const val PROGRESS_REPORT_INTERVAL = 40 // ~10s at 250ms intervals
     }
 }

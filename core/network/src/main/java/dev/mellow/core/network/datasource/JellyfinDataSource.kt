@@ -1,16 +1,23 @@
 package dev.mellow.core.network.datasource
 
 import dev.mellow.core.network.JellyfinClientWrapper
+import android.util.Log
 import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
-
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.SortOrder
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.AuthenticateUserByName
+import org.jellyfin.sdk.model.api.PlayMethod
+import org.jellyfin.sdk.model.api.PlaybackOrder
+import org.jellyfin.sdk.model.api.PlaybackProgressInfo
+import org.jellyfin.sdk.model.api.PlaybackStartInfo
+import org.jellyfin.sdk.model.api.PlaybackStopInfo
+import org.jellyfin.sdk.model.api.RepeatMode
 
 import java.util.UUID
 import javax.inject.Inject
@@ -97,19 +104,59 @@ class JellyfinDataSource @Inject constructor(
         }
     }
 
-    @Suppress("unused")
     suspend fun reportPlaybackStarted(itemId: UUID) {
-        // TODO: Wire to playStateApi once request body shape is confirmed
+        try {
+            client.api.playStateApi.reportPlaybackStart(
+                PlaybackStartInfo(
+                    itemId = itemId,
+                    canSeek = true,
+                    isPaused = false,
+                    isMuted = false,
+                    playMethod = PlayMethod.DIRECT_PLAY,
+                    repeatMode = RepeatMode.REPEAT_NONE,
+                    playbackOrder = PlaybackOrder.DEFAULT,
+                ),
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to report playback started for $itemId", e)
+        }
     }
 
-    @Suppress("unused")
     suspend fun reportPlaybackProgress(itemId: UUID, positionTicks: Long) {
-        // TODO: Wire to playStateApi once request body shape is confirmed
+        try {
+            client.api.playStateApi.reportPlaybackProgress(
+                PlaybackProgressInfo(
+                    itemId = itemId,
+                    positionTicks = positionTicks,
+                    canSeek = true,
+                    isPaused = false,
+                    isMuted = false,
+                    playMethod = PlayMethod.DIRECT_PLAY,
+                    repeatMode = RepeatMode.REPEAT_NONE,
+                    playbackOrder = PlaybackOrder.DEFAULT,
+                ),
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to report playback progress for $itemId", e)
+        }
     }
 
-    @Suppress("unused")
     suspend fun reportPlaybackStopped(itemId: UUID, positionTicks: Long) {
-        // TODO: Wire to playStateApi once request body shape is confirmed
+        try {
+            client.api.playStateApi.reportPlaybackStopped(
+                PlaybackStopInfo(
+                    itemId = itemId,
+                    positionTicks = positionTicks,
+                    failed = false,
+                ),
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to report playback stopped for $itemId", e)
+        }
+    }
+
+    companion object {
+        private const val TAG = "JellyfinDataSource"
     }
 
     data class AuthResult(

@@ -38,6 +38,7 @@ import dev.mellow.core.designsystem.theme.MellowTheme
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
+    serverUrl: String = "",
 ) {
     Column(
         modifier = modifier
@@ -56,7 +57,7 @@ fun SettingsScreen(
         }
 
         SettingsSection("Server")
-        SettingsRow(Icons.Filled.Dns, "Home Media Server", "media.home.lan:8096")
+        SettingsRow(Icons.Filled.Dns, "Jellyfin Server", serverUrl.ifEmpty { "Not connected" })
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Playback")

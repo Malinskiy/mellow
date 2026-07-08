@@ -218,7 +218,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                     )
                 }
-                composable(MellowNavDestination.Favorites.route) { FavoritesScreen() }
+                composable(MellowNavDestination.Favorites.route) {
+                    FavoritesScreen(
+                        serverId = serverId,
+                        serverUrl = mainViewModel.serverUrl.collectAsState().value,
+                        onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
+                        onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
+                    )
+                }
                 composable(MellowNavDestination.Playlists.route) {
                     val context = LocalContext.current
                     PlaylistsScreen(
@@ -227,7 +234,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                     )
                 }
-                composable("settings") { SettingsScreen(onBack = { navController.popBackStack() }) }
+                composable("settings") {
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        serverUrl = mainViewModel.serverUrl.collectAsState().value ?: "",
+                    )
+                }
                 composable("album/{albumId}") {
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
                     val albumState by albumVm.uiState.collectAsState()
@@ -384,6 +396,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 mainViewModel.toggleFavorite(track.id, track.isFavorite)
                             }
                         },
+                        codec = track?.codec,
                     )
                 }
                 composable("queue") {
