@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -69,6 +70,11 @@ fun PlayerScreen(
     onSkipNextClick: () -> Unit = {},
     onSkipPreviousClick: () -> Unit = {},
     onSeekTo: (Long) -> Unit = {},
+    shuffleEnabled: Boolean = false,
+    repeatMode: Int = 0,
+    onShuffleClick: () -> Unit = {},
+    onRepeatClick: () -> Unit = {},
+    onFavoriteClick: () -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -87,9 +93,18 @@ fun PlayerScreen(
         ) {
             NowPlayingTopBar(albumName, onCollapse, onQueueClick)
             AlbumArt(albumImageUrl, modifier = Modifier.weight(1f))
-            TrackInfo(trackName, artistName, isFavorite)
+            TrackInfo(trackName, artistName, isFavorite, onFavoriteClick)
             ProgressBar(progress, positionMs, durationMs, onSeekTo)
-            PlaybackControls(isPlaying, onPlayPauseClick, onSkipPreviousClick, onSkipNextClick)
+            PlaybackControls(
+                isPlaying = isPlaying,
+                onPlayPauseClick = onPlayPauseClick,
+                onSkipPreviousClick = onSkipPreviousClick,
+                onSkipNextClick = onSkipNextClick,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                onShuffleClick = onShuffleClick,
+                onRepeatClick = onRepeatClick,
+            )
             BottomActions()
         }
     }
@@ -139,7 +154,7 @@ private fun AlbumArt(albumImageUrl: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TrackInfo(trackName: String, artistName: String, isFavorite: Boolean) {
+private fun TrackInfo(trackName: String, artistName: String, isFavorite: Boolean, onFavoriteClick: () -> Unit = {}) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -159,7 +174,7 @@ private fun TrackInfo(trackName: String, artistName: String, isFavorite: Boolean
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
-        IconButton(onClick = {}) {
+        IconButton(onClick = onFavoriteClick) {
             Icon(
                 imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                 contentDescription = "Favorite",
@@ -218,6 +233,10 @@ private fun PlaybackControls(
     onPlayPauseClick: () -> Unit,
     onSkipPreviousClick: () -> Unit,
     onSkipNextClick: () -> Unit,
+    shuffleEnabled: Boolean = false,
+    repeatMode: Int = 0,
+    onShuffleClick: () -> Unit = {},
+    onRepeatClick: () -> Unit = {},
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -226,8 +245,13 @@ private fun PlaybackControls(
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp5),
     ) {
-        IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Filled.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+        IconButton(onClick = onShuffleClick, modifier = Modifier.size(36.dp)) {
+            Icon(
+                Icons.Filled.Shuffle,
+                "Shuffle",
+                tint = if (shuffleEnabled) MellowTheme.colors.accentStrong else MellowTheme.colors.muted,
+                modifier = Modifier.size(22.dp),
+            )
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
         IconButton(onClick = onSkipPreviousClick, modifier = Modifier.size(44.dp)) {
@@ -252,8 +276,13 @@ private fun PlaybackControls(
             Icon(Icons.Filled.SkipNext, "Next", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
-        IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Filled.Repeat, "Repeat", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+        IconButton(onClick = onRepeatClick, modifier = Modifier.size(36.dp)) {
+            Icon(
+                imageVector = if (repeatMode == 1) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                contentDescription = "Repeat",
+                tint = if (repeatMode != 0) MellowTheme.colors.accentStrong else MellowTheme.colors.muted,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }

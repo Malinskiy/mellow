@@ -74,6 +74,11 @@ fun AlbumDetailScreen(
     error: String? = null,
     onRetry: () -> Unit = {},
     onTrackClick: (String) -> Unit = {},
+    onPlayAll: () -> Unit = {},
+    onShuffle: () -> Unit = {},
+    onFavoriteClick: () -> Unit = {},
+    onTrackFavoriteClick: (String) -> Unit = {},
+    onTrackMenuClick: (String) -> Unit = {},
 ) {
     val tracksLoading = tracks.isEmpty() && (isSyncing || expectedTrackCount > 0)
     val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
@@ -99,6 +104,9 @@ fun AlbumDetailScreen(
                             year = year,
                             trackCount = displayTrackCount,
                             totalDuration = formatTotalDuration(tracks),
+                            onPlayAll = onPlayAll,
+                            onShuffle = onShuffle,
+                            onFavoriteClick = onFavoriteClick,
                         )
                     }
                     if (tracksLoading) {
@@ -133,8 +141,8 @@ fun AlbumDetailScreen(
                                 trackNumber = if (track.isPlaying) null else "${track.trackNumber ?: (index + 1)}",
                                 isPlaying = track.isPlaying,
                                 isFavorite = track.isFavorite,
-                                onFavoriteClick = {},
-                                onMenuClick = {},
+                                onFavoriteClick = { onTrackFavoriteClick(track.id) },
+                                onMenuClick = { onTrackMenuClick(track.id) },
                                 onClick = { onTrackClick(track.id) },
                                 showDivider = index < tracks.lastIndex,
                                 modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
@@ -178,6 +186,9 @@ private fun AlbumHero(
     year: Int?,
     trackCount: Int,
     totalDuration: String,
+    onPlayAll: () -> Unit = {},
+    onShuffle: () -> Unit = {},
+    onFavoriteClick: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
         if (imageUrl != null) {
@@ -252,18 +263,18 @@ private fun AlbumHero(
                 horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = {}) {
+                IconButton(onClick = onShuffle) {
                     Icon(Icons.Filled.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
                 }
                 IconButton(
-                    onClick = {},
+                    onClick = onPlayAll,
                     modifier = Modifier
                         .size(52.dp)
                         .background(MellowPalette.Stone200, MellowShapes.Full),
                 ) {
                     Icon(Icons.Filled.PlayArrow, "Play", tint = MellowPalette.Stone950, modifier = Modifier.size(26.dp))
                 }
-                IconButton(onClick = {}) {
+                IconButton(onClick = onFavoriteClick) {
                     Icon(Icons.Outlined.FavoriteBorder, "Favorite", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
                 }
                 IconButton(onClick = {}) {

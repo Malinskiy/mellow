@@ -1,6 +1,9 @@
 package dev.mellow.core.data.repository
 
+import dev.mellow.core.database.dao.AlbumDao
+import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.ServerDao
+import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.model.Server
 import dev.mellow.core.network.JellyfinClientWrapper
@@ -17,6 +20,9 @@ class UserRepositoryImpl @Inject constructor(
     private val jellyfinClient: JellyfinClientWrapper,
     private val jellyfinDataSource: JellyfinDataSource,
     private val serverDao: ServerDao,
+    private val trackDao: TrackDao,
+    private val albumDao: AlbumDao,
+    private val artistDao: ArtistDao,
 ) : UserRepository {
 
     override suspend fun authenticate(serverUrl: String, username: String, password: String): Server {
@@ -70,6 +76,9 @@ class UserRepositoryImpl @Inject constructor(
             itemId = UUID.fromString(itemId),
             isFavorite = isFavorite,
         )
+        trackDao.setFavorite(itemId, isFavorite)
+        albumDao.setFavorite(itemId, isFavorite)
+        artistDao.setFavorite(itemId, isFavorite)
     }
 
     override suspend fun reportPlaybackStarted(itemId: String) {

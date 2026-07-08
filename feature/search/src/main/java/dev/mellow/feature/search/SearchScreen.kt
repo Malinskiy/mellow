@@ -2,15 +2,19 @@ package dev.mellow.feature.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -18,22 +22,29 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import dev.mellow.core.designsystem.component.EmptyContent
+import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.model.Track
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 
 @Composable
-fun SearchScreen(modifier: Modifier = Modifier) {
-    var query by rememberSaveable { mutableStateOf("") }
+fun SearchScreen(
+    modifier: Modifier = Modifier,
+    serverId: String = "",
+    onPlayTracks: (List<Track>, Int) -> Unit = { _, _ -> },
+) {
+    val viewModel: SearchViewModel = hiltViewModel()
+    val uiState by viewModel.uiState.collectAsState()
 
     Column(
         modifier = modifier
@@ -48,13 +59,13 @@ fun SearchScreen(modifier: Modifier = Modifier) {
         )
 
         TextField(
-            value = query,
-            onValueChange = { query = it },
+            value = uiState.query,
+            onValueChange = { viewModel.onQueryChanged(it, serverId) },
             placeholder = { Text("Search library…", color = MellowPalette.Stone600) },
             leadingIcon = { Icon(Icons.Filled.Search, null, tint = MellowTheme.colors.muted) },
             trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = { query = "" }) {
+                if (uiState.query.isNotEmpty()) {
+                    IconButton(onClick = { viewModel.onQueryChanged("", serverId) }) {
                         Icon(Icons.Filled.Close, "Clear", tint = MellowTheme.colors.muted)
                     }
                 }
@@ -78,6 +89,39 @@ fun SearchScreen(modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(MellowSpacing.Sp6))
 
-        EmptyContent("Search your music library")
+        when {
+            uiState.isSearching -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = MellowTheme.colors.foreground)
+                }
+            }
+            uiState.results.isNotEmpty() -> {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(uiState.results, key = { _, track -> track.id }) { index, track ->
+                        val totalSeconds = track.duration.seconds
+                        val minutes = totalSeconds / 60
+                        val seconds = totalSeconds % 60
+                        val durationStr = "$minutes:${seconds.toString().padStart(2, '0')}"
+                        TrackRow(
+                            title = track.name,
+                            subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
+                            duration = durationStr,
+                            onClick = { onPlayTracks(uiState.results, index) },
+                            showDivider = index < uiState.results.lastIndex,
+                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
+                        )
+                    }
+                }
+            }
+            uiState.query.length >= 2 -> {
+                EmptyContent("No results found")
+            }
+            else -> {
+                EmptyContent("Search your music library")
+            }
+        }
     }
 }

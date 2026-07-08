@@ -28,6 +28,9 @@ interface AlbumDao {
     @Upsert
     suspend fun upsertAlbums(albums: List<AlbumEntity>)
 
+    @Query("UPDATE albums SET isFavorite = :isFavorite WHERE id = :albumId")
+    suspend fun setFavorite(albumId: String, isFavorite: Boolean)
+
     @Query("DELETE FROM albums WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 }

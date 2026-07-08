@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +32,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,9 +68,12 @@ fun LibraryScreen(
     serverUrl: String? = null,
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
+    sortLabel: String = "Recently Added",
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    onSortChanged: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -75,7 +82,7 @@ fun LibraryScreen(
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) {
-        LibraryTopBar()
+        LibraryTopBar(onSettingsClick = onSettingsClick, onSortChanged = onSortChanged)
 
         MellowTabBar(
             tabs = TABS,
@@ -90,6 +97,7 @@ fun LibraryScreen(
             artistCount = artists.size,
             trackCount = tracks.size,
             genreCount = genres.size,
+            sortLabel = sortLabel,
         )
 
         val showLoading = isLoading || isSyncing
@@ -111,8 +119,15 @@ fun LibraryScreen(
     }
 }
 
+private val SORT_OPTIONS = listOf("Recently Added", "Name (A-Z)", "Name (Z-A)", "Year")
+
 @Composable
-private fun LibraryTopBar() {
+private fun LibraryTopBar(
+    onSettingsClick: () -> Unit = {},
+    onSortChanged: (String) -> Unit = {},
+) {
+    var showSortMenu by remember { mutableStateOf(false) }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -125,15 +140,31 @@ private fun LibraryTopBar() {
             color = MellowTheme.colors.foreground,
             modifier = Modifier.weight(1f),
         )
-        IconButton(onClick = {}) {
-            Icon(
-                imageVector = Icons.Filled.Sort,
-                contentDescription = "Sort",
-                tint = MellowTheme.colors.foreground,
-                modifier = Modifier.size(20.dp),
-            )
+        Box {
+            IconButton(onClick = { showSortMenu = true }) {
+                Icon(
+                    imageVector = Icons.Filled.Sort,
+                    contentDescription = "Sort",
+                    tint = MellowTheme.colors.foreground,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            DropdownMenu(
+                expanded = showSortMenu,
+                onDismissRequest = { showSortMenu = false },
+            ) {
+                SORT_OPTIONS.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            showSortMenu = false
+                            onSortChanged(option)
+                        },
+                    )
+                }
+            }
         }
-        IconButton(onClick = {}) {
+        IconButton(onClick = onSettingsClick) {
             Icon(
                 imageVector = Icons.Filled.Dns,
                 contentDescription = "Server",
@@ -151,6 +182,7 @@ private fun SortRow(
     artistCount: Int = 0,
     trackCount: Int = 0,
     genreCount: Int = 0,
+    sortLabel: String = "Recently Added",
 ) {
     val counts = mapOf(
         "Albums" to "$albumCount albums",
@@ -175,7 +207,7 @@ private fun SortRow(
             horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp2),
         ) {
             Text(
-                text = "Recently Added ▾",
+                text = "$sortLabel ▾",
                 style = MaterialTheme.typography.bodySmall,
                 color = MellowTheme.colors.muted,
             )

@@ -17,9 +17,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -52,6 +54,7 @@ import dev.mellow.feature.library.LibraryViewModel
 import dev.mellow.feature.library.TrackItem
 import dev.mellow.feature.player.PlayerScreen
 import dev.mellow.feature.player.QueueScreen
+import dev.mellow.feature.player.QueueTrack
 import dev.mellow.feature.search.SearchScreen
 import dev.mellow.feature.settings.LoginScreen
 import dev.mellow.feature.settings.LoginViewModel
@@ -168,6 +171,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable(MellowNavDestination.Library.route) {
                     val libraryVm: LibraryViewModel = hiltViewModel()
                     val state by libraryVm.uiState.collectAsState()
+                    var currentSort by rememberSaveable { mutableStateOf("Recently Added") }
 
                     LaunchedEffect(serverId) {
                         if (serverId.isNotEmpty()) libraryVm.loadLibrary(serverId)
@@ -192,6 +196,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         serverUrl = mainViewModel.serverUrl.collectAsState().value,
                         isLoading = state.isLoading,
                         isSyncing = isSyncing,
+                        sortLabel = currentSort,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                         onTrackClick = { trackId ->
@@ -201,11 +206,27 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 scope.launch { mainViewModel.player.playTracks(tracks, idx) }
                             }
                         },
+                        onSettingsClick = { navController.navigate("settings") },
+                        onSortChanged = { sort -> currentSort = sort },
                     )
                 }
-                composable(MellowNavDestination.Search.route) { SearchScreen() }
+                composable(MellowNavDestination.Search.route) {
+                    SearchScreen(
+                        serverId = serverId,
+                        onPlayTracks = { tracks, index ->
+                            scope.launch { mainViewModel.player.playTracks(tracks, index) }
+                        },
+                    )
+                }
                 composable(MellowNavDestination.Favorites.route) { FavoritesScreen() }
-                composable(MellowNavDestination.Playlists.route) { PlaylistsScreen() }
+                composable(MellowNavDestination.Playlists.route) {
+                    val context = LocalContext.current
+                    PlaylistsScreen(
+                        onCreatePlaylist = { name ->
+                            android.widget.Toast.makeText(context, "Playlist '$name' created", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                    )
+                }
                 composable("settings") { SettingsScreen(onBack = { navController.popBackStack() }) }
                 composable("album/{albumId}") {
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
@@ -240,6 +261,30 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             val idx = tracks.indexOfFirst { it.id == trackId }
                             if (idx >= 0) {
                                 scope.launch { mainViewModel.player.playTracks(tracks, idx) }
+                            }
+                        },
+                        onPlayAll = {
+                            val tracks = albumState.tracks
+                            if (tracks.isNotEmpty()) {
+                                scope.launch { mainViewModel.player.playTracks(tracks, 0) }
+                            }
+                        },
+                        onShuffle = {
+                            val tracks = albumState.tracks
+                            if (tracks.isNotEmpty()) {
+                                scope.launch { mainViewModel.player.playTracks(tracks.shuffled(), 0) }
+                            }
+                        },
+                        onFavoriteClick = {
+                            val album = albumState.album
+                            if (album != null) {
+                                mainViewModel.toggleFavorite(album.id, album.isFavorite)
+                            }
+                        },
+                        onTrackFavoriteClick = { trackId ->
+                            val track = albumState.tracks.find { it.id == trackId }
+                            if (track != null) {
+                                mainViewModel.toggleFavorite(trackId, track.isFavorite)
                             }
                         },
                     )
@@ -286,6 +331,24 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             }
                         },
                         serverUrl = sUrl,
+                        onPlayAll = {
+                            val tracks = artistState.topTracks
+                            if (tracks.isNotEmpty()) {
+                                scope.launch { mainViewModel.player.playTracks(tracks, 0) }
+                            }
+                        },
+                        onShuffle = {
+                            val tracks = artistState.topTracks
+                            if (tracks.isNotEmpty()) {
+                                scope.launch { mainViewModel.player.playTracks(tracks.shuffled(), 0) }
+                            }
+                        },
+                        onFavoriteClick = {
+                            val artist = artistState.artist
+                            if (artist != null) {
+                                mainViewModel.toggleFavorite(artist.id, artist.isFavorite)
+                            }
+                        },
                     )
                 }
                 composable("now_playing") {
@@ -312,9 +375,66 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onSkipNextClick = { mainViewModel.player.skipNext() },
                         onSkipPreviousClick = { mainViewModel.player.skipPrevious() },
                         onSeekTo = { ms -> mainViewModel.player.seekTo(ms) },
+                        shuffleEnabled = pState.shuffleEnabled,
+                        repeatMode = pState.repeatMode,
+                        onShuffleClick = { mainViewModel.player.toggleShuffle() },
+                        onRepeatClick = { mainViewModel.player.cycleRepeatMode() },
+                        onFavoriteClick = {
+                            if (track != null) {
+                                mainViewModel.toggleFavorite(track.id, track.isFavorite)
+                            }
+                        },
                     )
                 }
-                composable("queue") { QueueScreen(onBack = { navController.popBackStack() }) }
+                composable("queue") {
+                    val sUrl = mainViewModel.serverUrl.collectAsState().value
+                    val pState = playbackState
+                    val currentIdx = pState.currentIndex
+                    val queue = pState.queue
+
+                    val nowPlaying = pState.currentTrack?.let { track ->
+                        QueueTrack(
+                            id = track.id,
+                            title = track.name,
+                            artist = track.artistName ?: "",
+                            album = track.albumName ?: "",
+                            duration = formatTrackDuration(track.duration),
+                            imageUrl = if (sUrl != null && track.imageId != null) {
+                                jellyfinImageUrl(sUrl, track.imageId!!)
+                            } else null,
+                        )
+                    }
+
+                    val upNext = queue
+                        .filterIndexed { idx, _ -> idx > currentIdx }
+                        .map { track ->
+                            QueueTrack(
+                                id = track.id,
+                                title = track.name,
+                                artist = track.artistName ?: "",
+                                album = track.albumName ?: "",
+                                duration = formatTrackDuration(track.duration),
+                                imageUrl = if (sUrl != null && track.imageId != null) {
+                                    jellyfinImageUrl(sUrl, track.imageId!!)
+                                } else null,
+                            )
+                        }
+
+                    QueueScreen(
+                        onBack = { navController.popBackStack() },
+                        nowPlaying = nowPlaying,
+                        upNext = upNext,
+                        shuffleEnabled = pState.shuffleEnabled,
+                        onTrackClick = { relativeIndex ->
+                            mainViewModel.player.playFromQueue(currentIdx + 1 + relativeIndex)
+                        },
+                        onShuffleClick = { mainViewModel.player.toggleShuffle() },
+                        onClearClick = {
+                            mainViewModel.player.clearQueue()
+                            navController.popBackStack()
+                        },
+                    )
+                }
             }
         }
     }

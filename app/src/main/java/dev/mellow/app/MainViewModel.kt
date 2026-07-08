@@ -68,6 +68,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun toggleFavorite(itemId: String, currentlyFavorite: Boolean) {
+        viewModelScope.launch {
+            userRepository.setFavorite(itemId, !currentlyFavorite)
+        }
+    }
+
     override fun onCleared() {
         player.release()
         super.onCleared()

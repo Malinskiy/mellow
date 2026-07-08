@@ -65,6 +65,9 @@ fun ArtistDetailScreen(
     onAlbumClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
     serverUrl: String? = null,
+    onPlayAll: () -> Unit = {},
+    onShuffle: () -> Unit = {},
+    onFavoriteClick: () -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -96,7 +99,16 @@ fun ArtistDetailScreen(
                         }
                     }
 
-                    item { ArtistHero(artistName, artistImageUrl, albumCount) }
+                    item {
+                        ArtistHero(
+                            artistName = artistName,
+                            artistImageUrl = artistImageUrl,
+                            albumCount = albumCount,
+                            onPlayAll = onPlayAll,
+                            onShuffle = onShuffle,
+                            onFavoriteClick = onFavoriteClick,
+                        )
+                    }
 
                     if (topTracks.isNotEmpty()) {
                         item {
@@ -147,7 +159,14 @@ fun ArtistDetailScreen(
 }
 
 @Composable
-private fun ArtistHero(artistName: String, artistImageUrl: String?, albumCount: Int) {
+private fun ArtistHero(
+    artistName: String,
+    artistImageUrl: String?,
+    albumCount: Int,
+    onPlayAll: () -> Unit = {},
+    onShuffle: () -> Unit = {},
+    onFavoriteClick: () -> Unit = {},
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -179,18 +198,18 @@ private fun ArtistHero(artistName: String, artistImageUrl: String?, albumCount: 
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = MellowSpacing.Sp5),
         ) {
-            IconButton(onClick = {}) {
+            IconButton(onClick = onShuffle) {
                 Icon(Icons.Filled.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
             }
             IconButton(
-                onClick = {},
+                onClick = onPlayAll,
                 modifier = Modifier
                     .size(52.dp)
                     .background(MellowPalette.Stone200, MellowShapes.Full),
             ) {
                 Icon(Icons.Filled.PlayArrow, "Play", tint = MellowPalette.Stone950, modifier = Modifier.size(26.dp))
             }
-            IconButton(onClick = {}) {
+            IconButton(onClick = onFavoriteClick) {
                 Icon(Icons.Outlined.FavoriteBorder, "Favorite", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
             }
         }

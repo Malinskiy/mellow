@@ -25,6 +25,9 @@ interface ArtistDao {
     @Upsert
     suspend fun upsertArtists(artists: List<ArtistEntity>)
 
+    @Query("UPDATE artists SET isFavorite = :isFavorite WHERE id = :artistId")
+    suspend fun setFavorite(artistId: String, isFavorite: Boolean)
+
     @Query("DELETE FROM artists WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 }

@@ -1,7 +1,6 @@
 package dev.mellow.feature.player
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,14 +22,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+
+data class QueueTrack(
+    val id: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val duration: String,
+    val imageUrl: String?,
+)
 
 @Composable
 fun QueueScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    nowPlaying: QueueTrack? = null,
+    upNext: List<QueueTrack> = emptyList(),
+    shuffleEnabled: Boolean = false,
+    onTrackClick: (Int) -> Unit = {},
+    onShuffleClick: () -> Unit = {},
+    onClearClick: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -52,62 +67,70 @@ fun QueueScreen(
                 color = MellowTheme.colors.foreground,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = {}) {
-                Icon(Icons.Filled.Shuffle, "Shuffle", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+            IconButton(onClick = onShuffleClick) {
+                Icon(
+                    Icons.Filled.Shuffle,
+                    "Shuffle",
+                    tint = if (shuffleEnabled) MellowTheme.colors.accentStrong else MellowTheme.colors.foreground,
+                    modifier = Modifier.size(20.dp),
+                )
             }
-            IconButton(onClick = {}) {
+            IconButton(onClick = onClearClick) {
                 Icon(Icons.Filled.ClearAll, "Clear", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }
         }
 
-        Text(
-            "NOW PLAYING",
-            style = MaterialTheme.typography.labelSmall,
-            color = MellowTheme.colors.muted,
-            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
-        )
+        if (nowPlaying == null && upNext.isEmpty()) {
+            EmptyContent("Queue is empty")
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
+            ) {
+                if (nowPlaying != null) {
+                    item {
+                        Text(
+                            "NOW PLAYING",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MellowTheme.colors.muted,
+                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+                        )
+                    }
+                    item {
+                        TrackRow(
+                            title = nowPlaying.title,
+                            subtitle = "${nowPlaying.artist} · ${nowPlaying.album}",
+                            duration = nowPlaying.duration,
+                            imageUrl = nowPlaying.imageUrl,
+                            isPlaying = true,
+                            onClick = {},
+                            showDivider = true,
+                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
+                        )
+                    }
+                }
 
-        TrackRow(
-            title = "Reckoner",
-            subtitle = "Radiohead · In Rainbows",
-            duration = "4:50",
-            isPlaying = true,
-            onClick = {},
-            showDivider = true,
-            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
-        )
-
-        Text(
-            "UP NEXT",
-            style = MaterialTheme.typography.labelSmall,
-            color = MellowTheme.colors.muted,
-            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
-        )
-
-        LazyColumn(
-            contentPadding = PaddingValues(start = MellowSpacing.Sp4, end = MellowSpacing.Sp4, bottom = MellowSpacing.Sp16),
-        ) {
-            itemsIndexed(mockQueue, key = { _, t -> t.first }) { index, (title, info) ->
-                TrackRow(
-                    title = title,
-                    subtitle = info,
-                    duration = mockQueueDurations[index],
-                    onClick = {},
-                    onMenuClick = {},
-                    showDivider = index < mockQueue.lastIndex,
-                )
+                if (upNext.isNotEmpty()) {
+                    item {
+                        Text(
+                            "UP NEXT · ${upNext.size} tracks",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MellowTheme.colors.muted,
+                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+                        )
+                    }
+                    itemsIndexed(upNext, key = { idx, t -> "${t.id}_$idx" }) { index, track ->
+                        TrackRow(
+                            title = track.title,
+                            subtitle = "${track.artist} · ${track.album}",
+                            duration = track.duration,
+                            imageUrl = track.imageUrl,
+                            onClick = { onTrackClick(index) },
+                            showDivider = index < upNext.lastIndex,
+                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
+                        )
+                    }
+                }
             }
         }
     }
 }
-
-private val mockQueue = listOf(
-    "House of Cards" to "Radiohead · In Rainbows",
-    "Jigsaw Falling into Place" to "Radiohead · In Rainbows",
-    "Videotape" to "Radiohead · In Rainbows",
-    "Let It Happen" to "Tame Impala · Currents",
-    "Nikes" to "Frank Ocean · Blonde",
-    "Alright" to "Kendrick Lamar · To Pimp a Butterfly",
-)
-
-private val mockQueueDurations = listOf("5:28", "4:09", "4:24", "7:47", "5:14", "3:39")

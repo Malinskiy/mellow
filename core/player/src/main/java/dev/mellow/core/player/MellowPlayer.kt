@@ -28,10 +28,13 @@ import javax.inject.Singleton
 data class PlaybackState(
     val isPlaying: Boolean = false,
     val currentTrack: Track? = null,
+    val currentIndex: Int = 0,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val queue: List<Track> = emptyList(),
     val error: String? = null,
+    val shuffleEnabled: Boolean = false,
+    val repeatMode: Int = 0,
 )
 
 @Singleton
@@ -122,6 +125,41 @@ class MellowPlayer @Inject constructor(
     fun skipPrevious() { controller?.seekToPreviousMediaItem() }
     fun seekTo(positionMs: Long) { controller?.seekTo(positionMs) }
 
+    fun playFromQueue(index: Int) {
+        controller?.let { c ->
+            if (index in 0 until c.mediaItemCount) {
+                c.seekTo(index, 0L)
+                c.play()
+            }
+        }
+    }
+
+    fun clearQueue() {
+        controller?.let { c ->
+            c.stop()
+            c.clearMediaItems()
+        }
+        currentQueue = emptyList()
+        _state.value = PlaybackState()
+    }
+
+    fun toggleShuffle() {
+        controller?.let { c ->
+            c.shuffleModeEnabled = !c.shuffleModeEnabled
+        }
+    }
+
+    fun cycleRepeatMode() {
+        controller?.let { c ->
+            c.repeatMode = when (c.repeatMode) {
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_OFF
+                else -> Player.REPEAT_MODE_OFF
+            }
+        }
+    }
+
     private fun Track.toMediaItem(): MediaItem {
         val streamUri = Uri.parse(jellyfinStreamUrl(serverUrl, id, apiKey))
         val artUri = imageId?.let { Uri.parse(jellyfinImageUrl(serverUrl, it, 300)) }
@@ -151,6 +189,7 @@ class MellowPlayer @Inject constructor(
             val idx = controller?.currentMediaItemIndex ?: return
             _state.value = _state.value.copy(
                 currentTrack = currentQueue.getOrNull(idx),
+                currentIndex = idx,
                 error = null,
             )
         }
@@ -170,6 +209,14 @@ class MellowPlayer @Inject constructor(
                 }
                 else -> {}
             }
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            _state.value = _state.value.copy(shuffleEnabled = shuffleModeEnabled)
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            _state.value = _state.value.copy(repeatMode = repeatMode)
         }
 
         override fun onPlayerError(error: PlaybackException) {
