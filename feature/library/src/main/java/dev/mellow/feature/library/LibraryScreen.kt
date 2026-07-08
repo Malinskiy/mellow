@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,16 +42,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
+import dev.mellow.core.designsystem.component.ConnectionStatusDot
+import dev.mellow.core.designsystem.component.EmptyContent
+import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
-import dev.mellow.core.designsystem.component.EmptyContent
-import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.common.jellyfinImageUrl
 
-private val TABS = listOf("Albums", "Artists", "Tracks", "Genres", "Folders")
+private val TABS = listOf("Albums", "Artists", "Tracks", "Genres", "Playlists", "Folders")
 
 data class ArtistItem(val id: String, val name: String, val albumCount: Int, val imageId: String?)
 
@@ -68,6 +70,8 @@ fun LibraryScreen(
     serverUrl: String? = null,
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
+    isConnected: Boolean = false,
+    isServerUnreachable: Boolean = false,
     sortLabel: String = "Recently Added",
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
@@ -82,7 +86,12 @@ fun LibraryScreen(
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) {
-        LibraryTopBar(onSettingsClick = onSettingsClick, onSortChanged = onSortChanged)
+        LibraryTopBar(
+            isConnected = isConnected,
+            isServerUnreachable = isServerUnreachable,
+            onSettingsClick = onSettingsClick,
+            onSortChanged = onSortChanged,
+        )
 
         MellowTabBar(
             tabs = TABS,
@@ -114,7 +123,8 @@ fun LibraryScreen(
             3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
                  else if (genres.isEmpty()) EmptyContent("No genres yet")
                  else GenresPanel(genres)
-            4 -> EmptyContent("Coming soon")
+            4 -> EmptyContent("No playlists yet")
+            5 -> EmptyContent("Coming soon")
         }
     }
 }
@@ -123,6 +133,8 @@ private val SORT_OPTIONS = listOf("Recently Added", "Name (A-Z)", "Name (Z-A)", 
 
 @Composable
 private fun LibraryTopBar(
+    isConnected: Boolean = false,
+    isServerUnreachable: Boolean = false,
     onSettingsClick: () -> Unit = {},
     onSortChanged: (String) -> Unit = {},
 ) {
@@ -138,8 +150,13 @@ private fun LibraryTopBar(
             text = "Library",
             style = MaterialTheme.typography.headlineLarge,
             color = MellowTheme.colors.foreground,
-            modifier = Modifier.weight(1f),
         )
+        Box(modifier = Modifier.width(MellowSpacing.Sp2))
+        ConnectionStatusDot(
+            isConnected = isConnected,
+            isServerUnreachable = isServerUnreachable,
+        )
+        Spacer(modifier = Modifier.weight(1f))
         Box {
             IconButton(onClick = { showSortMenu = true }) {
                 Icon(

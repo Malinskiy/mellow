@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.automirrored.outlined.QueueMusic
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -32,10 +32,10 @@ enum class MellowNavDestination(
     val label: String,
     val icon: ImageVector,
 ) {
+    Home("home", "Home", Icons.Outlined.Home),
     Library("library", "Library", Icons.Filled.LibraryMusic),
     Search("search", "Search", Icons.Outlined.Search),
     Favorites("favorites", "Favorites", Icons.Outlined.FavoriteBorder),
-    Playlists("playlists", "Playlists", Icons.AutoMirrored.Outlined.QueueMusic),
 }
 
 @Composable

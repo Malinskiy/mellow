@@ -21,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -37,10 +36,12 @@ import dev.mellow.core.designsystem.component.MellowNavDestination
 import dev.mellow.core.designsystem.component.MiniPlayer
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.feature.home.FavoritesScreen
 import dev.mellow.feature.home.FavoritesViewModel
-import dev.mellow.feature.home.PlaylistsScreen
+import dev.mellow.feature.home.HomeScreen
+import dev.mellow.feature.home.HomeViewModel
 import dev.mellow.feature.library.AlbumDetailScreen
 import dev.mellow.feature.library.AlbumDetailTrack
 import dev.mellow.feature.library.AlbumDetailViewModel
@@ -108,7 +109,7 @@ private fun LoginFlow(onLoggedIn: (String) -> Unit) {
 private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: MellowNavDestination.Library.route
+    val currentRoute = navBackStackEntry?.destination?.route ?: MellowNavDestination.Home.route
     val scope = rememberCoroutineScope()
 
     val fullScreenRoutes = setOf("now_playing", "queue")
@@ -165,14 +166,49 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         ) {
             NavHost(
                 navController = navController,
-                startDestination = MellowNavDestination.Library.route,
+                startDestination = MellowNavDestination.Home.route,
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None },
             ) {
+                composable(MellowNavDestination.Home.route) {
+                    val homeVm: HomeViewModel = hiltViewModel()
+                    val homeState by homeVm.uiState.collectAsState()
+                    val connState = mainViewModel.connectionState.collectAsState().value
+
+                    LaunchedEffect(serverId) {
+                        if (serverId.isNotEmpty()) homeVm.loadHome(serverId)
+                    }
+
+                    HomeScreen(
+                        recentlyPlayed = homeState.recentlyPlayed,
+                        recentlyAdded = homeState.recentlyAdded,
+                        favoriteTracks = homeState.favoriteTracks,
+                        genres = homeState.genres,
+                        albumCount = homeState.albumCount,
+                        serverUrl = mainViewModel.serverUrl.collectAsState().value,
+                        isConnected = connState is ConnectionState.Connected,
+                        isServerUnreachable = connState is ConnectionState.ServerUnreachable,
+                        onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
+                        onTrackClick = { trackId ->
+                            val favTracks = homeVm.uiState.value.favoriteTracks
+                            val idx = favTracks.indexOfFirst { it.id == trackId }
+                            if (idx >= 0) {
+                                scope.launch {
+                                    mainViewModel.player.playTracks(
+                                        homeVm.favTrackModels.value,
+                                        idx,
+                                    )
+                                }
+                            }
+                        },
+                        onSettingsClick = { navController.navigate("settings") },
+                    )
+                }
                 composable(MellowNavDestination.Library.route) {
                     val libraryVm: LibraryViewModel = hiltViewModel()
                     val state by libraryVm.uiState.collectAsState()
                     var currentSort by rememberSaveable { mutableStateOf("Recently Added") }
+                    val connState = mainViewModel.connectionState.collectAsState().value
 
                     LaunchedEffect(serverId) {
                         if (serverId.isNotEmpty()) libraryVm.loadLibrary(serverId)
@@ -197,6 +233,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         serverUrl = mainViewModel.serverUrl.collectAsState().value,
                         isLoading = state.isLoading,
                         isSyncing = isSyncing,
+                        isConnected = connState is ConnectionState.Connected,
+                        isServerUnreachable = connState is ConnectionState.ServerUnreachable,
                         sortLabel = currentSort,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
@@ -242,14 +280,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             if (tracks.isNotEmpty()) {
                                 scope.launch { mainViewModel.player.playTracks(tracks.shuffled(), 0) }
                             }
-                        },
-                    )
-                }
-                composable(MellowNavDestination.Playlists.route) {
-                    val context = LocalContext.current
-                    PlaylistsScreen(
-                        onCreatePlaylist = { name ->
-                            android.widget.Toast.makeText(context, "Playlist '$name' created", android.widget.Toast.LENGTH_SHORT).show()
                         },
                     )
                 }

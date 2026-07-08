@@ -15,6 +15,7 @@ object MellowPalette {
     val Stone900 = Color(0xFF1C1917)
     val Stone950 = Color(0xFF0C0A09)
 
+    val Amber500 = Color(0xFFF59E0B)
     val Red500 = Color(0xFFEF4444)
     val Green500 = Color(0xFF22C55E)
 }
