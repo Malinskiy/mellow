@@ -75,6 +75,18 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE artistId = :artistId ORDER BY year DESC")
     suspend fun getAllAlbumsByArtist(artistId: String): List<AlbumEntity>
 
+    @Query("SELECT id FROM albums WHERE isFavorite = 1 AND serverId = :serverId")
+    suspend fun getFavoriteAlbumIds(serverId: String): List<String>
+
+    @Query("UPDATE albums SET isFavorite = :isFavorite WHERE id IN (:ids)")
+    suspend fun setFavoriteByIds(ids: List<String>, isFavorite: Boolean)
+
+    @Query("SELECT id FROM albums WHERE serverId = :serverId")
+    suspend fun getAllAlbumIdsByServer(serverId: String): List<String>
+
+    @Query("DELETE FROM albums WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     @Query("DELETE FROM albums WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 }

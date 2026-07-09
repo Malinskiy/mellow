@@ -58,6 +58,12 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber ASC, trackNumber ASC")
     suspend fun getTracksByAlbumSync(albumId: String): List<TrackEntity>
 
+    @Query("SELECT id FROM tracks WHERE isFavorite = 1 AND serverId = :serverId")
+    suspend fun getFavoriteTrackIds(serverId: String): List<String>
+
+    @Query("UPDATE tracks SET isFavorite = :isFavorite WHERE id IN (:ids)")
+    suspend fun setFavoriteByIds(ids: List<String>, isFavorite: Boolean)
+
     @Query("DELETE FROM tracks WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 }

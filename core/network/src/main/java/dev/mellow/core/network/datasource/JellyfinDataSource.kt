@@ -9,6 +9,7 @@ import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ItemFields
+import org.jellyfin.sdk.model.api.ItemFilter
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.SortOrder
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -22,6 +23,7 @@ import org.jellyfin.sdk.model.api.PlaybackStartInfo
 import org.jellyfin.sdk.model.api.PlaybackStopInfo
 import org.jellyfin.sdk.model.api.RepeatMode
 
+import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,7 +44,12 @@ class JellyfinDataSource @Inject constructor(
         )
     }
 
-    suspend fun getAlbums(userId: UUID, startIndex: Int = 0, limit: Int = 200): List<BaseItemDto> {
+    suspend fun getAlbums(
+        userId: UUID,
+        startIndex: Int = 0,
+        limit: Int = 200,
+        minDateLastSaved: LocalDateTime? = null,
+    ): List<BaseItemDto> {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
@@ -53,14 +60,21 @@ class JellyfinDataSource @Inject constructor(
             enableUserData = true,
             startIndex = startIndex,
             limit = limit,
+            minDateLastSaved = minDateLastSaved,
         )
         return response.items.orEmpty()
     }
 
-    suspend fun getArtists(userId: UUID, startIndex: Int = 0, limit: Int = 200): List<BaseItemDto> {
+    suspend fun getArtists(
+        userId: UUID,
+        startIndex: Int = 0,
+        limit: Int = 200,
+        minDateLastSaved: LocalDateTime? = null,
+    ): List<BaseItemDto> {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ARTIST),
+            excludeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
             recursive = true,
             sortBy = listOf(ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.ASCENDING),
@@ -68,11 +82,17 @@ class JellyfinDataSource @Inject constructor(
             enableUserData = true,
             startIndex = startIndex,
             limit = limit,
+            minDateLastSaved = minDateLastSaved,
         )
-        return response.items.orEmpty()
+        return response.items.orEmpty().filter { it.type == BaseItemKind.MUSIC_ARTIST }
     }
 
-    suspend fun getTracks(userId: UUID, startIndex: Int = 0, limit: Int = 500): List<BaseItemDto> {
+    suspend fun getTracks(
+        userId: UUID,
+        startIndex: Int = 0,
+        limit: Int = 500,
+        minDateLastSaved: LocalDateTime? = null,
+    ): List<BaseItemDto> {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
@@ -82,6 +102,22 @@ class JellyfinDataSource @Inject constructor(
             fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS, ItemFields.DATE_CREATED),
             enableUserData = true,
             startIndex = startIndex,
+            limit = limit,
+            minDateLastSaved = minDateLastSaved,
+        )
+        return response.items.orEmpty()
+    }
+
+    suspend fun getRecentlyPlayedItems(userId: UUID, limit: Int = 200): List<BaseItemDto> {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.AUDIO),
+            recursive = true,
+            sortBy = listOf(ItemSortBy.DATE_PLAYED),
+            sortOrder = listOf(SortOrder.DESCENDING),
+            filters = listOf(ItemFilter.IS_PLAYED),
+            fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS, ItemFields.DATE_CREATED),
+            enableUserData = true,
             limit = limit,
         )
         return response.items.orEmpty()

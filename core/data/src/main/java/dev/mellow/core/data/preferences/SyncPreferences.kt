@@ -36,6 +36,10 @@ class SyncPreferences @Inject constructor(
         preferences[LAST_SYNC_TIMESTAMP] ?: 0L
     }
 
+    val syncCount: Flow<Int> = dataStore.data.map { preferences ->
+        preferences[SYNC_COUNT] ?: 0
+    }
+
     suspend fun setForceOffline(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[IS_FORCE_OFFLINE] = enabled
@@ -54,10 +58,19 @@ class SyncPreferences @Inject constructor(
         }
     }
 
+    suspend fun incrementSyncCount() {
+        dataStore.edit { preferences ->
+            val current = preferences[SYNC_COUNT] ?: 0
+            preferences[SYNC_COUNT] = current + 1
+        }
+    }
+
     companion object {
         private val IS_FORCE_OFFLINE = booleanPreferencesKey("is_force_offline")
         private val AUTO_SYNC_INTERVAL_HOURS = intPreferencesKey("auto_sync_interval_hours")
         private val LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
+        private val SYNC_COUNT = intPreferencesKey("sync_count")
         const val DEFAULT_SYNC_INTERVAL_HOURS = 6
+        const val FULL_SYNC_INTERVAL = 7
     }
 }

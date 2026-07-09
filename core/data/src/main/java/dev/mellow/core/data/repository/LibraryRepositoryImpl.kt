@@ -5,6 +5,7 @@ import dev.mellow.core.data.mapper.toAlbumEntity
 import dev.mellow.core.data.mapper.toArtistEntity
 import dev.mellow.core.data.mapper.toModel
 import dev.mellow.core.data.mapper.toTrackEntity
+import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.ServerDao
@@ -14,7 +15,11 @@ import dev.mellow.core.model.Artist
 import dev.mellow.core.model.Track
 import dev.mellow.core.network.datasource.JellyfinDataSource
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,10 +31,12 @@ class LibraryRepositoryImpl @Inject constructor(
     private val trackDao: TrackDao,
     private val serverDao: ServerDao,
     private val jellyfinDataSource: JellyfinDataSource,
+    private val syncPreferences: SyncPreferences,
 ) : LibraryRepository {
 
     companion object {
         private const val TAG = "LibraryRepository"
+        private const val ROOM_BIND_LIMIT = 900
     }
 
     override fun getAlbums(serverId: String): Flow<List<Album>> =
@@ -89,9 +96,24 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun syncLibrary(serverId: String) {
         val server = serverDao.getActiveServer() ?: return
         val userId = UUID.fromString(server.userId)
-        syncAlbums(serverId, userId)
-        syncArtists(serverId, userId)
-        syncTracks(serverId, userId)
+
+        val lastSyncMs = syncPreferences.lastSyncTimestamp.first()
+        val syncCount = syncPreferences.syncCount.first()
+        val isFullSync = lastSyncMs == 0L || syncCount % SyncPreferences.FULL_SYNC_INTERVAL == 0
+
+        if (isFullSync) {
+            Log.d(TAG, "Full sync (count=$syncCount)")
+            fullSync(serverId, userId)
+        } else {
+            Log.d(TAG, "Incremental sync since ${Instant.ofEpochMilli(lastSyncMs)}")
+            incrementalSync(serverId, userId, lastSyncMs)
+        }
+
+        syncFavoritesDiff(serverId, userId)
+        syncRecentlyPlayed(serverId, userId)
+
+        syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
+        syncPreferences.incrementSyncCount()
     }
 
     override suspend fun syncFavorites(serverId: String) {
@@ -117,7 +139,159 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun syncAlbums(serverId: String, userId: UUID) {
+    private suspend fun fullSync(serverId: String, userId: UUID) {
+        syncAllAlbums(serverId, userId)
+        syncAllArtists(serverId, userId)
+        syncAllTracks(serverId, userId)
+
+        detectOrphanedAlbums(serverId, userId)
+        detectOrphanedArtists(serverId, userId)
+    }
+
+    private suspend fun incrementalSync(serverId: String, userId: UUID, lastSyncMs: Long) {
+        val since = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastSyncMs), ZoneOffset.UTC)
+
+        syncAlbumsIncremental(serverId, userId, since)
+        syncArtistsIncremental(serverId, userId, since)
+        syncTracksIncremental(serverId, userId, since)
+    }
+
+    private suspend fun syncAlbumsIncremental(serverId: String, userId: UUID, since: LocalDateTime) {
+        var startIndex = 0
+        val pageSize = 200
+        while (true) {
+            val items = jellyfinDataSource.getAlbums(userId, startIndex, pageSize, minDateLastSaved = since)
+            if (items.isEmpty()) break
+            Log.d(TAG, "Incremental album sync: ${items.size} changed items at offset $startIndex")
+            albumDao.upsertAlbums(items.map { it.toAlbumEntity(serverId) })
+            if (items.size < pageSize) break
+            startIndex += pageSize
+        }
+    }
+
+    private suspend fun syncArtistsIncremental(serverId: String, userId: UUID, since: LocalDateTime) {
+        var startIndex = 0
+        val pageSize = 200
+        while (true) {
+            val items = jellyfinDataSource.getArtists(userId, startIndex, pageSize, minDateLastSaved = since)
+            if (items.isEmpty()) break
+            Log.d(TAG, "Incremental artist sync: ${items.size} changed items at offset $startIndex")
+            artistDao.upsertArtists(items.map { it.toArtistEntity(serverId) })
+            if (items.size < pageSize) break
+            startIndex += pageSize
+        }
+    }
+
+    private suspend fun syncTracksIncremental(serverId: String, userId: UUID, since: LocalDateTime) {
+        var startIndex = 0
+        val pageSize = 500
+        while (true) {
+            val items = jellyfinDataSource.getTracks(userId, startIndex, pageSize, minDateLastSaved = since)
+            if (items.isEmpty()) break
+            Log.d(TAG, "Incremental track sync: ${items.size} changed items at offset $startIndex")
+            trackDao.upsertTracks(items.map { it.toTrackEntity(serverId) })
+            if (items.size < pageSize) break
+            startIndex += pageSize
+        }
+    }
+
+    private suspend fun syncFavoritesDiff(serverId: String, userId: UUID) {
+        val serverFavAlbumIds = jellyfinDataSource.getFavoriteAlbums(userId).map { it.id.toString() }.toSet()
+        val serverFavTrackIds = jellyfinDataSource.getFavoriteTracks(userId).map { it.id.toString() }.toSet()
+        val serverFavArtistIds = jellyfinDataSource.getFavoriteArtists(userId).map { it.id.toString() }.toSet()
+
+        val localFavAlbumIds = albumDao.getFavoriteAlbumIds(serverId).toSet()
+        val localFavTrackIds = trackDao.getFavoriteTrackIds(serverId).toSet()
+        val localFavArtistIds = artistDao.getFavoriteArtistIds(serverId).toSet()
+
+        val newFavAlbums = serverFavAlbumIds - localFavAlbumIds
+        val removedFavAlbums = localFavAlbumIds - serverFavAlbumIds
+        newFavAlbums.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
+            albumDao.setFavoriteByIds(chunk, true)
+        }
+        removedFavAlbums.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
+            albumDao.setFavoriteByIds(chunk, false)
+        }
+
+        val newFavTracks = serverFavTrackIds - localFavTrackIds
+        val removedFavTracks = localFavTrackIds - serverFavTrackIds
+        newFavTracks.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
+            trackDao.setFavoriteByIds(chunk, true)
+        }
+        removedFavTracks.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
+            trackDao.setFavoriteByIds(chunk, false)
+        }
+
+        val newFavArtists = serverFavArtistIds - localFavArtistIds
+        val removedFavArtists = localFavArtistIds - serverFavArtistIds
+        newFavArtists.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
+            artistDao.setFavoriteByIds(chunk, true)
+        }
+        removedFavArtists.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
+            artistDao.setFavoriteByIds(chunk, false)
+        }
+
+        Log.d(
+            TAG,
+            "Favorites diff: albums +${newFavAlbums.size}/-${removedFavAlbums.size}, " +
+                "tracks +${newFavTracks.size}/-${removedFavTracks.size}, " +
+                "artists +${newFavArtists.size}/-${removedFavArtists.size}",
+        )
+    }
+
+    private suspend fun syncRecentlyPlayed(serverId: String, userId: UUID) {
+        val recentItems = jellyfinDataSource.getRecentlyPlayedItems(userId, limit = 200)
+        if (recentItems.isNotEmpty()) {
+            trackDao.upsertTracks(recentItems.map { it.toTrackEntity(serverId) })
+            Log.d(TAG, "Recently played sync: ${recentItems.size} tracks updated")
+        }
+    }
+
+    private suspend fun detectOrphanedAlbums(serverId: String, userId: UUID) {
+        val serverAlbumIds = mutableSetOf<String>()
+        var startIndex = 0
+        while (true) {
+            val items = jellyfinDataSource.getAlbums(userId, startIndex, 500)
+            if (items.isEmpty()) break
+            serverAlbumIds.addAll(items.map { it.id.toString() })
+            if (items.size < 500) break
+            startIndex += 500
+        }
+        if (serverAlbumIds.isNotEmpty()) {
+            val localAlbumIds = albumDao.getAllAlbumIdsByServer(serverId).toSet()
+            val orphanIds = localAlbumIds - serverAlbumIds
+            if (orphanIds.isNotEmpty()) {
+                orphanIds.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
+                    albumDao.deleteByIds(chunk)
+                }
+                Log.d(TAG, "Orphan detection: removed ${orphanIds.size} albums")
+            }
+        }
+    }
+
+    private suspend fun detectOrphanedArtists(serverId: String, userId: UUID) {
+        val serverArtistIds = mutableSetOf<String>()
+        var startIndex = 0
+        while (true) {
+            val items = jellyfinDataSource.getArtists(userId, startIndex, 500)
+            if (items.isEmpty()) break
+            serverArtistIds.addAll(items.map { it.id.toString() })
+            if (items.size < 500) break
+            startIndex += 500
+        }
+        if (serverArtistIds.isNotEmpty()) {
+            val localArtistIds = artistDao.getAllArtistIdsByServer(serverId).toSet()
+            val orphanIds = localArtistIds - serverArtistIds
+            if (orphanIds.isNotEmpty()) {
+                orphanIds.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
+                    artistDao.deleteByIds(chunk)
+                }
+                Log.d(TAG, "Orphan detection: removed ${orphanIds.size} artists")
+            }
+        }
+    }
+
+    private suspend fun syncAllAlbums(serverId: String, userId: UUID) {
         var startIndex = 0
         val pageSize = 200
         while (true) {
@@ -129,7 +303,7 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun syncArtists(serverId: String, userId: UUID) {
+    private suspend fun syncAllArtists(serverId: String, userId: UUID) {
         var startIndex = 0
         val pageSize = 200
         while (true) {
@@ -141,7 +315,7 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun syncTracks(serverId: String, userId: UUID) {
+    private suspend fun syncAllTracks(serverId: String, userId: UUID) {
         var startIndex = 0
         val pageSize = 500
         while (true) {
