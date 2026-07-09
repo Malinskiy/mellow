@@ -5,10 +5,13 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.UserRepositoryImpl
+import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkStateObserver
+import dev.mellow.core.network.datasource.JellyfinDataSource
 import dev.mellow.core.player.MellowPlayer
 import dev.mellow.sync.SyncScheduler
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +29,8 @@ class MainViewModel @Inject constructor(
     private val networkStateObserver: NetworkStateObserver,
     private val syncPreferences: SyncPreferences,
     private val syncScheduler: SyncScheduler,
+    private val jellyfinDataSource: JellyfinDataSource,
+    private val downloadDao: DownloadDao,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow(AuthState.CHECKING)
@@ -116,6 +121,18 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             userRepository.setFavorite(itemId, !currentlyFavorite)
         }
+    }
+
+    suspend fun fetchLyrics(trackId: String): List<JellyfinDataSource.LyricsResult> {
+        return try {
+            jellyfinDataSource.getLyrics(UUID.fromString(trackId))
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun isTrackDownloaded(trackId: String): kotlinx.coroutines.flow.Flow<Boolean> {
+        return downloadDao.isDownloaded(trackId)
     }
 
     override fun onCleared() {

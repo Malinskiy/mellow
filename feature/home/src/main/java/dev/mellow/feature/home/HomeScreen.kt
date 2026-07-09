@@ -72,6 +72,7 @@ fun HomeScreen(
     isServerUnreachable: Boolean = false,
     onAlbumClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
+    onTrackMenuClick: (String) -> Unit = {},
     onGenreClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -150,6 +151,7 @@ fun HomeScreen(
                             jellyfinImageUrl(serverUrl, track.imageId)
                         } else null,
                         onClick = { onTrackClick(track.id) },
+                        onMenuClick = { onTrackMenuClick(track.id) },
                         showDivider = index < favoriteTracks.take(5).lastIndex,
                         modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
                     )

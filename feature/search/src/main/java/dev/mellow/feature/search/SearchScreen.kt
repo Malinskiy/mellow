@@ -62,6 +62,7 @@ fun SearchScreen(
     onPlayTracks: (List<Track>, Int) -> Unit = { _, _ -> },
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
+    onTrackMenuClick: (String) -> Unit = {},
 ) {
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -153,6 +154,7 @@ fun SearchScreen(
                                 duration = formatDuration(track),
                                 imageUrl = trackImageUrl(serverUrl, track),
                                 onClick = { onPlayTracks(uiState.tracks, index) },
+                                onMenuClick = { onTrackMenuClick(track.id) },
                                 showDivider = index < uiState.tracks.take(5).lastIndex,
                                 modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
                             )

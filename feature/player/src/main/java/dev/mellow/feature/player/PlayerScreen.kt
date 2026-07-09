@@ -1,6 +1,7 @@
 package dev.mellow.feature.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
@@ -23,15 +25,19 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.DownloadDone
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Lyrics
 import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.QueueMusic
+import androidx.compose.material.icons.automirrored.outlined.QueueMusic
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,8 +53,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.QualityBadge
@@ -69,8 +78,11 @@ fun PlayerScreen(
     positionMs: Long = 0L,
     durationMs: Long = 0L,
     isFavorite: Boolean = false,
+    isDownloaded: Boolean = false,
+    error: String? = null,
     onCollapse: () -> Unit = {},
     onQueueClick: () -> Unit = {},
+    onLyricsClick: () -> Unit = {},
     onPlayPauseClick: () -> Unit = {},
     onSkipNextClick: () -> Unit = {},
     onSkipPreviousClick: () -> Unit = {},
@@ -80,6 +92,8 @@ fun PlayerScreen(
     onShuffleClick: () -> Unit = {},
     onRepeatClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
+    onRetryClick: () -> Unit = {},
+    onPlayDownloadedClick: () -> Unit = {},
     codec: String? = null,
 ) {
     Box(
@@ -94,8 +108,20 @@ fun PlayerScreen(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = 0.2f }
-                    .blur(100.dp),
+                    .blur(120.dp)
+                    .graphicsLayer { alpha = 0.35f },
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MellowTheme.colors.background.copy(alpha = 0.5f),
+                                MellowTheme.colors.background.copy(alpha = 0.85f),
+                            ),
+                        ),
+                    ),
             )
         }
 
@@ -104,7 +130,7 @@ fun PlayerScreen(
         ) {
             NowPlayingTopBar(albumName, onCollapse, onQueueClick)
             AlbumArt(albumImageUrl, modifier = Modifier.weight(1f))
-            TrackInfo(trackName, artistName, isFavorite, onFavoriteClick)
+            TrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
             ProgressBar(progress, positionMs, durationMs, onSeekTo)
             PlaybackControls(
                 isPlaying = isPlaying,
@@ -116,7 +142,83 @@ fun PlayerScreen(
                 onShuffleClick = onShuffleClick,
                 onRepeatClick = onRepeatClick,
             )
-            BottomActions(codec = codec)
+            BottomActions(codec = codec, onLyricsClick = onLyricsClick)
+        }
+
+        if (error != null) {
+            PlaybackErrorOverlay(
+                error = error,
+                onRetryClick = onRetryClick,
+                onPlayDownloadedClick = onPlayDownloadedClick,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaybackErrorOverlay(
+    error: String,
+    onRetryClick: () -> Unit,
+    onPlayDownloadedClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MellowTheme.colors.background.copy(alpha = 0.92f))
+            .clickable(enabled = false, onClick = {}),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(MellowSpacing.Sp8),
+        ) {
+            Icon(
+                Icons.Filled.CloudOff,
+                contentDescription = null,
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(56.dp),
+            )
+            Spacer(Modifier.height(MellowSpacing.Sp4))
+            Text(
+                "Can't reach server",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MellowTheme.colors.foreground,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(MellowSpacing.Sp2))
+            Text(
+                error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MellowTheme.colors.muted,
+            )
+            Spacer(Modifier.height(MellowSpacing.Sp6))
+            Button(
+                onClick = onRetryClick,
+                shape = MellowShapes.Full,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MellowTheme.colors.foreground,
+                    contentColor = MellowTheme.colors.background,
+                ),
+            ) {
+                Text("Retry")
+            }
+            Spacer(Modifier.height(MellowSpacing.Sp3))
+            OutlinedButton(
+                onClick = onPlayDownloadedClick,
+                shape = MellowShapes.Full,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MellowTheme.colors.foreground,
+                ),
+            ) {
+                Icon(
+                    Icons.Outlined.DownloadDone,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(MellowSpacing.Sp2))
+                Text("Play downloaded music")
+            }
         }
     }
 }
@@ -138,7 +240,7 @@ private fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueC
             Text(albumName.ifEmpty { "Unknown" }, style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.foreground)
         }
         IconButton(onClick = onQueueClick) {
-            Icon(Icons.Outlined.QueueMusic, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+            Icon(Icons.AutoMirrored.Outlined.QueueMusic, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -165,7 +267,13 @@ private fun AlbumArt(albumImageUrl: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TrackInfo(trackName: String, artistName: String, isFavorite: Boolean, onFavoriteClick: () -> Unit = {}) {
+private fun TrackInfo(
+    trackName: String,
+    artistName: String,
+    isFavorite: Boolean,
+    isDownloaded: Boolean,
+    onFavoriteClick: () -> Unit = {},
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -173,11 +281,23 @@ private fun TrackInfo(trackName: String, artistName: String, isFavorite: Boolean
             .padding(horizontal = MellowSpacing.Sp6),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                trackName.ifEmpty { "No track" },
-                style = MaterialTheme.typography.headlineLarge,
-                color = MellowTheme.colors.foreground,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    trackName.ifEmpty { "No track" },
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MellowTheme.colors.foreground,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (isDownloaded) {
+                    Spacer(Modifier.width(MellowSpacing.Sp2))
+                    Icon(
+                        Icons.Outlined.CheckCircle,
+                        contentDescription = "Downloaded",
+                        tint = MellowPalette.Green500,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
             Text(
                 artistName.ifEmpty { "Unknown artist" },
                 style = MaterialTheme.typography.titleLarge,
@@ -318,7 +438,7 @@ private fun PlaybackControls(
 }
 
 @Composable
-private fun BottomActions(codec: String? = null) {
+private fun BottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}) {
     val qualityLabel = when (codec?.lowercase()) {
         "flac", "alac", "wav", "pcm" -> "Lossless"
         "aac", "mp3", "opus", "vorbis", "ogg" -> "Lossy"
@@ -337,7 +457,10 @@ private fun BottomActions(codec: String? = null) {
             Spacer(Modifier.height(4.dp))
             Text("This device", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.clickable(onClick = onLyricsClick),
+        ) {
             Icon(Icons.Outlined.Lyrics, "Lyrics", tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
             Spacer(Modifier.height(4.dp))
             Text("Lyrics", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)

@@ -76,6 +76,7 @@ fun LibraryScreen(
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
+    onTrackMenuClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSortChanged: (String) -> Unit = {},
 ) {
@@ -119,7 +120,7 @@ fun LibraryScreen(
                  else ArtistsPanel(artists, serverUrl, onArtistClick)
             2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
                  else if (tracks.isEmpty()) EmptyContent("No tracks yet")
-                 else TracksPanel(tracks, serverUrl, onTrackClick)
+                 else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick)
             3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
                  else if (genres.isEmpty()) EmptyContent("No genres yet")
                  else GenresPanel(genres)
@@ -299,7 +300,12 @@ private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtist
 }
 
 @Composable
-private fun TracksPanel(tracks: List<TrackItem>, serverUrl: String?, onTrackClick: (String) -> Unit) {
+private fun TracksPanel(
+    tracks: List<TrackItem>,
+    serverUrl: String?,
+    onTrackClick: (String) -> Unit,
+    onTrackMenuClick: (String) -> Unit,
+) {
     LazyColumn(
         contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
     ) {
@@ -312,6 +318,7 @@ private fun TracksPanel(tracks: List<TrackItem>, serverUrl: String?, onTrackClic
                     jellyfinImageUrl(serverUrl, track.imageId)
                 } else null,
                 onClick = { onTrackClick(track.id) },
+                onMenuClick = { onTrackMenuClick(track.id) },
                 showDivider = true,
             )
         }

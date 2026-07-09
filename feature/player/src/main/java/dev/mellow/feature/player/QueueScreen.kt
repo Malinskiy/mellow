@@ -1,31 +1,50 @@
 package dev.mellow.feature.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.theme.MellowPalette
+import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import kotlin.math.roundToInt
 
 data class QueueTrack(
     val id: String,
@@ -42,10 +61,15 @@ fun QueueScreen(
     modifier: Modifier = Modifier,
     nowPlaying: QueueTrack? = null,
     upNext: List<QueueTrack> = emptyList(),
+    currentAlbumName: String = "",
     shuffleEnabled: Boolean = false,
+    repeatMode: Int = 0,
     onTrackClick: (Int) -> Unit = {},
     onShuffleClick: () -> Unit = {},
+    onRepeatClick: () -> Unit = {},
     onClearClick: () -> Unit = {},
+    onMoveTrack: (Int, Int) -> Unit = { _, _ -> },
+    onRemoveTrack: (Int) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -75,6 +99,14 @@ fun QueueScreen(
                     modifier = Modifier.size(20.dp),
                 )
             }
+            IconButton(onClick = onRepeatClick) {
+                Icon(
+                    imageVector = if (repeatMode == 1) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                    contentDescription = "Repeat",
+                    tint = if (repeatMode != 0) MellowTheme.colors.accentStrong else MellowTheme.colors.foreground,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
             IconButton(onClick = onClearClick) {
                 Icon(Icons.Filled.ClearAll, "Clear", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }
@@ -83,6 +115,10 @@ fun QueueScreen(
         if (nowPlaying == null && upNext.isEmpty()) {
             EmptyContent("Queue is empty")
         } else {
+            var dragIndex by remember { mutableIntStateOf(-1) }
+            var dragOffsetY by remember { mutableFloatStateOf(0f) }
+            val itemHeight = 72f
+
             LazyColumn(
                 contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
             ) {
@@ -96,38 +132,124 @@ fun QueueScreen(
                         )
                     }
                     item {
-                        TrackRow(
-                            title = nowPlaying.title,
-                            subtitle = "${nowPlaying.artist} · ${nowPlaying.album}",
-                            duration = nowPlaying.duration,
-                            imageUrl = nowPlaying.imageUrl,
-                            isPlaying = true,
-                            onClick = {},
-                            showDivider = true,
-                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
-                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = MellowSpacing.Sp2)
+                                .background(MellowTheme.colors.surfaceElevated, MellowShapes.Medium)
+                                .padding(horizontal = MellowSpacing.Sp2),
+                        ) {
+                            TrackRow(
+                                title = nowPlaying.title,
+                                subtitle = "${nowPlaying.artist} \u00B7 ${nowPlaying.album}",
+                                duration = nowPlaying.duration,
+                                imageUrl = nowPlaying.imageUrl,
+                                isPlaying = true,
+                                onClick = {},
+                                showDivider = false,
+                            )
+                        }
                     }
                 }
 
                 if (upNext.isNotEmpty()) {
                     item {
+                        val label = if (currentAlbumName.isNotEmpty()) {
+                            "NEXT UP FROM: $currentAlbumName \u00B7 ${upNext.size} tracks"
+                        } else {
+                            "UP NEXT \u00B7 ${upNext.size} tracks"
+                        }
                         Text(
-                            "UP NEXT · ${upNext.size} tracks",
+                            label.uppercase(),
                             style = MaterialTheme.typography.labelSmall,
                             color = MellowTheme.colors.muted,
-                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+                            modifier = Modifier.padding(
+                                start = MellowSpacing.Sp4,
+                                end = MellowSpacing.Sp4,
+                                top = MellowSpacing.Sp4,
+                                bottom = MellowSpacing.Sp2,
+                            ),
                         )
                     }
                     itemsIndexed(upNext, key = { idx, t -> "${t.id}_$idx" }) { index, track ->
-                        TrackRow(
-                            title = track.title,
-                            subtitle = "${track.artist} · ${track.album}",
-                            duration = track.duration,
-                            imageUrl = track.imageUrl,
-                            onClick = { onTrackClick(index) },
-                            showDivider = index < upNext.lastIndex,
-                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
-                        )
+                        val isDragging = dragIndex == index
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .padding(start = MellowSpacing.Sp2)
+                                .then(
+                                    if (isDragging) {
+                                        Modifier
+                                            .zIndex(1f)
+                                            .graphicsLayer {
+                                                translationY = dragOffsetY
+                                                shadowElevation = 8f
+                                                scaleX = 1.02f
+                                                scaleY = 1.02f
+                                            }
+                                            .background(MellowTheme.colors.surfaceElevated)
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
+                        ) {
+                            Icon(
+                                Icons.Filled.DragHandle,
+                                contentDescription = "Reorder",
+                                tint = if (isDragging) MellowTheme.colors.foreground else MellowPalette.Stone600,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .pointerInput(index) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                dragIndex = index
+                                                dragOffsetY = 0f
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                dragOffsetY += dragAmount.y
+                                            },
+                                            onDragEnd = {
+                                                if (dragIndex >= 0) {
+                                                    val steps = (dragOffsetY / itemHeight).roundToInt()
+                                                    val targetIndex = (dragIndex + steps).coerceIn(0, upNext.lastIndex)
+                                                    if (targetIndex != dragIndex) {
+                                                        onMoveTrack(dragIndex, targetIndex)
+                                                    }
+                                                }
+                                                dragIndex = -1
+                                                dragOffsetY = 0f
+                                            },
+                                            onDragCancel = {
+                                                dragIndex = -1
+                                                dragOffsetY = 0f
+                                            },
+                                        )
+                                    },
+                            )
+                            Spacer(Modifier.width(MellowSpacing.Sp1))
+                            TrackRow(
+                                title = track.title,
+                                subtitle = "${track.artist} \u00B7 ${track.album}",
+                                duration = track.duration,
+                                imageUrl = track.imageUrl,
+                                onClick = { onTrackClick(index) },
+                                showDivider = index < upNext.lastIndex,
+                                modifier = Modifier
+                                    .weight(1f),
+                            )
+                            IconButton(
+                                onClick = { onRemoveTrack(index) },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Remove from queue",
+                                    tint = MellowPalette.Stone600,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(MellowSpacing.Sp2))
+                        }
                     }
                 }
             }

@@ -155,6 +155,41 @@ class JellyfinDataSource @Inject constructor(
         }
     }
 
+    suspend fun getLyrics(itemId: UUID): List<LyricsResult> {
+        return try {
+            val baseUrl = client.api.baseUrl?.trimEnd('/')
+                ?: return emptyList()
+            val token = client.api.accessToken ?: return emptyList()
+            val url = "$baseUrl/Audio/$itemId/Lyrics"
+
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Authorization", "MediaBrowser Token=\"$token\"")
+                .get()
+                .build()
+
+            val response = okhttp3.OkHttpClient().newCall(request).execute()
+            if (!response.isSuccessful) return emptyList()
+
+            val body = response.body?.string() ?: return emptyList()
+            val json = org.json.JSONObject(body)
+            val lyricsArray = json.optJSONArray("Lyrics") ?: return emptyList()
+
+            (0 until lyricsArray.length()).mapNotNull { i ->
+                val line = lyricsArray.getJSONObject(i)
+                val startTicks = line.optLong("Start", -1L)
+                val text = line.optString("Text", "")
+                if (startTicks < 0 || text.isEmpty()) return@mapNotNull null
+                LyricsResult(startMs = startTicks / 10_000, text = text)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch lyrics for $itemId", e)
+            emptyList()
+        }
+    }
+
+    data class LyricsResult(val startMs: Long, val text: String)
+
     companion object {
         private const val TAG = "JellyfinDataSource"
     }

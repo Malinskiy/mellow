@@ -65,6 +65,7 @@ fun ArtistDetailScreen(
     onRetry: () -> Unit = {},
     onAlbumClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
+    onTrackMenuClick: (String) -> Unit = {},
     serverUrl: String? = null,
     isFavorite: Boolean = false,
     onPlayAll: () -> Unit = {},
@@ -125,6 +126,7 @@ fun ArtistDetailScreen(
                                 duration = track.duration,
                                 trackNumber = "${index + 1}",
                                 onClick = { onTrackClick(track.id) },
+                                onMenuClick = { onTrackMenuClick(track.id) },
                                 showDivider = index < topTracks.lastIndex,
                                 modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
                             )

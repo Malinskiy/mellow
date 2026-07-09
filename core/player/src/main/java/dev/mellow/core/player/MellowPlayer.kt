@@ -158,6 +158,50 @@ class MellowPlayer @Inject constructor(
         }
     }
 
+    fun addToQueue(track: Track) {
+        val ctrl = controller ?: return
+        val mediaItem = track.toMediaItem()
+        ctrl.addMediaItem(mediaItem)
+        currentQueue = currentQueue + track
+        _state.value = _state.value.copy(queue = currentQueue)
+    }
+
+    fun playNext(track: Track) {
+        val ctrl = controller ?: return
+        val insertIndex = (ctrl.currentMediaItemIndex + 1).coerceAtMost(currentQueue.size)
+        val mediaItem = track.toMediaItem()
+        ctrl.addMediaItem(insertIndex, mediaItem)
+        currentQueue = currentQueue.toMutableList().apply { add(insertIndex, track) }
+        _state.value = _state.value.copy(queue = currentQueue)
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        val ctrl = controller ?: return
+        if (fromIndex == toIndex) return
+        if (fromIndex !in 0 until ctrl.mediaItemCount) return
+        if (toIndex !in 0 until ctrl.mediaItemCount) return
+        ctrl.moveMediaItem(fromIndex, toIndex)
+        currentQueue = currentQueue.toMutableList().apply {
+            val item = removeAt(fromIndex)
+            add(toIndex, item)
+        }
+        val newIndex = ctrl.currentMediaItemIndex
+        _state.value = _state.value.copy(queue = currentQueue, currentIndex = newIndex)
+    }
+
+    fun removeFromQueue(index: Int) {
+        val ctrl = controller ?: return
+        if (index !in 0 until ctrl.mediaItemCount) return
+        ctrl.removeMediaItem(index)
+        currentQueue = currentQueue.toMutableList().apply { removeAt(index) }
+        val newIndex = ctrl.currentMediaItemIndex
+        _state.value = _state.value.copy(
+            queue = currentQueue,
+            currentIndex = newIndex,
+            currentTrack = currentQueue.getOrNull(newIndex),
+        )
+    }
+
     fun clearQueue() {
         val track = _state.value.currentTrack
         val pos = controller?.currentPosition ?: 0L

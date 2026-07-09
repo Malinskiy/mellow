@@ -55,6 +55,7 @@ fun FavoritesScreen(
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
+    onTrackMenuClick: (String) -> Unit = {},
     onShuffleAll: () -> Unit = {},
 ) {
     val viewModel: FavoritesViewModel = hiltViewModel()
@@ -139,6 +140,7 @@ fun FavoritesScreen(
                                     } else null,
                                     isFavorite = true,
                                     onClick = { onTrackClick(track.id) },
+                                    onMenuClick = { onTrackMenuClick(track.id) },
                                     showDivider = index < state.tracks.lastIndex,
                                 )
                             }
