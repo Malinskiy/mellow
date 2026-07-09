@@ -135,6 +135,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
     val fullScreenRoutes = setOf("now_playing", "queue", "lyrics")
     val isFullScreen = currentRoute in fullScreenRoutes
+    val tabRoutes = MellowNavDestination.entries.map { it.route }.toSet()
     val playbackState by mainViewModel.player.state.collectAsState()
     val positionState by mainViewModel.player.positionState.collectAsState()
     val isSyncing by mainViewModel.isSyncing.collectAsState()
@@ -196,8 +197,11 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         )
                     }
                     MellowBottomNavBar(
-                        selectedRoute = currentRoute,
+                        selectedRoute = if (currentRoute in tabRoutes) currentRoute else "",
                         onNavigate = { route ->
+                            if (currentRoute !in tabRoutes) {
+                                navController.popBackStack(route, inclusive = false)
+                            }
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
