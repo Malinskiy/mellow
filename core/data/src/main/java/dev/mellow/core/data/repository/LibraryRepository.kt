@@ -1,5 +1,6 @@
 package dev.mellow.core.data.repository
 
+import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
 import dev.mellow.core.model.Track
@@ -24,6 +25,7 @@ interface LibraryRepository {
     fun getFavoriteArtists(serverId: String): Flow<List<Artist>>
     fun getRecentlyPlayedAlbums(serverId: String): Flow<List<Album>>
     fun getMostPlayedAlbums(serverId: String): Flow<List<Album>>
-    suspend fun syncLibrary(serverId: String)
+    suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit = {})
     suspend fun syncFavorites(serverId: String)
+    suspend fun cleanupOrphans(serverId: String, onProgress: (SyncProgress) -> Unit = {})
 }

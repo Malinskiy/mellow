@@ -28,6 +28,11 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class PagedItems(
+    val items: List<BaseItemDto>,
+    val totalRecordCount: Int,
+)
+
 @Singleton
 class JellyfinDataSource @Inject constructor(
     private val client: JellyfinClientWrapper,
@@ -65,6 +70,25 @@ class JellyfinDataSource @Inject constructor(
         return response.items.orEmpty()
     }
 
+    suspend fun getAlbumsPaged(
+        userId: UUID,
+        startIndex: Int = 0,
+        limit: Int = 200,
+    ): PagedItems {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
+            recursive = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
+            enableUserData = true,
+            startIndex = startIndex,
+            limit = limit,
+        )
+        return PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
+    }
+
     suspend fun getArtists(
         userId: UUID,
         startIndex: Int = 0,
@@ -87,6 +111,27 @@ class JellyfinDataSource @Inject constructor(
         return response.items.orEmpty().filter { it.type == BaseItemKind.MUSIC_ARTIST }
     }
 
+    suspend fun getArtistsPaged(
+        userId: UUID,
+        startIndex: Int = 0,
+        limit: Int = 200,
+    ): PagedItems {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.MUSIC_ARTIST),
+            excludeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
+            recursive = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW),
+            enableUserData = true,
+            startIndex = startIndex,
+            limit = limit,
+        )
+        val filtered = response.items.orEmpty().filter { it.type == BaseItemKind.MUSIC_ARTIST }
+        return PagedItems(filtered, response.totalRecordCount ?: 0)
+    }
+
     suspend fun getTracks(
         userId: UUID,
         startIndex: Int = 0,
@@ -106,6 +151,25 @@ class JellyfinDataSource @Inject constructor(
             minDateLastSaved = minDateLastSaved,
         )
         return response.items.orEmpty()
+    }
+
+    suspend fun getTracksPaged(
+        userId: UUID,
+        startIndex: Int = 0,
+        limit: Int = 500,
+    ): PagedItems {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.AUDIO),
+            recursive = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS, ItemFields.DATE_CREATED),
+            enableUserData = true,
+            startIndex = startIndex,
+            limit = limit,
+        )
+        return PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
     }
 
     suspend fun getRecentlyPlayedItems(userId: UUID, limit: Int = 200): List<BaseItemDto> {

@@ -14,7 +14,6 @@ import androidx.work.workDataOf
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dev.mellow.core.data.SyncProgress
-import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.network.JellyfinClientWrapper
@@ -22,21 +21,20 @@ import org.jellyfin.sdk.model.DeviceInfo
 import java.util.UUID
 
 @HiltWorker
-class LibrarySyncWorker @AssistedInject constructor(
+class LibraryCleanupWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
     private val libraryRepository: LibraryRepository,
     private val serverDao: ServerDao,
     private val jellyfinClient: JellyfinClientWrapper,
-    private val syncPreferences: SyncPreferences,
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
         val serverId = inputData.getString(KEY_SERVER_ID) ?: return Result.failure()
         return try {
-            setForeground(createForegroundInfo("Syncing library…", 0, 0))
+            setForeground(createForegroundInfo("Cleaning up library…", 0, 0))
             ensureConnected()
-            libraryRepository.syncLibrary(serverId) { progress ->
+            libraryRepository.cleanupOrphans(serverId) { progress ->
                 setForegroundAsync(createForegroundInfo(progress))
                 setProgressAsync(
                     workDataOf(
@@ -46,7 +44,6 @@ class LibrarySyncWorker @AssistedInject constructor(
                     ),
                 )
             }
-            syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
             Result.success()
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.failure()
@@ -54,13 +51,13 @@ class LibrarySyncWorker @AssistedInject constructor(
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo =
-        createForegroundInfo("Syncing library…", 0, 0)
+        createForegroundInfo("Cleaning up library…", 0, 0)
 
     private fun createForegroundInfo(progress: SyncProgress): ForegroundInfo {
         val text = if (progress.total > 0) {
-            "Syncing ${progress.phase}… ${progress.current}/${progress.total}"
+            "Cleaning up ${progress.phase}… ${progress.current}/${progress.total}"
         } else {
-            "Syncing ${progress.phase}…"
+            "Cleaning up ${progress.phase}…"
         }
         return createForegroundInfo(text, progress.current, progress.total)
     }
@@ -68,7 +65,7 @@ class LibrarySyncWorker @AssistedInject constructor(
     private fun createForegroundInfo(text: String, current: Int, total: Int): ForegroundInfo {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Library Sync",
+            "Library Cleanup",
             NotificationManager.IMPORTANCE_LOW,
         )
         val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
@@ -76,7 +73,7 @@ class LibrarySyncWorker @AssistedInject constructor(
 
         val builder = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_sync)
-            .setContentTitle("Syncing library")
+            .setContentTitle("Cleaning up library")
             .setContentText(text)
             .setOngoing(true)
             .setSilent(true)
@@ -108,7 +105,7 @@ class LibrarySyncWorker @AssistedInject constructor(
         const val KEY_PHASE = "phase"
         const val KEY_CURRENT = "current"
         const val KEY_TOTAL = "total"
-        private const val CHANNEL_ID = "mellow_sync"
-        private const val NOTIFICATION_ID = 42
+        private const val CHANNEL_ID = "mellow_cleanup"
+        private const val NOTIFICATION_ID = 43
     }
 }

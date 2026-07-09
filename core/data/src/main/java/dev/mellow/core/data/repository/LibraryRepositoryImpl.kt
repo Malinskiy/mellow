@@ -1,6 +1,7 @@
 package dev.mellow.core.data.repository
 
 import android.util.Log
+import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.mapper.toAlbumEntity
 import dev.mellow.core.data.mapper.toArtistEntity
 import dev.mellow.core.data.mapper.toModel
@@ -93,7 +94,7 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun getMostPlayedAlbums(serverId: String): Flow<List<Album>> =
         albumDao.getMostPlayedAlbums(serverId).map { entities -> entities.map { it.toModel() } }
 
-    override suspend fun syncLibrary(serverId: String) {
+    override suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit) {
         val server = serverDao.getActiveServer() ?: return
         val userId = UUID.fromString(server.userId)
 
@@ -103,17 +104,28 @@ class LibraryRepositoryImpl @Inject constructor(
 
         if (isFullSync) {
             Log.d(TAG, "Full sync (count=$syncCount)")
-            fullSync(serverId, userId)
+            fullSync(serverId, userId, onProgress)
         } else {
             Log.d(TAG, "Incremental sync since ${Instant.ofEpochMilli(lastSyncMs)}")
-            incrementalSync(serverId, userId, lastSyncMs)
+            incrementalSync(serverId, userId, lastSyncMs, onProgress)
         }
 
+        onProgress(SyncProgress("favorites", 0, 0))
         syncFavoritesDiff(serverId, userId)
         syncRecentlyPlayed(serverId, userId)
 
         syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
         syncPreferences.incrementSyncCount()
+    }
+
+    override suspend fun cleanupOrphans(serverId: String, onProgress: (SyncProgress) -> Unit) {
+        val server = serverDao.getActiveServer() ?: return
+        val userId = UUID.fromString(server.userId)
+
+        onProgress(SyncProgress("albums", 0, 0))
+        detectOrphanedAlbums(serverId, userId)
+        onProgress(SyncProgress("artists", 0, 0))
+        detectOrphanedArtists(serverId, userId)
     }
 
     override suspend fun syncFavorites(serverId: String) {
@@ -139,24 +151,31 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun fullSync(serverId: String, userId: UUID) {
-        syncAllAlbums(serverId, userId)
-        syncAllArtists(serverId, userId)
-        syncAllTracks(serverId, userId)
-
-        detectOrphanedAlbums(serverId, userId)
-        detectOrphanedArtists(serverId, userId)
+    private suspend fun fullSync(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
+        syncAllAlbums(serverId, userId, onProgress)
+        syncAllArtists(serverId, userId, onProgress)
+        syncAllTracks(serverId, userId, onProgress)
     }
 
-    private suspend fun incrementalSync(serverId: String, userId: UUID, lastSyncMs: Long) {
+    private suspend fun incrementalSync(
+        serverId: String,
+        userId: UUID,
+        lastSyncMs: Long,
+        onProgress: (SyncProgress) -> Unit,
+    ) {
         val since = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastSyncMs), ZoneOffset.UTC)
 
-        syncAlbumsIncremental(serverId, userId, since)
-        syncArtistsIncremental(serverId, userId, since)
-        syncTracksIncremental(serverId, userId, since)
+        syncAlbumsIncremental(serverId, userId, since, onProgress)
+        syncArtistsIncremental(serverId, userId, since, onProgress)
+        syncTracksIncremental(serverId, userId, since, onProgress)
     }
 
-    private suspend fun syncAlbumsIncremental(serverId: String, userId: UUID, since: LocalDateTime) {
+    private suspend fun syncAlbumsIncremental(
+        serverId: String,
+        userId: UUID,
+        since: LocalDateTime,
+        onProgress: (SyncProgress) -> Unit,
+    ) {
         var startIndex = 0
         val pageSize = 200
         while (true) {
@@ -164,12 +183,18 @@ class LibraryRepositoryImpl @Inject constructor(
             if (items.isEmpty()) break
             Log.d(TAG, "Incremental album sync: ${items.size} changed items at offset $startIndex")
             albumDao.upsertAlbums(items.map { it.toAlbumEntity(serverId) })
+            startIndex += items.size
+            onProgress(SyncProgress("albums", startIndex, startIndex))
             if (items.size < pageSize) break
-            startIndex += pageSize
         }
     }
 
-    private suspend fun syncArtistsIncremental(serverId: String, userId: UUID, since: LocalDateTime) {
+    private suspend fun syncArtistsIncremental(
+        serverId: String,
+        userId: UUID,
+        since: LocalDateTime,
+        onProgress: (SyncProgress) -> Unit,
+    ) {
         var startIndex = 0
         val pageSize = 200
         while (true) {
@@ -177,12 +202,18 @@ class LibraryRepositoryImpl @Inject constructor(
             if (items.isEmpty()) break
             Log.d(TAG, "Incremental artist sync: ${items.size} changed items at offset $startIndex")
             artistDao.upsertArtists(items.map { it.toArtistEntity(serverId) })
+            startIndex += items.size
+            onProgress(SyncProgress("artists", startIndex, startIndex))
             if (items.size < pageSize) break
-            startIndex += pageSize
         }
     }
 
-    private suspend fun syncTracksIncremental(serverId: String, userId: UUID, since: LocalDateTime) {
+    private suspend fun syncTracksIncremental(
+        serverId: String,
+        userId: UUID,
+        since: LocalDateTime,
+        onProgress: (SyncProgress) -> Unit,
+    ) {
         var startIndex = 0
         val pageSize = 500
         while (true) {
@@ -190,8 +221,9 @@ class LibraryRepositoryImpl @Inject constructor(
             if (items.isEmpty()) break
             Log.d(TAG, "Incremental track sync: ${items.size} changed items at offset $startIndex")
             trackDao.upsertTracks(items.map { it.toTrackEntity(serverId) })
+            startIndex += items.size
+            onProgress(SyncProgress("tracks", startIndex, startIndex))
             if (items.size < pageSize) break
-            startIndex += pageSize
         }
     }
 
@@ -291,39 +323,48 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun syncAllAlbums(serverId: String, userId: UUID) {
+    private suspend fun syncAllAlbums(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
         var startIndex = 0
         val pageSize = 200
+        var totalCount = 0
         while (true) {
-            val items = jellyfinDataSource.getAlbums(userId, startIndex, pageSize)
-            if (items.isEmpty()) break
-            albumDao.upsertAlbums(items.map { it.toAlbumEntity(serverId) })
-            if (items.size < pageSize) break
-            startIndex += pageSize
+            val paged = jellyfinDataSource.getAlbumsPaged(userId, startIndex, pageSize)
+            if (paged.items.isEmpty()) break
+            if (totalCount == 0) totalCount = paged.totalRecordCount
+            albumDao.upsertAlbums(paged.items.map { it.toAlbumEntity(serverId) })
+            startIndex += paged.items.size
+            onProgress(SyncProgress("albums", startIndex, totalCount))
+            if (paged.items.size < pageSize) break
         }
     }
 
-    private suspend fun syncAllArtists(serverId: String, userId: UUID) {
+    private suspend fun syncAllArtists(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
         var startIndex = 0
         val pageSize = 200
+        var totalCount = 0
         while (true) {
-            val items = jellyfinDataSource.getArtists(userId, startIndex, pageSize)
-            if (items.isEmpty()) break
-            artistDao.upsertArtists(items.map { it.toArtistEntity(serverId) })
-            if (items.size < pageSize) break
-            startIndex += pageSize
+            val paged = jellyfinDataSource.getArtistsPaged(userId, startIndex, pageSize)
+            if (paged.items.isEmpty()) break
+            if (totalCount == 0) totalCount = paged.totalRecordCount
+            artistDao.upsertArtists(paged.items.map { it.toArtistEntity(serverId) })
+            startIndex += paged.items.size
+            onProgress(SyncProgress("artists", startIndex, totalCount))
+            if (paged.items.size < pageSize) break
         }
     }
 
-    private suspend fun syncAllTracks(serverId: String, userId: UUID) {
+    private suspend fun syncAllTracks(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
         var startIndex = 0
         val pageSize = 500
+        var totalCount = 0
         while (true) {
-            val items = jellyfinDataSource.getTracks(userId, startIndex, pageSize)
-            if (items.isEmpty()) break
-            trackDao.upsertTracks(items.map { it.toTrackEntity(serverId) })
-            if (items.size < pageSize) break
-            startIndex += pageSize
+            val paged = jellyfinDataSource.getTracksPaged(userId, startIndex, pageSize)
+            if (paged.items.isEmpty()) break
+            if (totalCount == 0) totalCount = paged.totalRecordCount
+            trackDao.upsertTracks(paged.items.map { it.toTrackEntity(serverId) })
+            startIndex += paged.items.size
+            onProgress(SyncProgress("tracks", startIndex, totalCount))
+            if (paged.items.size < pageSize) break
         }
     }
 }

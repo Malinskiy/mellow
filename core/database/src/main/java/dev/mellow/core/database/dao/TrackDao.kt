@@ -66,4 +66,7 @@ interface TrackDao {
 
     @Query("DELETE FROM tracks WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
+
+    @Query("DELETE FROM tracks WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

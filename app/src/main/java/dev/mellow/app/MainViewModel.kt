@@ -3,6 +3,7 @@ package dev.mellow.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
@@ -47,6 +48,12 @@ class MainViewModel @Inject constructor(
     val connectionState: StateFlow<ConnectionState> = networkStateObserver.connectionState
 
     val isSyncing: StateFlow<Boolean> = syncScheduler.observeSyncState()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val syncProgress: StateFlow<SyncProgress?> = syncScheduler.observeSyncProgress()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val isCleaningUp: StateFlow<Boolean> = syncScheduler.observeCleanupState()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val lastSyncTimestamp: StateFlow<Long> = syncPreferences.lastSyncTimestamp
@@ -102,6 +109,11 @@ class MainViewModel @Inject constructor(
     fun syncNow() {
         val id = _serverId.value ?: return
         syncScheduler.syncNow(id)
+    }
+
+    fun cleanupLibrary() {
+        val id = _serverId.value ?: return
+        syncScheduler.cleanupNow(id)
     }
 
     fun setForceOffline(enabled: Boolean) {

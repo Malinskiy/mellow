@@ -14,11 +14,13 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import dagger.hilt.android.qualifiers.ApplicationContext
+import androidx.media3.datasource.HttpDataSource
 import dev.mellow.core.common.PlaybackReporter
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.common.jellyfinStreamUrl
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.ServerDao
+import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +55,7 @@ class MellowPlayer @Inject constructor(
     @ApplicationContext private val context: Context,
     private val serverDao: ServerDao,
     private val downloadDao: DownloadDao,
+    private val trackDao: TrackDao,
     private val playbackReporter: PlaybackReporter,
 ) {
     private var controller: MediaController? = null
@@ -326,11 +329,34 @@ class MellowPlayer @Inject constructor(
 
         override fun onPlayerError(error: PlaybackException) {
             Log.e(TAG, "Playback error: ${error.errorCodeName}", error)
+
+            val httpCode = extractHttpStatusCode(error)
+            if (httpCode == 404) {
+                val track = _state.value.currentTrack
+                if (track != null) {
+                    reportingScope.launch {
+                        trackDao.deleteById(track.id)
+                        Log.d(TAG, "Removed orphaned track: ${track.name} (404)")
+                    }
+                }
+            }
+
             _state.value = _state.value.copy(
                 isPlaying = false,
-                error = "Playback error: ${error.localizedMessage}",
+                error = if (httpCode == 404) "Track no longer available" else "Playback error: ${error.localizedMessage}",
             )
         }
+    }
+
+    private fun extractHttpStatusCode(error: PlaybackException): Int? {
+        var cause: Throwable? = error.cause
+        while (cause != null) {
+            if (cause is HttpDataSource.InvalidResponseCodeException) {
+                return cause.responseCode
+            }
+            cause = cause.cause
+        }
+        return null
     }
 
     private fun startPositionUpdates() {

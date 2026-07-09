@@ -31,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.mellow.app.AuthState
 import dev.mellow.app.MainViewModel
+import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.designsystem.component.MellowBottomNavBar
 import dev.mellow.core.player.PositionState
 import dev.mellow.core.designsystem.component.MellowNavDestination
@@ -137,6 +138,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val playbackState by mainViewModel.player.state.collectAsState()
     val positionState by mainViewModel.player.positionState.collectAsState()
     val isSyncing by mainViewModel.isSyncing.collectAsState()
+    val syncProgress by mainViewModel.syncProgress.collectAsState()
+    val isCleaningUp by mainViewModel.isCleaningUp.collectAsState()
     val serverUrl by mainViewModel.serverUrl.collectAsState()
     val connectionState by mainViewModel.connectionState.collectAsState()
 
@@ -393,9 +396,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         connectionState = connectionState,
                         lastSyncTimestamp = mainViewModel.lastSyncTimestamp.collectAsState().value,
                         isSyncing = isSyncing,
+                        syncProgress = syncProgress,
+                        isCleaningUp = isCleaningUp,
                         isForceOffline = mainViewModel.isForceOffline.collectAsState().value,
                         autoSyncIntervalHours = mainViewModel.autoSyncIntervalHours.collectAsState().value,
                         onSyncNow = mainViewModel::syncNow,
+                        onCleanup = mainViewModel::cleanupLibrary,
                         onForceOfflineChange = mainViewModel::setForceOffline,
                         onAutoSyncIntervalChange = mainViewModel::setAutoSyncInterval,
                         downloadQuality = downloadQuality,

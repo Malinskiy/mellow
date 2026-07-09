@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -63,9 +64,12 @@ fun SettingsScreen(
     connectionState: ConnectionState = ConnectionState.Offline,
     lastSyncTimestamp: Long = 0L,
     isSyncing: Boolean = false,
+    syncProgress: SyncProgress? = null,
+    isCleaningUp: Boolean = false,
     isForceOffline: Boolean = false,
     autoSyncIntervalHours: Int = 6,
     onSyncNow: () -> Unit = {},
+    onCleanup: () -> Unit = {},
     onForceOfflineChange: (Boolean) -> Unit = {},
     onAutoSyncIntervalChange: (Int) -> Unit = {},
     downloadQuality: String = "original",
@@ -143,7 +147,8 @@ fun SettingsScreen(
 
         SettingsSection("Sync")
         ConnectionStatusRow(connectionState)
-        LastSyncedRow(lastSyncTimestamp, isSyncing, onSyncNow)
+        LastSyncedRow(lastSyncTimestamp, isSyncing, syncProgress, onSyncNow)
+        CleanupRow(isCleaningUp, onCleanup)
         SettingsRow(
             icon = Icons.Filled.Sync,
             title = "Auto-Sync Frequency",
@@ -433,7 +438,12 @@ private fun ConnectionStatusRow(connectionState: ConnectionState) {
 }
 
 @Composable
-private fun LastSyncedRow(timestamp: Long, isSyncing: Boolean, onSyncNow: () -> Unit) {
+private fun LastSyncedRow(
+    timestamp: Long,
+    isSyncing: Boolean,
+    syncProgress: SyncProgress?,
+    onSyncNow: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -447,13 +457,28 @@ private fun LastSyncedRow(timestamp: Long, isSyncing: Boolean, onSyncNow: () -> 
                 .padding(horizontal = MellowSpacing.Sp3),
         ) {
             Text("Last Synced", style = MaterialTheme.typography.titleMedium, color = MellowTheme.colors.foreground)
-            Text(
-                formatRelativeTime(timestamp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MellowTheme.colors.muted,
-            )
+            if (isSyncing && syncProgress != null && syncProgress.total > 0) {
+                Text(
+                    "${syncProgress.phase}… ${syncProgress.current}/${syncProgress.total}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MellowTheme.colors.muted,
+                )
+            } else {
+                Text(
+                    formatRelativeTime(timestamp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MellowTheme.colors.muted,
+                )
+            }
         }
-        if (isSyncing) {
+        if (isSyncing && syncProgress != null && syncProgress.total > 0) {
+            val progress = syncProgress.current.toFloat() / syncProgress.total
+            CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+            )
+        } else if (isSyncing) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
         } else {
             FilledTonalButton(
@@ -461,6 +486,40 @@ private fun LastSyncedRow(timestamp: Long, isSyncing: Boolean, onSyncNow: () -> 
                 contentPadding = ButtonDefaults.ContentPadding,
             ) {
                 Text("Sync Now", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CleanupRow(isCleaningUp: Boolean, onCleanup: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+    ) {
+        Icon(Icons.Filled.Sync, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = MellowSpacing.Sp3),
+        ) {
+            Text("Clean Up Library", style = MaterialTheme.typography.titleMedium, color = MellowTheme.colors.foreground)
+            Text(
+                "Remove items deleted from server",
+                style = MaterialTheme.typography.bodySmall,
+                color = MellowTheme.colors.muted,
+            )
+        }
+        if (isCleaningUp) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        } else {
+            FilledTonalButton(
+                onClick = onCleanup,
+                contentPadding = ButtonDefaults.ContentPadding,
+            ) {
+                Text("Clean Up", style = MaterialTheme.typography.labelMedium)
             }
         }
     }
