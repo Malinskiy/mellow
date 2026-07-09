@@ -58,6 +58,12 @@
             </intent-filter>
         </service>
 
+        <provider
+            android:name="dev.mellow.core.player.ArtworkProvider"
+            android:authorities="${applicationId}.artwork"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />

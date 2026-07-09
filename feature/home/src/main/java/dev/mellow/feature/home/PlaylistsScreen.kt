@@ -1,12 +1,22 @@
 package dev.mellow.feature.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -21,15 +31,31 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.theme.MellowPalette
+import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+
+data class PlaylistItem(
+    val id: String,
+    val name: String,
+    val trackCount: Int,
+    val imageUrl: String?,
+)
 
 @Composable
 fun PlaylistsScreen(
     modifier: Modifier = Modifier,
+    playlists: List<PlaylistItem> = emptyList(),
+    onPlaylistClick: (String) -> Unit = {},
     onCreatePlaylist: (String) -> Unit = {},
 ) {
     var showDialog by remember { mutableStateOf(false) }
@@ -60,7 +86,20 @@ fun PlaylistsScreen(
                 modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
             )
 
-            EmptyContent("No playlists yet")
+            if (playlists.isEmpty()) {
+                EmptyContent("No playlists yet")
+            } else {
+                LazyColumn {
+                    items(playlists, key = { it.id }) { playlist ->
+                        PlaylistRow(
+                            name = playlist.name,
+                            trackCount = playlist.trackCount,
+                            imageUrl = playlist.imageUrl,
+                            onClick = { onPlaylistClick(playlist.id) },
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -72,6 +111,66 @@ fun PlaylistsScreen(
                 onCreatePlaylist(name)
             },
         )
+    }
+}
+
+@Composable
+private fun PlaylistRow(
+    name: String,
+    trackCount: Int,
+    imageUrl: String?,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+    ) {
+        if (imageUrl != null) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(MellowShapes.Small)
+                    .background(MellowTheme.colors.surface),
+            )
+        } else {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(MellowShapes.Small)
+                    .background(MellowTheme.colors.surface),
+            ) {
+                Icon(
+                    Icons.Filled.MusicNote,
+                    contentDescription = null,
+                    tint = MellowTheme.colors.muted,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+
+        Spacer(Modifier.width(MellowSpacing.Sp3))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleMedium,
+                color = MellowTheme.colors.foreground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "$trackCount tracks",
+                style = MaterialTheme.typography.bodySmall,
+                color = MellowTheme.colors.muted,
+            )
+        }
     }
 }
 

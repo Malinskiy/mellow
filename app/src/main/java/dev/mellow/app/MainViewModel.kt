@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.preferences.SyncPreferences
+import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.network.ConnectionState
@@ -31,6 +32,7 @@ class MainViewModel @Inject constructor(
     private val syncScheduler: SyncScheduler,
     private val jellyfinDataSource: JellyfinDataSource,
     private val downloadDao: DownloadDao,
+    private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow(AuthState.CHECKING)
@@ -133,6 +135,10 @@ class MainViewModel @Inject constructor(
 
     fun isTrackDownloaded(trackId: String): kotlinx.coroutines.flow.Flow<Boolean> {
         return downloadDao.isDownloaded(trackId)
+    }
+
+    suspend fun addTrackToPlaylist(playlistId: String, trackId: String, serverId: String) {
+        playlistRepository.addTrackToPlaylist(playlistId, trackId, serverId)
     }
 
     override fun onCleared() {

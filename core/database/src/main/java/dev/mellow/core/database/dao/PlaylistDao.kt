@@ -46,6 +46,15 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun clearPlaylistTracks(playlistId: String)
 
+    @Query("SELECT * FROM playlists WHERE serverId = :serverId ORDER BY sortName ASC")
+    suspend fun getPlaylistsByServer(serverId: String): List<PlaylistEntity>
+
+    @Query(
+        "SELECT t.* FROM tracks t INNER JOIN playlist_tracks pt ON t.id = pt.trackId " +
+            "WHERE pt.playlistId = :playlistId ORDER BY pt.position ASC",
+    )
+    suspend fun getPlaylistTracksSync(playlistId: String): List<TrackEntity>
+
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
     suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String)
 }

@@ -63,6 +63,18 @@ interface AlbumDao {
     """)
     fun getMostPlayedAlbums(serverId: String, limit: Int = 20): Flow<List<AlbumEntity>>
 
+    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY sortName ASC")
+    suspend fun getAllAlbumsByServer(serverId: String): List<AlbumEntity>
+
+    @Query("SELECT DISTINCT genres FROM albums WHERE serverId = :serverId AND genres != ''")
+    suspend fun getRawGenreStrings(serverId: String): List<String>
+
+    @Query("SELECT * FROM albums WHERE serverId = :serverId AND genres LIKE '%' || :genre || '%' ORDER BY sortName ASC")
+    suspend fun getAlbumsByGenre(genre: String, serverId: String): List<AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE artistId = :artistId ORDER BY year DESC")
+    suspend fun getAllAlbumsByArtist(artistId: String): List<AlbumEntity>
+
     @Query("DELETE FROM albums WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 }

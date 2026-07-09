@@ -1,6 +1,7 @@
 package dev.mellow.feature.library
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
@@ -39,7 +41,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
@@ -51,6 +57,8 @@ import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.common.jellyfinImageUrl
+
+data class LibraryPlaylistItem(val id: String, val name: String, val trackCount: Int, val imageId: String?)
 
 private val TABS = listOf("Albums", "Artists", "Tracks", "Genres", "Playlists", "Folders")
 
@@ -67,6 +75,7 @@ fun LibraryScreen(
     artists: List<ArtistItem> = emptyList(),
     tracks: List<TrackItem> = emptyList(),
     genres: List<String> = emptyList(),
+    playlists: List<LibraryPlaylistItem> = emptyList(),
     serverUrl: String? = null,
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
@@ -77,6 +86,8 @@ fun LibraryScreen(
     onArtistClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
+    onPlaylistClick: (String) -> Unit = {},
+    onCreatePlaylist: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSortChanged: (String) -> Unit = {},
 ) {
@@ -124,7 +135,9 @@ fun LibraryScreen(
             3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
                  else if (genres.isEmpty()) EmptyContent("No genres yet")
                  else GenresPanel(genres)
-            4 -> EmptyContent("No playlists yet")
+            4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
+                 else if (playlists.isEmpty()) EmptyContent("No playlists yet")
+                 else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist)
             5 -> EmptyContent("Coming soon")
         }
     }
@@ -339,6 +352,64 @@ private fun GenresPanel(genres: List<String>) {
                     .fillMaxWidth()
                     .padding(vertical = MellowSpacing.Sp3),
             )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsPanel(
+    playlists: List<LibraryPlaylistItem>,
+    serverUrl: String?,
+    onPlaylistClick: (String) -> Unit,
+    @Suppress("UNUSED_PARAMETER") onCreatePlaylist: (String) -> Unit,
+) {
+    LazyColumn(
+        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+    ) {
+        items(playlists, key = { it.id }) { playlist ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPlaylistClick(playlist.id) }
+                    .padding(vertical = MellowSpacing.Sp2),
+            ) {
+                AsyncImage(
+                    model = if (serverUrl != null && playlist.imageId != null) {
+                        jellyfinImageUrl(serverUrl, playlist.imageId)
+                    } else null,
+                    contentDescription = playlist.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(MellowSpacing.Sp2))
+                        .background(MellowTheme.colors.surface),
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = MellowSpacing.Sp3),
+                ) {
+                    Text(
+                        text = playlist.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MellowTheme.colors.foreground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${playlist.trackCount} tracks",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MellowTheme.colors.muted,
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MellowTheme.colors.muted,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }

@@ -42,11 +42,19 @@ import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.model.AlbumDownloadState
 import dev.mellow.core.model.DownloadState
+import dev.mellow.core.designsystem.component.AddToPlaylistSheet
+import dev.mellow.core.designsystem.component.PlaylistPickerItem
 import dev.mellow.core.model.Track
 import dev.mellow.feature.home.FavoritesScreen
 import dev.mellow.feature.home.FavoritesViewModel
 import dev.mellow.feature.home.HomeScreen
 import dev.mellow.feature.home.HomeViewModel
+import dev.mellow.feature.home.PlaylistDetailScreen
+import dev.mellow.feature.home.PlaylistDetailTrack
+import dev.mellow.feature.home.PlaylistDetailViewModel
+import dev.mellow.feature.home.PlaylistItem
+import dev.mellow.feature.home.PlaylistsScreen
+import dev.mellow.feature.home.PlaylistsViewModel
 import dev.mellow.feature.library.AlbumDetailScreen
 import dev.mellow.feature.library.AlbumDetailTrack
 import dev.mellow.feature.library.AlbumDetailViewModel
@@ -56,6 +64,7 @@ import dev.mellow.feature.library.ArtistDetailScreen
 import dev.mellow.feature.library.ArtistDetailViewModel
 import dev.mellow.feature.library.ArtistItem
 import dev.mellow.feature.library.ArtistTrack
+import dev.mellow.feature.library.LibraryPlaylistItem
 import dev.mellow.feature.library.LibraryScreen
 import dev.mellow.feature.library.LibraryViewModel
 import dev.mellow.feature.library.TrackDownloadIndicator
@@ -128,6 +137,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val isSyncing by mainViewModel.isSyncing.collectAsState()
 
     var contextMenuState by remember { mutableStateOf<ContextMenuState?>(null) }
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var addToPlaylistTrackId by remember { mutableStateOf<String?>(null) }
+    val playlistsVm: PlaylistsViewModel = hiltViewModel()
+    val playlistsState by playlistsVm.uiState.collectAsState()
+
+    LaunchedEffect(serverId) {
+        if (serverId.isNotEmpty()) playlistsVm.loadPlaylists(serverId)
+    }
 
     fun openContextMenu(track: Track, sUrl: String?) {
         contextMenuState = ContextMenuState(
@@ -253,6 +270,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                     val albumCountByArtist = state.albums.groupingBy { it.artistId }.eachCount()
 
+                    val sUrlLib = mainViewModel.serverUrl.collectAsState().value
+
                     LibraryScreen(
                         albumItems = state.albums.map { AlbumItem(it.id, it.name, it.artistName ?: "", it.imageId) },
                         artists = state.artists.map { ArtistItem(it.id, it.name, albumCountByArtist[it.id] ?: 0, it.imageId) },
@@ -267,7 +286,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             )
                         },
                         genres = state.albums.flatMap { it.genres }.distinct().sorted(),
-                        serverUrl = mainViewModel.serverUrl.collectAsState().value,
+                        playlists = playlistsState.playlists.map { pl ->
+                            LibraryPlaylistItem(pl.id, pl.name, pl.trackCount, pl.imageId)
+                        },
+                        serverUrl = sUrlLib,
                         isLoading = state.isLoading,
                         isSyncing = isSyncing,
                         isConnected = connState is ConnectionState.Connected,
@@ -288,6 +310,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 openContextMenu(track, mainViewModel.serverUrl.value)
                             }
                         },
+                        onPlaylistClick = { playlistId -> navController.navigate("playlist/$playlistId") },
+                        onCreatePlaylist = { name -> playlistsVm.createPlaylist(name) },
                         onSettingsClick = { navController.navigate("settings") },
                         onSortChanged = { sort -> currentSort = sort },
                     )
@@ -547,6 +571,60 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                     )
                 }
+                composable("playlist/{playlistId}") {
+                    val playlistDetailVm: PlaylistDetailViewModel = hiltViewModel()
+                    val playlistDetailState by playlistDetailVm.uiState.collectAsState()
+                    val sUrl = mainViewModel.serverUrl.collectAsState().value
+
+                    LaunchedEffect(serverId) {
+                        if (serverId.isNotEmpty()) playlistDetailVm.syncTracks(serverId)
+                    }
+
+                    PlaylistDetailScreen(
+                        onBack = { navController.popBackStack() },
+                        playlistName = playlistDetailState.playlist?.name ?: "",
+                        tracks = playlistDetailState.tracks.map { track ->
+                            PlaylistDetailTrack(
+                                id = track.id,
+                                title = track.name,
+                                artistName = track.artistName ?: "",
+                                duration = formatTrackDuration(track.duration),
+                                imageUrl = if (sUrl != null && track.imageId != null) {
+                                    jellyfinImageUrl(sUrl, track.imageId!!)
+                                } else null,
+                            )
+                        },
+                        isLoading = playlistDetailState.isLoading,
+                        onTrackClick = { trackId ->
+                            val tracks = playlistDetailState.tracks
+                            val idx = tracks.indexOfFirst { it.id == trackId }
+                            if (idx >= 0) {
+                                scope.launch { mainViewModel.player.playTracks(tracks, idx) }
+                            }
+                        },
+                        onPlayAll = {
+                            val tracks = playlistDetailState.tracks
+                            if (tracks.isNotEmpty()) {
+                                scope.launch { mainViewModel.player.playTracks(tracks, 0) }
+                            }
+                        },
+                        onShuffle = {
+                            val tracks = playlistDetailState.tracks
+                            if (tracks.isNotEmpty()) {
+                                scope.launch { mainViewModel.player.playTracks(tracks.shuffled(), 0) }
+                            }
+                        },
+                        onTrackMenuClick = { trackId ->
+                            val track = playlistDetailState.tracks.find { it.id == trackId }
+                            if (track != null) {
+                                openContextMenu(track, mainViewModel.serverUrl.value)
+                            }
+                        },
+                        onRemoveTrack = { trackId ->
+                            playlistDetailVm.removeTrack(trackId)
+                        },
+                    )
+                }
                 composable("now_playing") {
                     val sUrl = mainViewModel.serverUrl.collectAsState().value
                     val pState = playbackState
@@ -715,7 +793,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             onAddToQueue = {
                 mainViewModel.player.addToQueue(contextMenuState!!.track)
             },
-            onAddToPlaylist = {},
+            onAddToPlaylist = {
+                addToPlaylistTrackId = contextMenuState?.track?.id
+                showAddToPlaylistSheet = true
+            },
             onGoToAlbum = {
                 contextMenuState!!.menuData.albumId?.let { navController.navigate("album/$it") }
                 contextMenuState = null
@@ -730,6 +811,29 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 mainViewModel.toggleFavorite(t.id, t.isFavorite)
             },
             onTrackInfo = {},
+        )
+    }
+
+    if (showAddToPlaylistSheet) {
+        AddToPlaylistSheet(
+            playlists = playlistsState.playlists.map { PlaylistPickerItem(it.id, it.name) },
+            onSelect = { playlistId ->
+                val trackId = addToPlaylistTrackId
+                if (trackId != null) {
+                    scope.launch {
+                        mainViewModel.addTrackToPlaylist(playlistId, trackId, serverId)
+                    }
+                }
+                showAddToPlaylistSheet = false
+                addToPlaylistTrackId = null
+            },
+            onDismiss = {
+                showAddToPlaylistSheet = false
+                addToPlaylistTrackId = null
+            },
+            onCreateNew = { name ->
+                playlistsVm.createPlaylist(name)
+            },
         )
     }
 }

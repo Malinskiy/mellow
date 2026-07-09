@@ -34,6 +34,9 @@ interface ArtistDao {
     @Query("UPDATE artists SET isFavorite = :isFavorite WHERE id = :artistId")
     suspend fun setFavorite(artistId: String, isFavorite: Boolean)
 
+    @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName ASC")
+    suspend fun getAllArtistsByServer(serverId: String): List<ArtistEntity>
+
     @Query("DELETE FROM artists WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 }

@@ -49,6 +49,15 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY dateAdded DESC LIMIT :limit")
     fun observeRecentTracks(serverId: String, limit: Int = 500): Flow<List<TrackEntity>>
 
+    @Query("SELECT * FROM tracks WHERE serverId = :serverId AND lastPlayedAt > 0 ORDER BY lastPlayedAt DESC LIMIT :limit")
+    suspend fun getRecentlyPlayedTracks(serverId: String, limit: Int = 50): List<TrackEntity>
+
+    @Query("SELECT * FROM tracks WHERE isFavorite = 1 AND serverId = :serverId")
+    suspend fun getFavoriteTracksSync(serverId: String): List<TrackEntity>
+
+    @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber ASC, trackNumber ASC")
+    suspend fun getTracksByAlbumSync(albumId: String): List<TrackEntity>
+
     @Query("DELETE FROM tracks WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 }

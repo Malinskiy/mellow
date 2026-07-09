@@ -2,9 +2,11 @@ package dev.mellow.core.data.mapper
 
 import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
+import dev.mellow.core.database.entity.PlaylistEntity
 import dev.mellow.core.database.entity.TrackEntity
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
+import dev.mellow.core.model.Playlist
 import dev.mellow.core.model.Track
 import java.time.Duration
 
@@ -48,4 +50,14 @@ fun TrackEntity.toModel() = Track(
     normalizationGain = normalizationGain,
     codec = codec,
     container = container,
+)
+
+fun PlaylistEntity.toModel() = Playlist(
+    id = id,
+    name = name,
+    trackCount = trackCount,
+    durationMs = durationMs,
+    imageId = imageTag?.let { id },
+    isFavorite = isFavorite,
+    isLocal = isLocal,
 )

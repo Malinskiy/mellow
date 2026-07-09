@@ -4,6 +4,7 @@ import dev.mellow.core.network.JellyfinClientWrapper
 import android.util.Log
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
+import org.jellyfin.sdk.api.client.extensions.playlistsApi
 import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -12,6 +13,8 @@ import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.SortOrder
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.AuthenticateUserByName
+import org.jellyfin.sdk.model.api.CreatePlaylistDto
+import org.jellyfin.sdk.model.api.MediaType
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.api.PlaybackOrder
 import org.jellyfin.sdk.model.api.PlaybackProgressInfo
@@ -234,6 +237,58 @@ class JellyfinDataSource @Inject constructor(
             enableUserData = true,
         )
         return response.items.orEmpty()
+    }
+
+    suspend fun getPlaylists(userId: UUID): List<BaseItemDto> {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.PLAYLIST),
+            recursive = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            fields = listOf(ItemFields.DATE_CREATED),
+            enableUserData = true,
+        )
+        return response.items.orEmpty()
+    }
+
+    suspend fun getPlaylistItems(playlistId: UUID, userId: UUID): List<BaseItemDto> {
+        val response by client.api.playlistsApi.getPlaylistItems(
+            playlistId = playlistId,
+            userId = userId,
+            fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS),
+            enableUserData = true,
+        )
+        return response.items.orEmpty()
+    }
+
+    suspend fun createPlaylist(name: String, userId: UUID): String? {
+        val response by client.api.playlistsApi.createPlaylist(
+            CreatePlaylistDto(
+                name = name,
+                ids = emptyList(),
+                userId = userId,
+                mediaType = MediaType.AUDIO,
+                users = emptyList(),
+                isPublic = false,
+            ),
+        )
+        return response.id
+    }
+
+    suspend fun addToPlaylist(playlistId: UUID, trackIds: List<UUID>, userId: UUID) {
+        client.api.playlistsApi.addItemToPlaylist(
+            playlistId = playlistId,
+            ids = trackIds,
+            userId = userId,
+        )
+    }
+
+    suspend fun removeFromPlaylist(playlistId: String, entryIds: List<String>) {
+        client.api.playlistsApi.removeItemFromPlaylist(
+            playlistId = playlistId,
+            entryIds = entryIds,
+        )
     }
 
     data class AuthResult(

@@ -2,6 +2,7 @@ package dev.mellow.core.data.mapper
 
 import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
+import dev.mellow.core.database.entity.PlaylistEntity
 import dev.mellow.core.database.entity.TrackEntity
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -34,6 +35,19 @@ fun BaseItemDto.toArtistEntity(serverId: String): ArtistEntity = ArtistEntity(
     isFavorite = userData?.isFavorite ?: false,
     overview = overview,
     genres = genres.orEmpty(),
+    lastSynced = System.currentTimeMillis(),
+)
+
+fun BaseItemDto.toPlaylistEntity(serverId: String) = PlaylistEntity(
+    id = id.toString(),
+    serverId = serverId,
+    name = name.orEmpty(),
+    sortName = sortName ?: name.orEmpty(),
+    trackCount = childCount ?: 0,
+    durationMs = (runTimeTicks ?: 0L) / 10_000,
+    imageTag = imageTags?.get(ImageType.PRIMARY),
+    isFavorite = userData?.isFavorite ?: false,
+    isLocal = false,
     lastSynced = System.currentTimeMillis(),
 )
 
