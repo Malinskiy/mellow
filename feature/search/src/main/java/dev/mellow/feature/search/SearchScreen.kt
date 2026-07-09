@@ -43,6 +43,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.ArtistRow
@@ -247,6 +248,8 @@ private fun TopResultRow(result: SearchResult, serverUrl: String, onClick: () ->
             model = imageUrl as? String,
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            placeholder = ColorPainter(MellowTheme.colors.surface),
+            error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .size(48.dp)
                 .clip(if (isRound as Boolean) CircleShape else MellowShapes.Small)
@@ -290,6 +293,8 @@ private fun ResultRow(
             model = imageUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            placeholder = ColorPainter(MellowTheme.colors.surface),
+            error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .size(48.dp)
                 .clip(if (isRound) CircleShape else MellowShapes.Small)

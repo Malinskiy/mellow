@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
@@ -285,6 +286,8 @@ private fun AlbumHero(
                 model = imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(MellowTheme.colors.surface),
+                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .matchParentSize()
                     .graphicsLayer { alpha = 0.35f }
@@ -307,8 +310,10 @@ private fun AlbumHero(
         ) {
             AsyncImage(
                 model = imageUrl,
-                contentDescription = "Album art for $albumName",
+                contentDescription = "Album art",
                 contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(MellowTheme.colors.surface),
+                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .width(240.dp)
                     .aspectRatio(1f)

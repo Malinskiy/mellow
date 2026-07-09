@@ -32,6 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import dev.mellow.app.AuthState
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.designsystem.component.MellowBottomNavBar
+import dev.mellow.core.player.PositionState
 import dev.mellow.core.designsystem.component.MellowNavDestination
 import dev.mellow.core.designsystem.component.MiniPlayer
 import dev.mellow.core.designsystem.component.TrackContextMenu
@@ -134,7 +135,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val fullScreenRoutes = setOf("now_playing", "queue", "lyrics")
     val isFullScreen = currentRoute in fullScreenRoutes
     val playbackState by mainViewModel.player.state.collectAsState()
+    val positionState by mainViewModel.player.positionState.collectAsState()
     val isSyncing by mainViewModel.isSyncing.collectAsState()
+    val serverUrl by mainViewModel.serverUrl.collectAsState()
+    val connectionState by mainViewModel.connectionState.collectAsState()
 
     var contextMenuState by remember { mutableStateOf<ContextMenuState?>(null) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
@@ -155,8 +159,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 album = track.albumName ?: "",
                 albumId = track.albumId,
                 artistId = track.artistId,
-                imageUrl = if (sUrl != null && track.imageId != null) {
-                    jellyfinImageUrl(sUrl, track.imageId!!)
+                                imageUrl = if (serverUrl != null && track.imageId != null) {
+                                    jellyfinImageUrl(serverUrl!!, track.imageId!!)
                 } else null,
                 isFavorite = track.isFavorite,
                 isDownloaded = false,
@@ -172,16 +176,15 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 Column {
                     if (playbackState.currentTrack != null) {
                         val track = playbackState.currentTrack!!
-                        val sUrl = mainViewModel.serverUrl.collectAsState().value
                         MiniPlayer(
                             title = track.name,
                             artist = track.artistName ?: "",
-                            imageUrl = if (sUrl != null && track.imageId != null) {
-                                jellyfinImageUrl(sUrl, track.imageId!!)
+                            imageUrl = if (serverUrl != null && track.imageId != null) {
+                                jellyfinImageUrl(serverUrl!!, track.imageId!!)
                             } else null,
                             isPlaying = playbackState.isPlaying,
-                            progress = if (playbackState.durationMs > 0) {
-                                playbackState.positionMs.toFloat() / playbackState.durationMs
+                            progress = if (positionState.durationMs > 0) {
+                                positionState.positionMs.toFloat() / positionState.durationMs
                             } else 0f,
                             onPlayPauseClick = { mainViewModel.player.playPause() },
                             onNextClick = { mainViewModel.player.skipNext() },
@@ -221,8 +224,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable(MellowNavDestination.Home.route) {
                     val homeVm: HomeViewModel = hiltViewModel()
                     val homeState by homeVm.uiState.collectAsState()
-                    val connState = mainViewModel.connectionState.collectAsState().value
-
                     LaunchedEffect(serverId) {
                         if (serverId.isNotEmpty()) homeVm.loadHome(serverId)
                     }
@@ -233,9 +234,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         favoriteTracks = homeState.favoriteTracks,
                         genres = homeState.genres,
                         albumCount = homeState.albumCount,
-                        serverUrl = mainViewModel.serverUrl.collectAsState().value,
-                        isConnected = connState is ConnectionState.Connected,
-                        isServerUnreachable = connState is ConnectionState.ServerUnreachable,
+                        serverUrl = serverUrl,
+                        isConnected = connectionState is ConnectionState.Connected,
+                        isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
                         onTrackClick = { trackId ->
                             val favTracks = homeVm.uiState.value.favoriteTracks
@@ -262,7 +263,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     val libraryVm: LibraryViewModel = hiltViewModel()
                     val state by libraryVm.uiState.collectAsState()
                     var currentSort by rememberSaveable { mutableStateOf("Recently Added") }
-                    val connState = mainViewModel.connectionState.collectAsState().value
 
                     LaunchedEffect(serverId) {
                         if (serverId.isNotEmpty()) libraryVm.loadLibrary(serverId)
@@ -270,12 +270,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                     val albumCountByArtist = state.albums.groupingBy { it.artistId }.eachCount()
 
-                    val sUrlLib = mainViewModel.serverUrl.collectAsState().value
-
-                    LibraryScreen(
-                        albumItems = state.albums.map { AlbumItem(it.id, it.name, it.artistName ?: "", it.imageId) },
-                        artists = state.artists.map { ArtistItem(it.id, it.name, albumCountByArtist[it.id] ?: 0, it.imageId) },
-                        tracks = state.tracks.map { track ->
+                    val albumItems = remember(state.albums) {
+                        state.albums.map { AlbumItem(it.id, it.name, it.artistName ?: "", it.imageId) }
+                    }
+                    val artists = remember(state.artists, albumCountByArtist) {
+                        state.artists.map { ArtistItem(it.id, it.name, albumCountByArtist[it.id] ?: 0, it.imageId) }
+                    }
+                    val tracks = remember(state.tracks) {
+                        state.tracks.map { track ->
                             TrackItem(
                                 id = track.id,
                                 title = track.name,
@@ -284,16 +286,28 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 duration = formatTrackDuration(track.duration),
                                 imageId = track.imageId,
                             )
-                        },
-                        genres = state.albums.flatMap { it.genres }.distinct().sorted(),
-                        playlists = playlistsState.playlists.map { pl ->
+                        }
+                    }
+                    val genres = remember(state.albums) {
+                        state.albums.flatMap { it.genres }.distinct().sorted()
+                    }
+                    val playlists = remember(playlistsState.playlists) {
+                        playlistsState.playlists.map { pl ->
                             LibraryPlaylistItem(pl.id, pl.name, pl.trackCount, pl.imageId)
-                        },
-                        serverUrl = sUrlLib,
+                        }
+                    }
+
+                    LibraryScreen(
+                        albumItems = albumItems,
+                        artists = artists,
+                        tracks = tracks,
+                        genres = genres,
+                        playlists = playlists,
+                        serverUrl = serverUrl,
                         isLoading = state.isLoading,
                         isSyncing = isSyncing,
-                        isConnected = connState is ConnectionState.Connected,
-                        isServerUnreachable = connState is ConnectionState.ServerUnreachable,
+                        isConnected = connectionState is ConnectionState.Connected,
+                        isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
                         sortLabel = currentSort,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
@@ -322,7 +336,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                     SearchScreen(
                         serverId = serverId,
-                        serverUrl = mainViewModel.serverUrl.collectAsState().value ?: "",
+                        serverUrl = serverUrl ?: "",
                         onPlayTracks = { tracks, index ->
                             scope.launch { mainViewModel.player.playTracks(tracks, index) }
                         },
@@ -341,7 +355,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     val favState by favVm.uiState.collectAsState()
                     FavoritesScreen(
                         serverId = serverId,
-                        serverUrl = mainViewModel.serverUrl.collectAsState().value,
+                        serverUrl = serverUrl,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                         onTrackClick = { trackId ->
@@ -375,10 +389,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                     SettingsScreen(
                         onBack = { navController.popBackStack() },
-                        serverUrl = mainViewModel.serverUrl.collectAsState().value ?: "",
-                        connectionState = mainViewModel.connectionState.collectAsState().value,
+                        serverUrl = serverUrl ?: "",
+                        connectionState = connectionState,
                         lastSyncTimestamp = mainViewModel.lastSyncTimestamp.collectAsState().value,
-                        isSyncing = mainViewModel.isSyncing.collectAsState().value,
+                        isSyncing = isSyncing,
                         isForceOffline = mainViewModel.isForceOffline.collectAsState().value,
                         autoSyncIntervalHours = mainViewModel.autoSyncIntervalHours.collectAsState().value,
                         onSyncNow = mainViewModel::syncNow,
@@ -399,11 +413,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable("album/{albumId}") {
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
                     val albumState by albumVm.uiState.collectAsState()
-                    val sUrl = mainViewModel.serverUrl.collectAsState().value
                     val downloadState by albumVm.albumDownloadState.collectAsState()
                     val trackDlStates by albumVm.trackDownloadStates.collectAsState()
-                    val connState = mainViewModel.connectionState.collectAsState().value
-                    val isOffline = connState is ConnectionState.Offline
+                    val isOffline = connectionState is ConnectionState.Offline
 
                     val showDlIndicators = downloadState.overallStatus != AlbumDownloadState.Status.NONE
 
@@ -420,16 +432,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         null
                     }
 
-                    AlbumDetailScreen(
-                        onBack = { navController.popBackStack() },
-                        albumName = albumState.album?.name ?: "",
-                        artistName = albumState.album?.artistName ?: "",
-                        albumImageUrl = if (sUrl != null && albumState.album?.imageId != null) {
-                            jellyfinImageUrl(sUrl, albumState.album!!.imageId!!)
-                        } else null,
-                        year = albumState.album?.year,
-                        expectedTrackCount = albumState.album?.trackCount ?: 0,
-                        tracks = albumState.tracks.map { track ->
+                    val mappedTracks = remember(albumState.tracks, trackDlStates, isOffline) {
+                        albumState.tracks.map { track ->
                             val dlState = trackDlStates[track.id]
                             val indicator = when {
                                 !showDlIndicators -> TrackDownloadIndicator.NONE
@@ -447,7 +451,19 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 isFavorite = track.isFavorite,
                                 downloadIndicator = indicator,
                             )
-                        },
+                        }
+                    }
+
+                    AlbumDetailScreen(
+                        onBack = { navController.popBackStack() },
+                        albumName = albumState.album?.name ?: "",
+                        artistName = albumState.album?.artistName ?: "",
+                        albumImageUrl = if (serverUrl != null && albumState.album?.imageId != null) {
+                            jellyfinImageUrl(serverUrl!!, albumState.album!!.imageId!!)
+                        } else null,
+                        year = albumState.album?.year,
+                        expectedTrackCount = albumState.album?.trackCount ?: 0,
+                        tracks = mappedTracks,
                         isFavorite = albumState.album?.isFavorite ?: false,
                         isLoading = albumState.isLoading,
                         isSyncing = isSyncing,
@@ -505,32 +521,38 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable("artist/{artistId}") {
                     val artistVm: ArtistDetailViewModel = hiltViewModel()
                     val artistState by artistVm.uiState.collectAsState()
-                    val sUrl = mainViewModel.serverUrl.collectAsState().value
 
-                    ArtistDetailScreen(
-                        onBack = { navController.popBackStack() },
-                        artistName = artistState.artist?.name ?: "",
-                        artistImageUrl = if (sUrl != null && artistState.artist?.imageId != null) {
-                            jellyfinImageUrl(sUrl, artistState.artist!!.imageId!!)
-                        } else null,
-                        albumCount = artistState.artist?.albumCount ?: 0,
-                        overview = artistState.artist?.overview,
-                        topTracks = artistState.topTracks.map { track ->
+                    val topTracks = remember(artistState.topTracks) {
+                        artistState.topTracks.map { track ->
                             ArtistTrack(
                                 id = track.id,
                                 title = track.name,
                                 duration = formatTrackDuration(track.duration),
                                 albumName = track.albumName ?: "",
                             )
-                        },
-                        albums = artistState.albums.map { album ->
+                        }
+                    }
+                    val albums = remember(artistState.albums) {
+                        artistState.albums.map { album ->
                             ArtistAlbum(
                                 id = album.id,
                                 name = album.name,
                                 year = album.year,
                                 imageId = album.imageId,
                             )
-                        },
+                        }
+                    }
+
+                    ArtistDetailScreen(
+                        onBack = { navController.popBackStack() },
+                        artistName = artistState.artist?.name ?: "",
+                        artistImageUrl = if (serverUrl != null && artistState.artist?.imageId != null) {
+                            jellyfinImageUrl(serverUrl!!, artistState.artist!!.imageId!!)
+                        } else null,
+                        albumCount = artistState.artist?.albumCount ?: 0,
+                        overview = artistState.artist?.overview,
+                        topTracks = topTracks,
+                        albums = albums,
                         isLoading = artistState.isLoading,
                         isSyncing = isSyncing,
                         error = artistState.error,
@@ -549,7 +571,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 openContextMenu(track, mainViewModel.serverUrl.value)
                             }
                         },
-                        serverUrl = sUrl,
+                        serverUrl = serverUrl,
                         isFavorite = artistState.artist?.isFavorite ?: false,
                         onPlayAll = {
                             val tracks = artistState.topTracks
@@ -574,26 +596,29 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable("playlist/{playlistId}") {
                     val playlistDetailVm: PlaylistDetailViewModel = hiltViewModel()
                     val playlistDetailState by playlistDetailVm.uiState.collectAsState()
-                    val sUrl = mainViewModel.serverUrl.collectAsState().value
 
                     LaunchedEffect(serverId) {
                         if (serverId.isNotEmpty()) playlistDetailVm.syncTracks(serverId)
                     }
 
-                    PlaylistDetailScreen(
-                        onBack = { navController.popBackStack() },
-                        playlistName = playlistDetailState.playlist?.name ?: "",
-                        tracks = playlistDetailState.tracks.map { track ->
+                    val mappedPlaylistTracks = remember(playlistDetailState.tracks, serverUrl) {
+                        playlistDetailState.tracks.map { track ->
                             PlaylistDetailTrack(
                                 id = track.id,
                                 title = track.name,
                                 artistName = track.artistName ?: "",
                                 duration = formatTrackDuration(track.duration),
-                                imageUrl = if (sUrl != null && track.imageId != null) {
-                                    jellyfinImageUrl(sUrl, track.imageId!!)
+                                imageUrl = if (serverUrl != null && track.imageId != null) {
+                                    jellyfinImageUrl(serverUrl!!, track.imageId!!)
                                 } else null,
                             )
-                        },
+                        }
+                    }
+
+                    PlaylistDetailScreen(
+                        onBack = { navController.popBackStack() },
+                        playlistName = playlistDetailState.playlist?.name ?: "",
+                        tracks = mappedPlaylistTracks,
                         isLoading = playlistDetailState.isLoading,
                         onTrackClick = { trackId ->
                             val tracks = playlistDetailState.tracks
@@ -626,7 +651,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable("now_playing") {
-                    val sUrl = mainViewModel.serverUrl.collectAsState().value
                     val pState = playbackState
                     val track = pState.currentTrack
 
@@ -639,15 +663,15 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         trackName = track?.name ?: "",
                         artistName = track?.artistName ?: "",
                         albumName = track?.albumName ?: "",
-                        albumImageUrl = if (sUrl != null && track?.imageId != null) {
-                            jellyfinImageUrl(sUrl, track.imageId!!)
+                        albumImageUrl = if (serverUrl != null && track?.imageId != null) {
+                            jellyfinImageUrl(serverUrl!!, track.imageId!!)
                         } else null,
                         isPlaying = pState.isPlaying,
-                        progress = if (pState.durationMs > 0) {
-                            pState.positionMs.toFloat() / pState.durationMs
+                        progress = if (positionState.durationMs > 0) {
+                            positionState.positionMs.toFloat() / positionState.durationMs
                         } else 0f,
-                        positionMs = pState.positionMs,
-                        durationMs = pState.durationMs,
+                        positionMs = positionState.positionMs,
+                        durationMs = positionState.durationMs,
                         isFavorite = track?.isFavorite ?: false,
                         isDownloaded = isDownloaded,
                         error = pState.error,
@@ -681,7 +705,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable("queue") {
-                    val sUrl = mainViewModel.serverUrl.collectAsState().value
                     val pState = playbackState
                     val currentIdx = pState.currentIndex
                     val queue = pState.queue
@@ -693,26 +716,28 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             artist = track.artistName ?: "",
                             album = track.albumName ?: "",
                             duration = formatTrackDuration(track.duration),
-                            imageUrl = if (sUrl != null && track.imageId != null) {
-                                jellyfinImageUrl(sUrl, track.imageId!!)
+                            imageUrl = if (serverUrl != null && track.imageId != null) {
+                                jellyfinImageUrl(serverUrl!!, track.imageId!!)
                             } else null,
                         )
                     }
 
-                    val upNext = queue
-                        .filterIndexed { idx, _ -> idx > currentIdx }
-                        .map { track ->
-                            QueueTrack(
-                                id = track.id,
-                                title = track.name,
-                                artist = track.artistName ?: "",
-                                album = track.albumName ?: "",
-                                duration = formatTrackDuration(track.duration),
-                                imageUrl = if (sUrl != null && track.imageId != null) {
-                                    jellyfinImageUrl(sUrl, track.imageId!!)
-                                } else null,
-                            )
-                        }
+                    val upNext = remember(queue, currentIdx, serverUrl) {
+                        queue
+                            .filterIndexed { idx, _ -> idx > currentIdx }
+                            .map { track ->
+                                QueueTrack(
+                                    id = track.id,
+                                    title = track.name,
+                                    artist = track.artistName ?: "",
+                                    album = track.albumName ?: "",
+                                    duration = formatTrackDuration(track.duration),
+                                    imageUrl = if (serverUrl != null && track.imageId != null) {
+                                        jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                                    } else null,
+                                )
+                            }
+                    }
 
                     QueueScreen(
                         onBack = { navController.popBackStack() },
@@ -742,7 +767,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable("lyrics") {
-                    val sUrl = mainViewModel.serverUrl.collectAsState().value
                     val pState = playbackState
                     val track = pState.currentTrack
 
@@ -764,13 +788,13 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     LyricsScreen(
                         trackName = track?.name ?: "",
                         artistName = track?.artistName ?: "",
-                        albumImageUrl = if (sUrl != null && track?.imageId != null) {
-                            jellyfinImageUrl(sUrl, track.imageId!!)
+                        albumImageUrl = if (serverUrl != null && track?.imageId != null) {
+                            jellyfinImageUrl(serverUrl!!, track.imageId!!)
                         } else null,
                         lyrics = lyrics,
                         isLoadingLyrics = isLoadingLyrics,
-                        positionMs = pState.positionMs,
-                        durationMs = pState.durationMs,
+                        positionMs = positionState.positionMs,
+                        durationMs = positionState.durationMs,
                         isPlaying = pState.isPlaying,
                         onClose = { navController.popBackStack() },
                         onSeekTo = { ms -> mainViewModel.player.seekTo(ms) },
@@ -815,8 +839,11 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     }
 
     if (showAddToPlaylistSheet) {
+        val playlistPickerItems = remember(playlistsState.playlists) {
+            playlistsState.playlists.map { PlaylistPickerItem(it.id, it.name) }
+        }
         AddToPlaylistSheet(
-            playlists = playlistsState.playlists.map { PlaylistPickerItem(it.id, it.name) },
+            playlists = playlistPickerItems,
             onSelect = { playlistId ->
                 val trackId = addToPlaylistTrackId
                 if (trackId != null) {

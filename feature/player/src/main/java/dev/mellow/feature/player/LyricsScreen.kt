@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -107,6 +108,8 @@ fun LyricsScreen(
                 model = albumImageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(MellowTheme.colors.surface),
+                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(120.dp)
@@ -240,6 +243,8 @@ private fun LyricsTopBar(
                 model = albumImageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(MellowTheme.colors.surface),
+                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .size(36.dp)
                     .clip(MellowShapes.Small)

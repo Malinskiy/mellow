@@ -43,6 +43,11 @@ data class PlaybackState(
     val repeatMode: Int = 0,
 )
 
+data class PositionState(
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+)
+
 @Singleton
 class MellowPlayer @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -54,6 +59,9 @@ class MellowPlayer @Inject constructor(
 
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
+
+    private val _positionState = MutableStateFlow(PositionState())
+    val positionState: StateFlow<PositionState> = _positionState.asStateFlow()
 
     private val reportingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -68,7 +76,7 @@ class MellowPlayer @Inject constructor(
         override fun run() {
             controller?.let { c ->
                 if (c.isPlaying) {
-                    _state.value = _state.value.copy(
+                    _positionState.value = PositionState(
                         positionMs = c.currentPosition,
                         durationMs = c.duration.coerceAtLeast(0L),
                     )
@@ -214,6 +222,7 @@ class MellowPlayer @Inject constructor(
         }
         currentQueue = emptyList()
         _state.value = PlaybackState()
+        _positionState.value = PositionState()
     }
 
     fun toggleShuffle() {
@@ -282,9 +291,15 @@ class MellowPlayer @Inject constructor(
             when (playbackState) {
                 Player.STATE_READY -> {
                     controller?.let { c ->
+                        val dur = c.duration.coerceAtLeast(0L)
+                        val pos = c.currentPosition
                         _state.value = _state.value.copy(
-                            durationMs = c.duration.coerceAtLeast(0L),
-                            positionMs = c.currentPosition,
+                            durationMs = dur,
+                            positionMs = pos,
+                        )
+                        _positionState.value = PositionState(
+                            positionMs = pos,
+                            durationMs = dur,
                         )
                     }
                 }
@@ -292,6 +307,7 @@ class MellowPlayer @Inject constructor(
                     val track = _state.value.currentTrack
                     val pos = controller?.currentPosition ?: 0L
                     _state.value = _state.value.copy(isPlaying = false, positionMs = 0L)
+                    _positionState.value = PositionState(positionMs = 0L, durationMs = 0L)
                     if (track != null) {
                         reportingScope.launch { playbackReporter.reportStopped(track.id, pos) }
                     }

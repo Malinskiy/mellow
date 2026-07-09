@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -31,8 +32,10 @@ fun AlbumCard(
     ) {
         AsyncImage(
             model = imageUrl,
-            contentDescription = title,
+            contentDescription = "Album art",
             contentScale = ContentScale.Crop,
+            placeholder = ColorPainter(MellowTheme.colors.surface),
+            error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)

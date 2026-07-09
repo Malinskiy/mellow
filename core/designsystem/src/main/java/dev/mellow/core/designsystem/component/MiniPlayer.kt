@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -64,6 +65,8 @@ fun MiniPlayer(
                 model = imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(MellowTheme.colors.surface),
+                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .size(44.dp)
                     .clip(MellowShapes.Small)

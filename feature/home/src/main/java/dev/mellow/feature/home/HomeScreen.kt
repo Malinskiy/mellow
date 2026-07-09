@@ -297,8 +297,10 @@ private fun CompactAlbumCard(
     ) {
         coil3.compose.AsyncImage(
             model = imageUrl,
-            contentDescription = title,
+            contentDescription = "Album art",
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MellowTheme.colors.surface),
+            error = androidx.compose.ui.graphics.painter.ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .height(60.dp)
                 .width(60.dp)

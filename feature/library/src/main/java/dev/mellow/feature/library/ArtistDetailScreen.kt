@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.AlbumCard
@@ -181,8 +182,10 @@ private fun ArtistHero(
     ) {
         AsyncImage(
             model = artistImageUrl,
-            contentDescription = "Artist photo",
+            contentDescription = "Artist image",
             contentScale = ContentScale.Crop,
+            placeholder = ColorPainter(MellowTheme.colors.surface),
+            error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .size(160.dp)
                 .clip(CircleShape)

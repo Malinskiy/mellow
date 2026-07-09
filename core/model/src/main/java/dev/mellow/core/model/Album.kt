@@ -1,5 +1,8 @@
 package dev.mellow.core.model
 
+import androidx.compose.runtime.Stable
+
+@Stable
 data class Album(
     val id: String,
     val name: String,

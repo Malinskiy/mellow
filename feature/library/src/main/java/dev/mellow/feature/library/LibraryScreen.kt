@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
@@ -380,6 +381,8 @@ private fun PlaylistsPanel(
                     } else null,
                     contentDescription = playlist.name,
                     contentScale = ContentScale.Crop,
+                    placeholder = ColorPainter(MellowTheme.colors.surface),
+                    error = ColorPainter(MellowTheme.colors.surface),
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(MellowSpacing.Sp2))

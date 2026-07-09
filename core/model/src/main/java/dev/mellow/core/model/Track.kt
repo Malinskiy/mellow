@@ -1,7 +1,9 @@
 package dev.mellow.core.model
 
+import androidx.compose.runtime.Stable
 import java.time.Duration
 
+@Stable
 data class Track(
     val id: String,
     val name: String,

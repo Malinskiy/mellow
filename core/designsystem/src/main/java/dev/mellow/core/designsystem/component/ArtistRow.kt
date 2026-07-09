@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -39,8 +40,10 @@ fun ArtistRow(
     ) {
         AsyncImage(
             model = imageUrl,
-            contentDescription = name,
+            contentDescription = "Artist image",
             contentScale = ContentScale.Crop,
+            placeholder = ColorPainter(MellowTheme.colors.surface),
+            error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .size(56.dp)
                 .clip(CircleShape)
