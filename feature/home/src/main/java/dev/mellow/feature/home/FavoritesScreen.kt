@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,8 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.mellow.core.common.jellyfinImageUrl
+import androidx.compose.ui.Alignment
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
+import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
@@ -52,6 +55,8 @@ fun FavoritesScreen(
     modifier: Modifier = Modifier,
     serverId: String = "",
     serverUrl: String? = null,
+    isConnected: Boolean = false,
+    isServerUnreachable: Boolean = false,
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
@@ -71,12 +76,23 @@ fun FavoritesScreen(
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) {
-        Text(
-            "Favorites",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MellowTheme.colors.foreground,
-            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+        ) {
+            Text(
+                "Favorites",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MellowTheme.colors.foreground,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            ConnectionStatusDot(
+                isConnected = isConnected,
+                isServerUnreachable = isServerUnreachable,
+            )
+        }
 
         MellowTabBar(
             tabs = TABS,

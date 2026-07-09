@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.ArtistRow
+import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.model.Track
@@ -60,6 +61,8 @@ fun SearchScreen(
     modifier: Modifier = Modifier,
     serverId: String = "",
     serverUrl: String = "",
+    isConnected: Boolean = false,
+    isServerUnreachable: Boolean = false,
     onPlayTracks: (List<Track>, Int) -> Unit = { _, _ -> },
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
@@ -73,12 +76,23 @@ fun SearchScreen(
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) {
-        Text(
-            text = "Search",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MellowTheme.colors.foreground,
-            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+        ) {
+            Text(
+                text = "Search",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MellowTheme.colors.foreground,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            ConnectionStatusDot(
+                isConnected = isConnected,
+                isServerUnreachable = isServerUnreachable,
+            )
+        }
 
         TextField(
             value = uiState.query,

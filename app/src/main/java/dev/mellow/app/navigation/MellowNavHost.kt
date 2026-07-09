@@ -344,6 +344,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     SearchScreen(
                         serverId = serverId,
                         serverUrl = serverUrl ?: "",
+                        isConnected = connectionState is ConnectionState.Connected,
+                        isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
                         onPlayTracks = { tracks, index ->
                             scope.launch { mainViewModel.player.playTracks(tracks, index) }
                         },
@@ -363,6 +365,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     FavoritesScreen(
                         serverId = serverId,
                         serverUrl = serverUrl,
+                        isConnected = connectionState is ConnectionState.Connected,
+                        isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                         onTrackClick = { trackId ->
