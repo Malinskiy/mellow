@@ -196,7 +196,7 @@ fun SearchScreen(
                         items(uiState.artists, key = { "artist_${it.id}" }) { artist ->
                             ResultRow(
                                 title = artist.name,
-                                subtitle = "${artist.albumCount} albums",
+                                subtitle = if (artist.albumCount > 0) "${artist.albumCount} albums" else "Artist",
                                 imageUrl = if (serverUrl.isNotEmpty() && artist.imageId != null) {
                                     jellyfinImageUrl(serverUrl, artist.imageId!!)
                                 } else null,
@@ -237,7 +237,7 @@ private fun TopResultRow(result: SearchResult, serverUrl: String, onClick: () ->
         is SearchResult.ArtistResult -> {
             val a = result.artist
             val img = if (serverUrl.isNotEmpty() && a.imageId != null) jellyfinImageUrl(serverUrl, a.imageId!!) else null
-            listOf(a.name, "Artist · ${a.albumCount} albums", img, true)
+            listOf(a.name, if (a.albumCount > 0) "Artist · ${a.albumCount} albums" else "Artist", img, true)
         }
         is SearchResult.AlbumResult -> {
             val a = result.album

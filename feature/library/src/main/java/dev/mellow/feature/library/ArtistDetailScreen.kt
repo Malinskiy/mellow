@@ -46,7 +46,7 @@ import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 
-data class ArtistTrack(val id: String, val title: String, val duration: String, val albumName: String)
+data class ArtistTrack(val id: String, val title: String, val duration: String, val albumName: String, val imageUrl: String? = null)
 
 data class ArtistAlbum(val id: String, val name: String, val year: Int?, val imageId: String?)
 
@@ -108,6 +108,7 @@ fun ArtistDetailScreen(
                             artistName = artistName,
                             artistImageUrl = artistImageUrl,
                             albumCount = albumCount,
+                            trackCount = topTracks.size,
                             isFavorite = isFavorite,
                             onPlayAll = onPlayAll,
                             onShuffle = onShuffle,
@@ -126,6 +127,7 @@ fun ArtistDetailScreen(
                                 subtitle = track.albumName,
                                 duration = track.duration,
                                 trackNumber = "${index + 1}",
+                                imageUrl = track.imageUrl,
                                 onClick = { onTrackClick(track.id) },
                                 onMenuClick = { onTrackMenuClick(track.id) },
                                 showDivider = index < topTracks.lastIndex,
@@ -169,6 +171,7 @@ private fun ArtistHero(
     artistName: String,
     artistImageUrl: String?,
     albumCount: Int,
+    trackCount: Int = 0,
     isFavorite: Boolean = false,
     onPlayAll: () -> Unit = {},
     onShuffle: () -> Unit = {},
@@ -193,9 +196,12 @@ private fun ArtistHero(
         )
         Spacer(Modifier.height(MellowSpacing.Sp5))
         Text(artistName, style = MaterialTheme.typography.displaySmall, color = MellowTheme.colors.foreground)
-        if (albumCount > 0) {
+        if (albumCount > 0 || trackCount > 0) {
+            val parts = mutableListOf<String>()
+            if (albumCount > 0) parts.add("$albumCount albums")
+            if (trackCount > 0) parts.add("$trackCount tracks")
             Text(
-                "$albumCount albums",
+                parts.joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MellowTheme.colors.muted,
                 modifier = Modifier.padding(top = MellowSpacing.Sp2),

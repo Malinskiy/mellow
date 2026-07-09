@@ -63,7 +63,7 @@ fun ArtistRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "$albumCount albums",
+                text = if (albumCount > 0) "$albumCount albums" else "Artist",
                 style = MaterialTheme.typography.bodySmall,
                 color = MellowTheme.colors.muted,
             )

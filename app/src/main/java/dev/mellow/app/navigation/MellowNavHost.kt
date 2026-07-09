@@ -7,11 +7,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,6 +47,7 @@ import dev.mellow.core.designsystem.component.TrackMenuData
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.network.ConnectionState
+import androidx.compose.ui.unit.dp
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.model.AlbumDownloadState
 import dev.mellow.core.model.DownloadState
@@ -145,6 +152,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val connectionState by mainViewModel.connectionState.collectAsState()
 
     var contextMenuState by remember { mutableStateOf<ContextMenuState?>(null) }
+    var trackInfoTrack by remember { mutableStateOf<Track?>(null) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var addToPlaylistTrackId by remember { mutableStateOf<String?>(null) }
     val playlistsVm: PlaylistsViewModel = hiltViewModel()
@@ -264,6 +272,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             }
                         },
                         onSettingsClick = { navController.navigate("settings") },
+                        onGenreClick = { genre ->
+                            navController.navigate(MellowNavDestination.Library.route)
+                        },
                     )
                 }
                 composable(MellowNavDestination.Library.route) {
@@ -277,14 +288,31 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                     val albumCountByArtist = state.albums.groupingBy { it.artistId }.eachCount()
 
-                    val albumItems = remember(state.albums) {
-                        state.albums.map { AlbumItem(it.id, it.name, it.artistName ?: "", it.imageId) }
+                    val albumItems = remember(state.albums, currentSort) {
+                        val sorted = when (currentSort) {
+                            "Name (A-Z)" -> state.albums.sortedBy { it.name.lowercase() }
+                            "Name (Z-A)" -> state.albums.sortedByDescending { it.name.lowercase() }
+                            "Year" -> state.albums.sortedByDescending { it.year ?: 0 }
+                            else -> state.albums
+                        }
+                        sorted.map { AlbumItem(it.id, it.name, it.artistName ?: "", it.imageId) }
                     }
-                    val artists = remember(state.artists, albumCountByArtist) {
-                        state.artists.map { ArtistItem(it.id, it.name, albumCountByArtist[it.id] ?: 0, it.imageId) }
+                    val artists = remember(state.artists, albumCountByArtist, currentSort) {
+                        val sorted = when (currentSort) {
+                            "Name (A-Z)" -> state.artists.sortedBy { it.name.lowercase() }
+                            "Name (Z-A)" -> state.artists.sortedByDescending { it.name.lowercase() }
+                            else -> state.artists
+                        }
+                        sorted.map { ArtistItem(it.id, it.name, albumCountByArtist[it.id] ?: 0, it.imageId) }
                     }
-                    val tracks = remember(state.tracks) {
-                        state.tracks.map { track ->
+                    val tracks = remember(state.tracks, currentSort) {
+                        val sorted = when (currentSort) {
+                            "Name (A-Z)" -> state.tracks.sortedBy { it.name.lowercase() }
+                            "Name (Z-A)" -> state.tracks.sortedByDescending { it.name.lowercase() }
+                            "Year" -> state.tracks.sortedByDescending { it.albumName ?: "" }
+                            else -> state.tracks
+                        }
+                        sorted.map { track ->
                             TrackItem(
                                 id = track.id,
                                 title = track.name,
@@ -335,6 +363,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onCreatePlaylist = { name -> playlistsVm.createPlaylist(name) },
                         onSettingsClick = { navController.navigate("settings") },
                         onSortChanged = { sort -> currentSort = sort },
+                        onGenreClick = { genre ->
+                            navController.navigate(MellowNavDestination.Library.route)
+                        },
                     )
                 }
                 composable(MellowNavDestination.Search.route) {
@@ -536,13 +567,16 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     val artistVm: ArtistDetailViewModel = hiltViewModel()
                     val artistState by artistVm.uiState.collectAsState()
 
-                    val topTracks = remember(artistState.topTracks) {
+                    val topTracks = remember(artistState.topTracks, serverUrl) {
                         artistState.topTracks.map { track ->
                             ArtistTrack(
                                 id = track.id,
                                 title = track.name,
                                 duration = formatTrackDuration(track.duration),
                                 albumName = track.albumName ?: "",
+                                imageUrl = if (serverUrl != null && track.imageId != null) {
+                                    jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                                } else null,
                             )
                         }
                     }
@@ -848,7 +882,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 val t = contextMenuState!!.menuData
                 mainViewModel.toggleFavorite(t.id, t.isFavorite)
             },
-            onTrackInfo = {},
+            onTrackInfo = {
+                trackInfoTrack = contextMenuState?.track
+                contextMenuState = null
+            },
         )
     }
 
@@ -876,6 +913,38 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 playlistsVm.createPlaylist(name)
             },
         )
+    }
+
+    if (trackInfoTrack != null) {
+        val t = trackInfoTrack!!
+        AlertDialog(
+            onDismissRequest = { trackInfoTrack = null },
+            containerColor = MellowTheme.colors.surfaceElevated,
+            title = { Text(t.name, color = MellowTheme.colors.foreground) },
+            text = {
+                Column {
+                    InfoRow("Artist", t.artistName ?: "Unknown")
+                    InfoRow("Album", t.albumName ?: "Unknown")
+                    InfoRow("Duration", formatTrackDuration(t.duration))
+                    if (t.codec != null) InfoRow("Codec", t.codec!!.uppercase())
+                    if (t.container != null) InfoRow("Format", t.container!!.uppercase())
+                    InfoRow("Track #", "${t.trackNumber ?: "\u2014"}")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { trackInfoTrack = null }) {
+                    Text("Close", color = MellowTheme.colors.foreground)
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(label, color = MellowTheme.colors.muted, modifier = Modifier.width(80.dp))
+        Text(value, color = MellowTheme.colors.foreground)
     }
 }
 

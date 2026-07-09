@@ -91,8 +91,10 @@ fun LibraryScreen(
     onCreatePlaylist: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSortChanged: (String) -> Unit = {},
+    onGenreClick: (String) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+
 
     Column(
         modifier = modifier
@@ -135,7 +137,7 @@ fun LibraryScreen(
                  else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick)
             3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
                  else if (genres.isEmpty()) EmptyContent("No genres yet")
-                 else GenresPanel(genres)
+                 else GenresPanel(genres, onGenreClick)
             4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
                  else if (playlists.isEmpty()) EmptyContent("No playlists yet")
                  else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist)
@@ -340,7 +342,7 @@ private fun TracksPanel(
 }
 
 @Composable
-private fun GenresPanel(genres: List<String>) {
+private fun GenresPanel(genres: List<String>, onGenreClick: (String) -> Unit) {
     LazyColumn(
         contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
     ) {
@@ -351,6 +353,7 @@ private fun GenresPanel(genres: List<String>) {
                 color = MellowTheme.colors.foreground,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable { onGenreClick(genre) }
                     .padding(vertical = MellowSpacing.Sp3),
             )
         }
