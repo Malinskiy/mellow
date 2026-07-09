@@ -5,6 +5,7 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -29,9 +30,14 @@ class SyncScheduler @Inject constructor(
     fun syncNow(serverId: String): UUID {
         val request = OneTimeWorkRequestBuilder<LibrarySyncWorker>()
             .setInputData(workDataOf(LibrarySyncWorker.KEY_SERVER_ID to serverId))
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag(TAG_SYNC)
             .build()
-        workManager.enqueue(request)
+        workManager.enqueueUniqueWork(
+            SYNC_NOW_WORK_NAME,
+            androidx.work.ExistingWorkPolicy.KEEP,
+            request,
+        )
         return request.id
     }
 
@@ -70,6 +76,7 @@ class SyncScheduler @Inject constructor(
     }
 
     companion object {
+        private const val SYNC_NOW_WORK_NAME = "mellow_sync_now"
         private const val PERIODIC_SYNC_WORK_NAME = "mellow_periodic_sync"
         private const val TAG_SYNC = "mellow_sync"
     }
