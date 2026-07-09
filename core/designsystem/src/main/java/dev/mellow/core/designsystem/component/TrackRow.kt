@@ -44,6 +44,7 @@ fun TrackRow(
     onFavoriteClick: (() -> Unit)? = null,
     onMenuClick: (() -> Unit)? = null,
     showDivider: Boolean = true,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     val contentColor = if (isPlaying) MellowTheme.colors.accentStrong else MellowTheme.colors.foreground
 
@@ -103,6 +104,10 @@ fun TrackRow(
                 color = MellowTheme.colors.muted,
                 modifier = Modifier.padding(horizontal = MellowSpacing.Sp2),
             )
+
+            if (trailingContent != null) {
+                trailingContent()
+            }
 
             if (onFavoriteClick != null) {
                 IconButton(onClick = onFavoriteClick, modifier = Modifier.size(32.dp)) {

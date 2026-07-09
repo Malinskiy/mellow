@@ -43,15 +43,27 @@ class HomeViewModel @Inject constructor(
         combine(
             libraryRepository.getAlbums(serverId),
             libraryRepository.getFavoriteTracks(serverId),
-        ) { albums, favTracks ->
+            libraryRepository.getRecentlyPlayedAlbums(serverId),
+            libraryRepository.getMostPlayedAlbums(serverId),
+            libraryRepository.getFavoriteAlbums(serverId),
+        ) { albums, favTracks, recentlyPlayedAlbums, mostPlayedAlbums, favoriteAlbums ->
             val recentlyAdded = albums
+                .sortedByDescending { it.id }
                 .take(20)
                 .map { it.toHomeAlbumItem() }
 
-            val recentlyPlayed = albums
-                .shuffled()
-                .take(12)
-                .map { it.toHomeAlbumItem() }
+            // Build recentlyPlayed: most-played first (for Quick Picks .take(6)),
+            // then recently-played, deduplicated. Falls back to favorites then recently added.
+            val mostPlayedIds = mostPlayedAlbums.map { it.id }.toSet()
+            val recentlyPlayed = if (mostPlayedAlbums.isNotEmpty() || recentlyPlayedAlbums.isNotEmpty()) {
+                val combined = mostPlayedAlbums.take(6) +
+                    recentlyPlayedAlbums.filterNot { it.id in mostPlayedIds }
+                combined.map { it.toHomeAlbumItem() }
+            } else if (favoriteAlbums.isNotEmpty()) {
+                favoriteAlbums.take(6).map { it.toHomeAlbumItem() }
+            } else {
+                emptyList()
+            }
 
             val genres = albums
                 .flatMap { it.genres }

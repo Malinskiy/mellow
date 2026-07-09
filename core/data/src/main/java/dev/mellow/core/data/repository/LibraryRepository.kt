@@ -22,6 +22,8 @@ interface LibraryRepository {
     fun getFavoriteTracks(serverId: String): Flow<List<Track>>
     fun getFavoriteAlbums(serverId: String): Flow<List<Album>>
     fun getFavoriteArtists(serverId: String): Flow<List<Artist>>
+    fun getRecentlyPlayedAlbums(serverId: String): Flow<List<Album>>
+    fun getMostPlayedAlbums(serverId: String): Flow<List<Album>>
     suspend fun syncLibrary(serverId: String)
     suspend fun syncFavorites(serverId: String)
 }

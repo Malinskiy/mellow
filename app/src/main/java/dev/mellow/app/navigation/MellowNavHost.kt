@@ -38,6 +38,8 @@ import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.model.AlbumDownloadState
+import dev.mellow.core.model.DownloadState
 import dev.mellow.feature.home.FavoritesScreen
 import dev.mellow.feature.home.FavoritesViewModel
 import dev.mellow.feature.home.HomeScreen
@@ -53,6 +55,7 @@ import dev.mellow.feature.library.ArtistItem
 import dev.mellow.feature.library.ArtistTrack
 import dev.mellow.feature.library.LibraryScreen
 import dev.mellow.feature.library.LibraryViewModel
+import dev.mellow.feature.library.TrackDownloadIndicator
 import dev.mellow.feature.library.TrackItem
 import dev.mellow.feature.player.PlayerScreen
 import dev.mellow.feature.player.QueueScreen
@@ -61,6 +64,7 @@ import dev.mellow.feature.search.SearchScreen
 import dev.mellow.feature.settings.LoginScreen
 import dev.mellow.feature.settings.LoginViewModel
 import dev.mellow.feature.settings.SettingsScreen
+import dev.mellow.feature.settings.SettingsViewModel
 import kotlinx.coroutines.launch
 import java.time.Duration
 
@@ -284,6 +288,13 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable("settings") {
+                    val settingsVm: SettingsViewModel = hiltViewModel()
+                    val downloadQuality by settingsVm.downloadQuality.collectAsState()
+                    val wifiOnly by settingsVm.wifiOnly.collectAsState()
+                    val storageCap by settingsVm.storageCap.collectAsState()
+                    val autoCleanupDays by settingsVm.autoCleanupDays.collectAsState()
+                    val totalDownloadedBytes by settingsVm.totalDownloadedBytes.collectAsState()
+
                     SettingsScreen(
                         onBack = { navController.popBackStack() },
                         serverUrl = mainViewModel.serverUrl.collectAsState().value ?: "",
@@ -295,12 +306,41 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onSyncNow = mainViewModel::syncNow,
                         onForceOfflineChange = mainViewModel::setForceOffline,
                         onAutoSyncIntervalChange = mainViewModel::setAutoSyncInterval,
+                        downloadQuality = downloadQuality,
+                        wifiOnly = wifiOnly,
+                        storageCap = storageCap,
+                        autoCleanupDays = autoCleanupDays,
+                        totalDownloadedBytes = totalDownloadedBytes,
+                        onDownloadQualityChange = settingsVm::setDownloadQuality,
+                        onWifiOnlyChange = settingsVm::setWifiOnly,
+                        onStorageCapChange = settingsVm::setStorageCap,
+                        onAutoCleanupChange = settingsVm::setAutoCleanupDays,
+                        onClearAllDownloads = settingsVm::clearAllDownloads,
                     )
                 }
                 composable("album/{albumId}") {
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
                     val albumState by albumVm.uiState.collectAsState()
                     val sUrl = mainViewModel.serverUrl.collectAsState().value
+                    val downloadState by albumVm.albumDownloadState.collectAsState()
+                    val trackDlStates by albumVm.trackDownloadStates.collectAsState()
+                    val connState = mainViewModel.connectionState.collectAsState().value
+                    val isOffline = connState is ConnectionState.Offline
+
+                    val showDlIndicators = downloadState.overallStatus != AlbumDownloadState.Status.NONE
+
+                    val downloadInfoText = if (downloadState.downloadedTracks > 0) {
+                        val downloadedTrackIds = trackDlStates
+                            .filter { (_, state) -> state is DownloadState.Completed }
+                            .keys
+                        val downloadedSeconds = albumState.tracks
+                            .filter { it.id in downloadedTrackIds }
+                            .sumOf { it.duration.seconds }
+                        val durStr = formatTrackDuration(Duration.ofSeconds(downloadedSeconds))
+                        "${downloadState.downloadedTracks} of ${downloadState.totalTracks} downloaded · $durStr offline"
+                    } else {
+                        null
+                    }
 
                     AlbumDetailScreen(
                         onBack = { navController.popBackStack() },
@@ -312,6 +352,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         year = albumState.album?.year,
                         expectedTrackCount = albumState.album?.trackCount ?: 0,
                         tracks = albumState.tracks.map { track ->
+                            val dlState = trackDlStates[track.id]
+                            val indicator = when {
+                                !showDlIndicators -> TrackDownloadIndicator.NONE
+                                dlState is DownloadState.Completed -> TrackDownloadIndicator.DOWNLOADED
+                                dlState is DownloadState.Downloading -> TrackDownloadIndicator.DOWNLOADING
+                                dlState is DownloadState.Queued -> TrackDownloadIndicator.DOWNLOADING
+                                else -> TrackDownloadIndicator.NOT_DOWNLOADED
+                            }
                             AlbumDetailTrack(
                                 id = track.id,
                                 title = track.name,
@@ -319,13 +367,24 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 duration = formatTrackDuration(track.duration),
                                 trackNumber = track.trackNumber,
                                 isFavorite = track.isFavorite,
+                                downloadIndicator = indicator,
                             )
                         },
                         isFavorite = albumState.album?.isFavorite ?: false,
                         isLoading = albumState.isLoading,
                         isSyncing = isSyncing,
                         error = albumState.error,
+                        downloadStatus = downloadState.overallStatus,
+                        downloadProgress = if (downloadState.totalTracks > 0) {
+                            downloadState.downloadedTracks.toFloat() / downloadState.totalTracks
+                        } else 0f,
+                        downloadedCount = downloadState.downloadedTracks,
+                        totalDownloadCount = downloadState.totalTracks,
+                        downloadInfoText = downloadInfoText,
+                        isOffline = isOffline,
                         onRetry = { albumVm.retry() },
+                        onDownloadClick = { albumVm.downloadAlbum() },
+                        onRemoveDownloadsClick = { albumVm.removeAlbumDownloads() },
                         onTrackClick = { trackId ->
                             val tracks = albumState.tracks
                             val idx = tracks.indexOfFirst { it.id == trackId }

@@ -5,6 +5,8 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.mellow.core.data.playback.JellyfinPlaybackReporter
+import dev.mellow.core.data.repository.DownloadRepository
+import dev.mellow.core.data.repository.DownloadRepositoryImpl
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.data.repository.LibraryRepositoryImpl
 import dev.mellow.core.data.repository.UserRepository
@@ -23,4 +25,7 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindPlaybackReporter(impl: JellyfinPlaybackReporter): PlaybackReporter
+
+    @Binds
+    abstract fun bindDownloadRepository(impl: DownloadRepositoryImpl): DownloadRepository
 }

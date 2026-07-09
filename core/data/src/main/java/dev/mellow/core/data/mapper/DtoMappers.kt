@@ -55,6 +55,11 @@ fun BaseItemDto.toTrackEntity(serverId: String): TrackEntity {
         imageTag = imageTags?.get(ImageType.PRIMARY),
         isFavorite = userData?.isFavorite ?: false,
         playCount = userData?.playCount ?: 0,
+        lastPlayedAt = userData?.lastPlayedDate?.let { date ->
+            java.time.LocalDateTime.parse(date.toString())
+                .toInstant(java.time.ZoneOffset.UTC)
+                .toEpochMilli()
+        } ?: 0L,
         normalizationGain = normalizationGain?.toFloat(),
         container = container,
         codec = audioStream?.codec,

@@ -80,6 +80,12 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun getFavoriteArtists(serverId: String): Flow<List<Artist>> =
         artistDao.getFavoriteArtists(serverId).map { entities -> entities.map { it.toModel() } }
 
+    override fun getRecentlyPlayedAlbums(serverId: String): Flow<List<Album>> =
+        albumDao.getRecentlyPlayedAlbums(serverId).map { entities -> entities.map { it.toModel() } }
+
+    override fun getMostPlayedAlbums(serverId: String): Flow<List<Album>> =
+        albumDao.getMostPlayedAlbums(serverId).map { entities -> entities.map { it.toModel() } }
+
     override suspend fun syncLibrary(serverId: String) {
         val server = serverDao.getActiveServer() ?: return
         val userId = UUID.fromString(server.userId)

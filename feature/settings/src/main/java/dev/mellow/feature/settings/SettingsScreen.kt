@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Download
@@ -31,6 +32,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -43,9 +45,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import dev.mellow.core.designsystem.theme.MellowPalette
+import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.network.ConnectionState
@@ -63,8 +68,21 @@ fun SettingsScreen(
     onSyncNow: () -> Unit = {},
     onForceOfflineChange: (Boolean) -> Unit = {},
     onAutoSyncIntervalChange: (Int) -> Unit = {},
+    downloadQuality: String = "original",
+    wifiOnly: Boolean = true,
+    storageCap: Long = 10L * 1024 * 1024 * 1024,
+    autoCleanupDays: Int = 30,
+    totalDownloadedBytes: Long = 0L,
+    onDownloadQualityChange: (String) -> Unit = {},
+    onWifiOnlyChange: (Boolean) -> Unit = {},
+    onStorageCapChange: (Long) -> Unit = {},
+    onAutoCleanupChange: (Int) -> Unit = {},
+    onClearAllDownloads: () -> Unit = {},
 ) {
     var showIntervalPicker by remember { mutableStateOf(false) }
+    var showQualityPicker by remember { mutableStateOf(false) }
+    var showStorageCapPicker by remember { mutableStateOf(false) }
+    var showClearConfirmation by remember { mutableStateOf(false) }
 
     if (showIntervalPicker) {
         SyncIntervalPickerDialog(
@@ -74,6 +92,36 @@ fun SettingsScreen(
                 showIntervalPicker = false
             },
             onDismiss = { showIntervalPicker = false },
+        )
+    }
+
+    if (showQualityPicker) {
+        DownloadQualityPickerDialog(
+            currentQuality = downloadQuality,
+            onSelect = { quality ->
+                onDownloadQualityChange(quality)
+                showQualityPicker = false
+            },
+            onDismiss = { showQualityPicker = false },
+        )
+    }
+
+    if (showStorageCapPicker) {
+        StorageCapPickerDialog(
+            currentCap = storageCap,
+            onSelect = { bytes ->
+                onStorageCapChange(bytes)
+                showStorageCapPicker = false
+            },
+            onDismiss = { showStorageCapPicker = false },
+        )
+    }
+
+    if (showClearConfirmation) {
+        ClearAllConfirmationDialog(
+            totalBytes = totalDownloadedBytes,
+            onConfirm = onClearAllDownloads,
+            onDismiss = { showClearConfirmation = false },
         )
     }
 
@@ -122,10 +170,38 @@ fun SettingsScreen(
         SettingsRow(Icons.Filled.PlayCircle, "ReplayGain", "Album mode")
         HorizontalDivider(color = MellowTheme.colors.border)
 
-        SettingsSection("Downloads")
-        SettingsRow(Icons.Filled.Download, "Download Quality", "Opus 128k")
-        SettingsRow(Icons.Filled.Download, "Wi-Fi Only", "Enabled")
-        SettingsRow(Icons.Filled.Download, "Storage", "2.4 GB used")
+        SettingsSection("Downloads & Offline")
+        SettingsRow(
+            icon = Icons.Filled.Download,
+            title = "Download Quality",
+            value = formatQualityLabel(downloadQuality),
+            onClick = { showQualityPicker = true },
+        )
+        SettingsToggleRow(
+            icon = Icons.Filled.Download,
+            title = "Wi-Fi Only",
+            subtitle = "Only download over Wi-Fi",
+            checked = wifiOnly,
+            onCheckedChange = onWifiOnlyChange,
+        )
+        StorageBar(usedBytes = totalDownloadedBytes, capBytes = storageCap)
+        SettingsRow(
+            icon = Icons.Filled.Download,
+            title = "Storage Cap",
+            value = formatStorageCap(storageCap),
+            onClick = { showStorageCapPicker = true },
+        )
+        SettingsToggleRow(
+            icon = Icons.Filled.Download,
+            title = "Auto-Cleanup",
+            subtitle = "Remove downloads not played in 30 days",
+            checked = autoCleanupDays > 0,
+            onCheckedChange = { enabled -> onAutoCleanupChange(if (enabled) 30 else 0) },
+        )
+        ClearAllDownloadsRow(
+            totalBytes = totalDownloadedBytes,
+            onClick = { showClearConfirmation = true },
+        )
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Appearance")
@@ -143,6 +219,192 @@ fun SettingsScreen(
         SettingsRow(Icons.Filled.Info, "Licenses", "")
         Spacer(Modifier.height(MellowSpacing.Sp16))
     }
+}
+
+@Composable
+private fun StorageBar(usedBytes: Long, capBytes: Long) {
+    val isUnlimited = capBytes == Long.MAX_VALUE
+    val fraction = if (!isUnlimited && capBytes > 0) {
+        (usedBytes.toFloat() / capBytes).coerceIn(0f, 1f)
+    } else if (isUnlimited) {
+        0f
+    } else {
+        0f
+    }
+    val freeBytes = if (isUnlimited) 0L else (capBytes - usedBytes).coerceAtLeast(0)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                if (isUnlimited) {
+                    "${formatBytes(usedBytes)} used"
+                } else {
+                    "${formatBytes(usedBytes)} of ${formatBytes(capBytes)} used"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MellowTheme.colors.muted,
+            )
+            if (!isUnlimited) {
+                Text(
+                    "${formatBytes(freeBytes)} free",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MellowTheme.colors.muted,
+                )
+            }
+        }
+        Spacer(Modifier.height(MellowSpacing.Sp2))
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(MellowShapes.Full),
+            color = MellowTheme.colors.accentStrong,
+            trackColor = MellowTheme.colors.surface,
+        )
+    }
+}
+
+@Composable
+private fun ClearAllDownloadsRow(totalBytes: Long, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = totalBytes > 0, onClick = onClick)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+    ) {
+        Icon(
+            Icons.Filled.Delete,
+            null,
+            tint = if (totalBytes > 0) MellowPalette.Red500 else MellowTheme.colors.muted,
+            modifier = Modifier.size(22.dp),
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = MellowSpacing.Sp3),
+        ) {
+            Text(
+                "Clear All Downloads",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (totalBytes > 0) MellowPalette.Red500 else MellowTheme.colors.muted,
+            )
+            if (totalBytes > 0) {
+                Text(
+                    "Free up ${formatBytes(totalBytes)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MellowTheme.colors.muted,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadQualityPickerDialog(
+    currentQuality: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val options = listOf(
+        "original" to "Original (FLAC)",
+        "high" to "High (320 kbps MP3)",
+        "medium" to "Medium (128 kbps Opus)",
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Download Quality") },
+        text = {
+            Column {
+                options.forEach { (value, label) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(value) }
+                            .padding(vertical = MellowSpacing.Sp2),
+                    ) {
+                        RadioButton(selected = value == currentQuality, onClick = { onSelect(value) })
+                        Spacer(Modifier.width(MellowSpacing.Sp2))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun StorageCapPickerDialog(
+    currentCap: Long,
+    onSelect: (Long) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val gb = 1024L * 1024 * 1024
+    val options = listOf(
+        5 * gb to "5 GB",
+        10 * gb to "10 GB",
+        20 * gb to "20 GB",
+        50 * gb to "50 GB",
+        Long.MAX_VALUE to "Unlimited",
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Storage Cap") },
+        text = {
+            Column {
+                options.forEach { (bytes, label) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(bytes) }
+                            .padding(vertical = MellowSpacing.Sp2),
+                    ) {
+                        RadioButton(selected = bytes == currentCap, onClick = { onSelect(bytes) })
+                        Spacer(Modifier.width(MellowSpacing.Sp2))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun ClearAllConfirmationDialog(
+    totalBytes: Long,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Clear All Downloads") },
+        text = { Text("This will remove all downloaded tracks and free up ${formatBytes(totalBytes)}.") },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm()
+                onDismiss()
+            }) { Text("Clear All", color = MellowPalette.Red500) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable
@@ -327,4 +589,28 @@ private fun formatSyncInterval(hours: Int): String = when (hours) {
     0 -> "Manual only"
     1 -> "Every hour"
     else -> "Every $hours hours"
+}
+
+private fun formatQualityLabel(quality: String): String = when (quality) {
+    "original" -> "Original (FLAC)"
+    "high" -> "High (320 kbps MP3)"
+    "medium" -> "Medium (128 kbps Opus)"
+    else -> quality
+}
+
+private fun formatStorageCap(bytes: Long): String {
+    if (bytes == Long.MAX_VALUE) return "Unlimited"
+    val gb = bytes / (1024.0 * 1024 * 1024)
+    return "${gb.toInt()} GB"
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0) return "0 MB"
+    val gb = bytes / (1024.0 * 1024 * 1024)
+    val mb = bytes / (1024.0 * 1024)
+    return if (gb >= 1.0) {
+        "%.1f GB".format(gb)
+    } else {
+        "%.1f MB".format(mb)
+    }
 }

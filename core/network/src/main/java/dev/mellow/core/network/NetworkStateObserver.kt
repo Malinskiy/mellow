@@ -127,7 +127,7 @@ class NetworkStateObserver @Inject constructor(
         return try {
             val request = Request.Builder()
                 .url("$serverUrl/System/Info/Public")
-                .head()
+                .get()
                 .build()
             heartbeatClient.newCall(request).execute().use { response ->
                 response.isSuccessful

@@ -20,6 +20,7 @@ data class TrackEntity(
     val imageTag: String?,
     val isFavorite: Boolean,
     val playCount: Int,
+    val lastPlayedAt: Long,
     val normalizationGain: Float?,
     val container: String?,
     val codec: String?,

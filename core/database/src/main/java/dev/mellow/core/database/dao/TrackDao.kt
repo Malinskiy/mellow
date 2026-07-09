@@ -37,6 +37,12 @@ interface TrackDao {
     @Query("UPDATE tracks SET playCount = playCount + 1 WHERE id = :trackId")
     suspend fun incrementPlayCount(trackId: String)
 
+    @Query("UPDATE tracks SET playCount = playCount + 1, lastPlayedAt = :timestamp WHERE id = :trackId")
+    suspend fun recordPlayback(trackId: String, timestamp: Long)
+
+    @Query("UPDATE tracks SET lastPlayedAt = :timestamp WHERE id = :trackId")
+    suspend fun updateLastPlayedAt(trackId: String, timestamp: Long)
+
     @Query("SELECT * FROM tracks WHERE artistId = :artistId ORDER BY playCount DESC LIMIT :limit")
     fun getTracksByArtist(artistId: String, limit: Int = 20): Flow<List<TrackEntity>>
 

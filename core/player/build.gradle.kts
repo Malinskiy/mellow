@@ -30,6 +30,7 @@ dependencies {
     implementation(project(":core:database"))
 
     implementation(libs.bundles.media3)
+    implementation(libs.media3.datasource)
     implementation(libs.okhttp)
 
     implementation(libs.hilt.android)

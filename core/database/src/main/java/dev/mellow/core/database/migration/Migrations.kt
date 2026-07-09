@@ -5,6 +5,37 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 object Migrations {
 
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `downloads` (
+                    `trackId` TEXT NOT NULL,
+                    `albumId` TEXT,
+                    `serverId` TEXT NOT NULL,
+                    `status` INTEGER NOT NULL,
+                    `progress` REAL NOT NULL,
+                    `bytesDownloaded` INTEGER NOT NULL,
+                    `totalBytes` INTEGER NOT NULL,
+                    `quality` TEXT NOT NULL,
+                    `filePath` TEXT,
+                    `requestedAt` INTEGER NOT NULL,
+                    `completedAt` INTEGER NOT NULL,
+                    `errorMessage` TEXT,
+                    `lastSynced` INTEGER NOT NULL,
+                    PRIMARY KEY(`trackId`)
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE tracks ADD COLUMN lastPlayedAt INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // Create playlists table

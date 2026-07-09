@@ -44,6 +44,7 @@ fun TrackEntity.toModel() = Track(
     imageId = imageTag?.let { id },
     isFavorite = isFavorite,
     playCount = playCount,
+    lastPlayedAt = lastPlayedAt,
     normalizationGain = normalizationGain,
     codec = codec,
     container = container,

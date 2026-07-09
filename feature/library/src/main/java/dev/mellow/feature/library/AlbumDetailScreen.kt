@@ -1,6 +1,7 @@
 package dev.mellow.feature.library
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
@@ -25,12 +28,18 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -49,6 +58,14 @@ import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.model.AlbumDownloadState
+
+enum class TrackDownloadIndicator {
+    NONE,
+    DOWNLOADED,
+    DOWNLOADING,
+    NOT_DOWNLOADED,
+}
 
 data class AlbumDetailTrack(
     val id: String,
@@ -58,6 +75,7 @@ data class AlbumDetailTrack(
     val trackNumber: Int?,
     val isFavorite: Boolean = false,
     val isPlaying: Boolean = false,
+    val downloadIndicator: TrackDownloadIndicator = TrackDownloadIndicator.NONE,
 )
 
 @Composable
@@ -81,9 +99,18 @@ fun AlbumDetailScreen(
     onFavoriteClick: () -> Unit = {},
     onTrackFavoriteClick: (String) -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
+    downloadStatus: AlbumDownloadState.Status = AlbumDownloadState.Status.NONE,
+    downloadProgress: Float = 0f,
+    downloadedCount: Int = 0,
+    totalDownloadCount: Int = 0,
+    downloadInfoText: String? = null,
+    onDownloadClick: () -> Unit = {},
+    onRemoveDownloadsClick: () -> Unit = {},
+    isOffline: Boolean = false,
 ) {
     val tracksLoading = tracks.isEmpty() && (isSyncing || expectedTrackCount > 0)
     val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
+    val showDownloadIndicators = downloadStatus != AlbumDownloadState.Status.NONE
 
     Box(
         modifier = modifier
@@ -110,6 +137,13 @@ fun AlbumDetailScreen(
                             onPlayAll = onPlayAll,
                             onShuffle = onShuffle,
                             onFavoriteClick = onFavoriteClick,
+                            downloadStatus = downloadStatus,
+                            downloadProgress = downloadProgress,
+                            downloadedCount = downloadedCount,
+                            totalDownloadCount = totalDownloadCount,
+                            downloadInfoText = downloadInfoText,
+                            onDownloadClick = onDownloadClick,
+                            onRemoveDownloadsClick = onRemoveDownloadsClick,
                         )
                     }
                     if (tracksLoading) {
@@ -137,6 +171,9 @@ fun AlbumDetailScreen(
                         }
                     } else {
                         itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
+                            val isNotDownloadedOffline = isOffline &&
+                                showDownloadIndicators &&
+                                track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED
                             TrackRow(
                                 title = track.title,
                                 subtitle = "",
@@ -146,14 +183,55 @@ fun AlbumDetailScreen(
                                 isFavorite = track.isFavorite,
                                 onFavoriteClick = { onTrackFavoriteClick(track.id) },
                                 onMenuClick = { onTrackMenuClick(track.id) },
-                                onClick = { onTrackClick(track.id) },
+                                onClick = {
+                                    if (!isNotDownloadedOffline) onTrackClick(track.id)
+                                },
                                 showDivider = index < tracks.lastIndex,
-                                modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
+                                trailingContent = if (showDownloadIndicators) {
+                                    { TrackDownloadIcon(track.downloadIndicator) }
+                                } else null,
+                                modifier = Modifier
+                                    .padding(horizontal = MellowSpacing.Sp4)
+                                    .graphicsLayer {
+                                        alpha = if (isNotDownloadedOffline) 0.5f else 1f
+                                    },
                             )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TrackDownloadIcon(indicator: TrackDownloadIndicator) {
+    when (indicator) {
+        TrackDownloadIndicator.NONE -> {}
+        TrackDownloadIndicator.DOWNLOADED -> {
+            Icon(
+                Icons.Filled.Check,
+                "Downloaded",
+                tint = MellowPalette.Green500,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        TrackDownloadIndicator.DOWNLOADING -> {
+            CircularProgressIndicator(
+                modifier = Modifier.size(14.dp),
+                strokeWidth = 1.5.dp,
+                color = MellowTheme.colors.muted,
+            )
+        }
+        TrackDownloadIndicator.NOT_DOWNLOADED -> {
+            Icon(
+                Icons.Filled.Download,
+                "Not downloaded",
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier
+                    .size(14.dp)
+                    .graphicsLayer { alpha = 0.5f },
+            )
         }
     }
 }
@@ -193,6 +271,13 @@ private fun AlbumHero(
     onPlayAll: () -> Unit = {},
     onShuffle: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
+    downloadStatus: AlbumDownloadState.Status = AlbumDownloadState.Status.NONE,
+    downloadProgress: Float = 0f,
+    downloadedCount: Int = 0,
+    totalDownloadCount: Int = 0,
+    downloadInfoText: String? = null,
+    onDownloadClick: () -> Unit = {},
+    onRemoveDownloadsClick: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
         if (imageUrl != null) {
@@ -261,6 +346,14 @@ private fun AlbumHero(
                     Text(totalDuration, style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
                 }
             }
+            if (downloadInfoText != null) {
+                Text(
+                    downloadInfoText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MellowTheme.colors.muted,
+                    modifier = Modifier.padding(top = MellowSpacing.Sp1),
+                )
+            }
 
             Spacer(Modifier.height(MellowSpacing.Sp5))
             Row(
@@ -286,8 +379,110 @@ private fun AlbumHero(
                         modifier = Modifier.size(22.dp),
                     )
                 }
-                IconButton(onClick = {}) {
-                    Icon(Icons.Filled.Download, "Download", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+                DownloadButton(
+                    status = downloadStatus,
+                    downloadProgress = downloadProgress,
+                    downloadedCount = downloadedCount,
+                    totalDownloadCount = totalDownloadCount,
+                    onDownloadClick = onDownloadClick,
+                    onRemoveDownloadsClick = onRemoveDownloadsClick,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadButton(
+    status: AlbumDownloadState.Status,
+    downloadProgress: Float,
+    downloadedCount: Int,
+    totalDownloadCount: Int,
+    onDownloadClick: () -> Unit,
+    onRemoveDownloadsClick: () -> Unit,
+) {
+    var showRemoveDialog by remember { mutableStateOf(false) }
+
+    if (showRemoveDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveDialog = false },
+            title = { Text("Remove Downloads") },
+            text = { Text("Remove all downloaded tracks for this album?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveDownloadsClick()
+                    showRemoveDialog = false
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    when (status) {
+        AlbumDownloadState.Status.NONE -> {
+            IconButton(onClick = onDownloadClick) {
+                Icon(Icons.Filled.Download, "Download", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+            }
+        }
+        AlbumDownloadState.Status.DOWNLOADING -> {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable(onClick = {})
+                    .padding(horizontal = MellowSpacing.Sp1),
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
+                    CircularProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier.size(32.dp),
+                        color = MellowTheme.colors.accentStrong,
+                        strokeWidth = 2.dp,
+                    )
+                    Icon(
+                        Icons.Filled.Download,
+                        "Downloading",
+                        tint = MellowTheme.colors.foreground,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+                Text(
+                    "$downloadedCount/$totalDownloadCount",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MellowTheme.colors.muted,
+                )
+            }
+        }
+        AlbumDownloadState.Status.COMPLETED -> {
+            IconButton(onClick = { showRemoveDialog = true }) {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    "Downloaded",
+                    tint = MellowPalette.Green500,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+        AlbumDownloadState.Status.PARTIAL -> {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable(onClick = onDownloadClick)
+                    .padding(horizontal = MellowSpacing.Sp1),
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
+                    CircularProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier.size(32.dp),
+                        color = MellowPalette.Green500,
+                        strokeWidth = 2.dp,
+                    )
+                    Text(
+                        "$downloadedCount/$totalDownloadCount",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MellowTheme.colors.foreground,
+                    )
                 }
             }
         }
@@ -312,5 +507,3 @@ private fun formatTotalDuration(tracks: List<AlbumDetailTrack>): String {
         "$minutes:${seconds.toString().padStart(2, '0')}"
     }
 }
-
-

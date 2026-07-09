@@ -17,6 +17,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.mellow.core.common.PlaybackReporter
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.common.jellyfinStreamUrl
+import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +47,7 @@ data class PlaybackState(
 class MellowPlayer @Inject constructor(
     @ApplicationContext private val context: Context,
     private val serverDao: ServerDao,
+    private val downloadDao: DownloadDao,
     private val playbackReporter: PlaybackReporter,
 ) {
     private var controller: MediaController? = null
@@ -58,6 +60,7 @@ class MellowPlayer @Inject constructor(
     private var serverUrl: String = ""
     private var apiKey: String = ""
     private var currentQueue: List<Track> = emptyList()
+    private var downloadedTrackIds: Set<String> = emptySet()
     private var positionUpdateCount = 0
 
     private val handler = Handler(Looper.getMainLooper())
@@ -108,6 +111,8 @@ class MellowPlayer @Inject constructor(
         serverUrl = server.url
         apiKey = server.accessToken
         currentQueue = tracks
+
+        downloadedTrackIds = downloadDao.getDownloadedTrackIds().toSet()
 
         val ctrl = controller ?: run {
             Log.e(TAG, "MediaController not connected, cannot play")
@@ -187,10 +192,16 @@ class MellowPlayer @Inject constructor(
     private fun Track.toMediaItem(): MediaItem {
         val streamUri = Uri.parse(jellyfinStreamUrl(serverUrl, id, apiKey))
         val artUri = imageId?.let { Uri.parse(jellyfinImageUrl(serverUrl, it, 300)) }
+        val isDownloaded = id in downloadedTrackIds
+
+        if (isDownloaded) {
+            Log.d(TAG, "Track $id ($name) available offline via download cache")
+        }
 
         return MediaItem.Builder()
             .setMediaId(id)
             .setUri(streamUri)
+            .setCustomCacheKey(id)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(name)

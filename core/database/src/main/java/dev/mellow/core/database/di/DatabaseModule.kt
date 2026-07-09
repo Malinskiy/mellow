@@ -23,7 +23,11 @@ object DatabaseModule {
             MellowDatabase::class.java,
             "mellow.db",
         )
-            .addMigrations(Migrations.MIGRATION_2_3)
+            .addMigrations(
+                Migrations.MIGRATION_2_3,
+                Migrations.MIGRATION_3_4,
+                Migrations.MIGRATION_4_5,
+            )
             .build()
 
     @Provides
@@ -43,4 +47,7 @@ object DatabaseModule {
 
     @Provides
     fun providePendingPlaybackEventDao(db: MellowDatabase) = db.pendingPlaybackEventDao()
+
+    @Provides
+    fun provideDownloadDao(db: MellowDatabase) = db.downloadDao()
 }

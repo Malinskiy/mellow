@@ -6,6 +6,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
@@ -13,9 +14,13 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
+import dev.mellow.core.player.cache.MellowDataSourceFactory
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MellowMediaService : MediaLibraryService() {
+
+    @Inject lateinit var dataSourceFactory: MellowDataSourceFactory
 
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
@@ -28,7 +33,10 @@ class MellowMediaService : MediaLibraryService() {
             .setUsage(C.USAGE_MEDIA)
             .build()
 
+        val cacheDataSourceFactory = dataSourceFactory.createPlaybackDataSourceFactory()
+
         val exoPlayer = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
