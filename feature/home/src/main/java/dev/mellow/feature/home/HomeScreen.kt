@@ -190,12 +190,12 @@ private fun HomeTopBar(
             style = MaterialTheme.typography.headlineLarge,
             color = MellowTheme.colors.foreground,
         )
-        Box(modifier = Modifier.width(MellowSpacing.Sp2))
+        Spacer(modifier = Modifier.weight(1f))
         ConnectionStatusDot(
             isConnected = isConnected,
             isServerUnreachable = isServerUnreachable,
         )
-        Spacer(modifier = Modifier.weight(1f))
+        Box(modifier = Modifier.width(MellowSpacing.Sp2))
         IconButton(onClick = onSettingsClick) {
             Icon(
                 imageVector = Icons.Filled.Dns,
