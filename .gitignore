@@ -40,3 +40,4 @@ mise.local.toml
 
 .marathon-snapshots/current/
 .marathon-snapshots/diffs/
+kls_database.db
