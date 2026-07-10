@@ -182,6 +182,26 @@ gradle wrapper --gradle-version 8.12
    - Build image URLs: `${serverUrl}/Items/${itemId}/Images/Primary?maxWidth=600&quality=90`
    - Use `ImageBlurHashes` for progressive loading placeholders
 
+### Artwork Pipeline
+
+Two delivery mechanisms — use the right one for the context:
+
+1. **In-app UI** (Compose screens — Coil `AsyncImage`):
+   - Use `jellyfinImageUrl(serverUrl, itemId)` → HTTPS URL loaded by Coil
+   - For tracks: always fall back to album image: `track.imageId ?: track.albumId`
+   - ~54% of tracks have no own `imageTag` — the album holds the art
+
+2. **System surfaces** (notification, Android Auto, MediaSession):
+   - Use `content://` URIs via `ArtworkProvider` ContentProvider
+   - URI format: `content://${packageName}.artwork/${itemId}`
+   - ArtworkProvider fetches from Jellyfin API, caches to `cacheDir/artwork/{itemId}.jpg`
+   - Cached images survive offline — Android Auto works without server
+   - `ContentBitmapLoader` on MediaSession resolves `content://` URIs (default Media3 BitmapLoader only handles HTTPS)
+
+**Never use HTTPS URLs for MediaSession/notification artwork** — Media3's default `SimpleBitmapLoader` uses `URL.openStream()` which doesn't support `content://`, and Android Auto rejects non-content:// URIs.
+
+**Never gate artwork on `track.imageId != null`** — fall back to `track.albumId` since most tracks inherit album art.
+
 ## UI State Pattern (MANDATORY for all data-dependent screens)
 
 Every screen or section that loads data from a repository, API, or database MUST handle all four states:

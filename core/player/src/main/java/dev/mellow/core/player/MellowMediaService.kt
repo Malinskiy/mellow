@@ -1,6 +1,8 @@
 package dev.mellow.core.player
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -8,9 +10,11 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SimpleBitmapLoader
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -68,7 +72,10 @@ class MellowMediaService : MediaLibraryService() {
 
         player = exoPlayer
 
+        val bitmapLoader = CacheBitmapLoader(ContentBitmapLoader(this))
+
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, LibrarySessionCallback())
+            .setBitmapLoader(bitmapLoader)
             .build()
     }
 
@@ -360,5 +367,39 @@ class MellowMediaService : MediaLibraryService() {
         private const val LIBRARY_ARTISTS = "library_artists"
         private const val LIBRARY_GENRES = "library_genres"
         private const val GENRE_SEPARATOR = "|||"
+    }
+}
+
+private class ContentBitmapLoader(
+    private val context: android.content.Context,
+) : androidx.media3.session.BitmapLoader {
+
+    private val fallback = SimpleBitmapLoader()
+    private val executor = java.util.concurrent.Executors.newCachedThreadPool()
+
+    override fun supportsMimeType(mimeType: String): Boolean = true
+
+    override fun decodeBitmap(data: ByteArray): ListenableFuture<Bitmap> = fallback.decodeBitmap(data)
+
+    override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> {
+        if (uri.scheme == "content") {
+            val future = SettableFuture.create<Bitmap>()
+            executor.execute {
+                try {
+                    val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                    if (bitmap != null) {
+                        future.set(bitmap)
+                    } else {
+                        future.setException(java.io.IOException("Failed to decode bitmap from $uri"))
+                    }
+                } catch (e: Exception) {
+                    future.setException(e)
+                }
+            }
+            return future
+        }
+        return fallback.loadBitmap(uri)
     }
 }

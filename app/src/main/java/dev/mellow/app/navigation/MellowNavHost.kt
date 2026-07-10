@@ -174,9 +174,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 album = track.albumName ?: "",
                 albumId = track.albumId,
                 artistId = track.artistId,
-                                imageUrl = if (serverUrl != null && track.imageId != null) {
-                                    jellyfinImageUrl(serverUrl!!, track.imageId!!)
-                } else null,
+                            imageUrl = if (serverUrl != null) {
+                                val imgId = track.imageId ?: track.albumId
+                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                            } else null,
                 isFavorite = track.isFavorite,
                 isDownloaded = false,
             ),
@@ -194,8 +195,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         MiniPlayer(
                             title = track.name,
                             artist = track.artistName ?: "",
-                            imageUrl = if (serverUrl != null && track.imageId != null) {
-                                jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                            imageUrl = if (serverUrl != null) {
+                                val imgId = track.imageId ?: track.albumId
+                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
                             } else null,
                             isPlaying = playbackState.isPlaying,
                             progress = if (positionState.durationMs > 0) {
@@ -592,8 +594,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 title = track.name,
                                 duration = formatTrackDuration(track.duration),
                                 albumName = track.albumName ?: "",
-                                imageUrl = if (serverUrl != null && track.imageId != null) {
-                                    jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                                imageUrl = if (serverUrl != null) {
+                                    val imgId = track.imageId ?: track.albumId
+                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
                                 } else null,
                             )
                         }
@@ -675,8 +678,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 title = track.name,
                                 artistName = track.artistName ?: "",
                                 duration = formatTrackDuration(track.duration),
-                                imageUrl = if (serverUrl != null && track.imageId != null) {
-                                    jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                                imageUrl = if (serverUrl != null) {
+                                    val imgId = track.imageId ?: track.albumId
+                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
                                 } else null,
                             )
                         }
@@ -730,8 +734,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         trackName = track?.name ?: "",
                         artistName = track?.artistName ?: "",
                         albumName = track?.albumName ?: "",
-                        albumImageUrl = if (serverUrl != null && track?.imageId != null) {
-                            jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                        albumImageUrl = if (serverUrl != null) {
+                            val imgId = track?.imageId ?: track?.albumId
+                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
                         } else null,
                         isPlaying = pState.isPlaying,
                         progress = if (positionState.durationMs > 0) {
@@ -783,8 +788,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             artist = track.artistName ?: "",
                             album = track.albumName ?: "",
                             duration = formatTrackDuration(track.duration),
-                            imageUrl = if (serverUrl != null && track.imageId != null) {
-                                jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                            imageUrl = if (serverUrl != null) {
+                                val imgId = track.imageId ?: track.albumId
+                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
                             } else null,
                         )
                     }
@@ -799,8 +805,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                     artist = track.artistName ?: "",
                                     album = track.albumName ?: "",
                                     duration = formatTrackDuration(track.duration),
-                                    imageUrl = if (serverUrl != null && track.imageId != null) {
-                                        jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                                    imageUrl = if (serverUrl != null) {
+                                        val imgId = track.imageId ?: track.albumId
+                                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
                                     } else null,
                                 )
                             }
@@ -855,8 +862,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     LyricsScreen(
                         trackName = track?.name ?: "",
                         artistName = track?.artistName ?: "",
-                        albumImageUrl = if (serverUrl != null && track?.imageId != null) {
-                            jellyfinImageUrl(serverUrl!!, track.imageId!!)
+                        albumImageUrl = if (serverUrl != null) {
+                            val imgId = track?.imageId ?: track?.albumId
+                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
                         } else null,
                         lyrics = lyrics,
                         isLoadingLyrics = isLoadingLyrics,

@@ -16,7 +16,6 @@ import com.google.common.util.concurrent.MoreExecutors
 import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.media3.datasource.HttpDataSource
 import dev.mellow.core.common.PlaybackReporter
-import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.common.jellyfinStreamUrl
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.ServerDao
@@ -247,7 +246,8 @@ class MellowPlayer @Inject constructor(
 
     private fun Track.toMediaItem(): MediaItem {
         val streamUri = Uri.parse(jellyfinStreamUrl(serverUrl, id, apiKey))
-        val artUri = imageId?.let { Uri.parse(jellyfinImageUrl(serverUrl, it, 300)) }
+        val artItemId = albumId ?: id
+        val artUri = Uri.parse("content://${context.packageName}.artwork/$artItemId")
         val isDownloaded = id in downloadedTrackIds
 
         if (isDownloaded) {
