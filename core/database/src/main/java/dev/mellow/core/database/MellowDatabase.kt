@@ -31,7 +31,7 @@ import dev.mellow.core.database.entity.TrackEntity
         PendingPlaybackEventEntity::class,
         DownloadEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

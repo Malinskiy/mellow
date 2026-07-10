@@ -46,6 +46,12 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE artistId = :artistId ORDER BY playCount DESC LIMIT :limit")
     fun getTracksByArtist(artistId: String, limit: Int = 20): Flow<List<TrackEntity>>
 
+    @Query("SELECT * FROM tracks WHERE artistName = :artistName ORDER BY playCount DESC LIMIT :limit")
+    fun getTracksByArtistName(artistName: String, limit: Int = 20): Flow<List<TrackEntity>>
+
+    @Query("SELECT COUNT(*) FROM tracks WHERE artistName = :artistName")
+    suspend fun countTracksByArtistName(artistName: String): Int
+
     @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY dateAdded DESC LIMIT :limit")
     fun observeRecentTracks(serverId: String, limit: Int = 500): Flow<List<TrackEntity>>
 

@@ -20,6 +20,7 @@ fun AlbumEntity.toModel() = Album(
     genres = genres,
     imageId = imageTag?.let { id },
     isFavorite = isFavorite,
+    dateAdded = dateAdded,
 )
 
 fun ArtistEntity.toModel() = Artist(
@@ -50,6 +51,7 @@ fun TrackEntity.toModel() = Track(
     normalizationGain = normalizationGain,
     codec = codec,
     container = container,
+    dateAdded = dateAdded,
 )
 
 fun PlaylistEntity.toModel() = Playlist(

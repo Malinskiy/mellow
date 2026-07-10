@@ -31,10 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import dev.mellow.app.AuthState
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
@@ -143,6 +145,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val fullScreenRoutes = setOf("now_playing", "queue", "lyrics")
     val isFullScreen = currentRoute in fullScreenRoutes
     val tabRoutes = MellowNavDestination.entries.map { it.route }.toSet()
+    val baseRoute = currentRoute.substringBefore("?")
     val playbackState by mainViewModel.player.state.collectAsState()
     val positionState by mainViewModel.player.positionState.collectAsState()
     val isSyncing by mainViewModel.isSyncing.collectAsState()
@@ -205,9 +208,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         )
                     }
                     MellowBottomNavBar(
-                        selectedRoute = if (currentRoute in tabRoutes) currentRoute else "",
+                        selectedRoute = if (baseRoute in tabRoutes) baseRoute else "",
                         onNavigate = { route ->
-                            if (currentRoute !in tabRoutes) {
+                            if (baseRoute !in tabRoutes) {
                                 navController.popBackStack(route, inclusive = false)
                             }
                             navController.navigate(route) {
@@ -273,27 +276,42 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                         onSettingsClick = { navController.navigate("settings") },
                         onGenreClick = { genre ->
-                            navController.navigate(MellowNavDestination.Library.route)
+                            navController.navigate("library?genre=${android.net.Uri.encode(genre)}")
                         },
                     )
                 }
-                composable(MellowNavDestination.Library.route) {
+                composable(
+                    "library?genre={genre}",
+                    arguments = listOf(
+                        navArgument("genre") { type = NavType.StringType; defaultValue = "" },
+                    ),
+                ) {
                     val libraryVm: LibraryViewModel = hiltViewModel()
                     val state by libraryVm.uiState.collectAsState()
                     var currentSort by rememberSaveable { mutableStateOf("Recently Added") }
+                    val initialGenre = it.arguments?.getString("genre")?.takeIf { g -> g.isNotEmpty() }
+                    var selectedGenre by rememberSaveable { mutableStateOf(initialGenre) }
 
                     LaunchedEffect(serverId) {
                         if (serverId.isNotEmpty()) libraryVm.loadLibrary(serverId)
                     }
 
-                    val albumCountByArtist = state.albums.groupingBy { it.artistId }.eachCount()
+                    val albumCountByArtist = state.albums.groupingBy { it.artistName ?: "" }.eachCount()
 
-                    val albumItems = remember(state.albums, currentSort) {
+                    val filteredAlbums = remember(state.albums, selectedGenre) {
+                        if (selectedGenre != null) {
+                            state.albums.filter { it.genres.contains(selectedGenre) }
+                        } else {
+                            state.albums
+                        }
+                    }
+
+                    val albumItems = remember(filteredAlbums, currentSort) {
                         val sorted = when (currentSort) {
-                            "Name (A-Z)" -> state.albums.sortedBy { it.name.lowercase() }
-                            "Name (Z-A)" -> state.albums.sortedByDescending { it.name.lowercase() }
-                            "Year" -> state.albums.sortedByDescending { it.year ?: 0 }
-                            else -> state.albums
+                            "Name (A-Z)" -> filteredAlbums.sortedBy { it.name.lowercase() }
+                            "Name (Z-A)" -> filteredAlbums.sortedByDescending { it.name.lowercase() }
+                            "Year" -> filteredAlbums.sortedByDescending { it.year ?: 0 }
+                            else -> filteredAlbums.sortedByDescending { it.dateAdded }
                         }
                         sorted.map { AlbumItem(it.id, it.name, it.artistName ?: "", it.imageId) }
                     }
@@ -303,14 +321,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             "Name (Z-A)" -> state.artists.sortedByDescending { it.name.lowercase() }
                             else -> state.artists
                         }
-                        sorted.map { ArtistItem(it.id, it.name, albumCountByArtist[it.id] ?: 0, it.imageId) }
+                        sorted.map { ArtistItem(it.id, it.name, albumCountByArtist[it.name] ?: 0, it.imageId) }
                     }
                     val tracks = remember(state.tracks, currentSort) {
                         val sorted = when (currentSort) {
                             "Name (A-Z)" -> state.tracks.sortedBy { it.name.lowercase() }
                             "Name (Z-A)" -> state.tracks.sortedByDescending { it.name.lowercase() }
                             "Year" -> state.tracks.sortedByDescending { it.albumName ?: "" }
-                            else -> state.tracks
+                            else -> state.tracks.sortedByDescending { it.dateAdded }
                         }
                         sorted.map { track ->
                             TrackItem(
@@ -363,9 +381,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onCreatePlaylist = { name -> playlistsVm.createPlaylist(name) },
                         onSettingsClick = { navController.navigate("settings") },
                         onSortChanged = { sort -> currentSort = sort },
-                        onGenreClick = { genre ->
-                            navController.navigate(MellowNavDestination.Library.route)
-                        },
+                        onGenreClick = { genre -> selectedGenre = genre },
+                        selectedGenre = selectedGenre,
+                        onClearGenre = { selectedGenre = null },
                     )
                 }
                 composable(MellowNavDestination.Search.route) {
@@ -597,7 +615,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         artistImageUrl = if (serverUrl != null && artistState.artist?.imageId != null) {
                             jellyfinImageUrl(serverUrl!!, artistState.artist!!.imageId!!)
                         } else null,
-                        albumCount = artistState.artist?.albumCount ?: 0,
+                        albumCount = albums.size,
+                        totalTrackCount = artistState.totalTrackCount,
                         overview = artistState.artist?.overview,
                         topTracks = topTracks,
                         albums = albums,

@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
@@ -33,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -92,9 +94,14 @@ fun LibraryScreen(
     onSettingsClick: () -> Unit = {},
     onSortChanged: (String) -> Unit = {},
     onGenreClick: (String) -> Unit = {},
+    selectedGenre: String? = null,
+    onClearGenre: () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
+    LaunchedEffect(selectedGenre) {
+        if (selectedGenre != null) selectedTab = 0
+    }
 
     Column(
         modifier = modifier
@@ -123,6 +130,10 @@ fun LibraryScreen(
             genreCount = genres.size,
             sortLabel = sortLabel,
         )
+
+        if (selectedGenre != null) {
+            GenreFilterChip(genre = selectedGenre, onClear = onClearGenre)
+        }
 
         val showLoading = isLoading || isSyncing
         when (selectedTab) {
@@ -416,6 +427,31 @@ private fun PlaylistsPanel(
                     modifier = Modifier.size(20.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun GenreFilterChip(genre: String, onClear: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2)
+            .background(MellowTheme.colors.surface, RoundedCornerShape(MellowSpacing.Sp4))
+            .padding(start = MellowSpacing.Sp3, end = MellowSpacing.Sp1, top = MellowSpacing.Sp1, bottom = MellowSpacing.Sp1),
+    ) {
+        Text(
+            text = genre,
+            style = MaterialTheme.typography.labelMedium,
+            color = MellowTheme.colors.foreground,
+        )
+        IconButton(onClick = onClear, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "Clear genre filter",
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }

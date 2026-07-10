@@ -22,4 +22,5 @@ data class Track(
     val normalizationGain: Float?,
     val codec: String? = null,
     val container: String? = null,
+    val dateAdded: Long = 0L,
 )

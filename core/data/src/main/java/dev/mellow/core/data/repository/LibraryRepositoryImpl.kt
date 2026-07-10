@@ -49,8 +49,8 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun getAlbumTracks(albumId: String): Flow<List<Track>> =
         trackDao.getTracksByAlbum(albumId).map { entities -> entities.map { it.toModel() } }
 
-    override fun getArtistAlbums(artistId: String): Flow<List<Album>> =
-        albumDao.getAlbumsByArtist(artistId).map { entities -> entities.map { it.toModel() } }
+    override fun getArtistAlbums(artistName: String): Flow<List<Album>> =
+        albumDao.getAlbumsByArtistName(artistName).map { entities -> entities.map { it.toModel() } }
 
     override suspend fun getAlbum(albumId: String): Album? =
         albumDao.getAlbumById(albumId)?.toModel()
@@ -64,8 +64,14 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeArtist(artistId: String): Flow<Artist?> =
         artistDao.observeArtistById(artistId).map { it?.toModel() }
 
-    override fun getArtistTracks(artistId: String): Flow<List<Track>> =
-        trackDao.getTracksByArtist(artistId).map { entities -> entities.map { it.toModel() } }
+    override fun getArtistTracks(artistName: String): Flow<List<Track>> =
+        trackDao.getTracksByArtistName(artistName).map { entities -> entities.map { it.toModel() } }
+
+    override suspend fun countArtistAlbums(artistName: String): Int =
+        albumDao.countAlbumsByArtistName(artistName)
+
+    override suspend fun countArtistTracks(artistName: String): Int =
+        trackDao.countTracksByArtistName(artistName)
 
     override fun getRecentTracks(serverId: String): Flow<List<Track>> =
         trackDao.observeRecentTracks(serverId).map { entities -> entities.map { it.toModel() } }

@@ -25,6 +25,12 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE artistId = :artistId ORDER BY year DESC")
     fun getAlbumsByArtist(artistId: String): Flow<List<AlbumEntity>>
 
+    @Query("SELECT * FROM albums WHERE artistName = :artistName ORDER BY year DESC")
+    fun getAlbumsByArtistName(artistName: String): Flow<List<AlbumEntity>>
+
+    @Query("SELECT COUNT(*) FROM albums WHERE artistName = :artistName")
+    suspend fun countAlbumsByArtistName(artistName: String): Int
+
     @Query("SELECT * FROM albums WHERE isFavorite = 1 AND serverId = :serverId")
     fun getFavoriteAlbums(serverId: String): Flow<List<AlbumEntity>>
 
@@ -74,6 +80,9 @@ interface AlbumDao {
 
     @Query("SELECT * FROM albums WHERE artistId = :artistId ORDER BY year DESC")
     suspend fun getAllAlbumsByArtist(artistId: String): List<AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE artistName = :artistName ORDER BY year DESC")
+    suspend fun getAllAlbumsByArtistName(artistName: String): List<AlbumEntity>
 
     @Query("SELECT id FROM albums WHERE isFavorite = 1 AND serverId = :serverId")
     suspend fun getFavoriteAlbumIds(serverId: String): List<String>

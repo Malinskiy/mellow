@@ -61,7 +61,10 @@ class SearchViewModel @Inject constructor(
 
             val tracks = tracksDeferred.await()
             val albums = albumsDeferred.await()
-            val artists = artistsDeferred.await()
+            val artists = artistsDeferred.await().map { artist ->
+                val count = libraryRepository.countArtistAlbums(artist.name)
+                artist.copy(albumCount = count)
+            }
 
             val queryLower = query.lowercase()
             val topResult = pickTopResult(queryLower, tracks, albums, artists)

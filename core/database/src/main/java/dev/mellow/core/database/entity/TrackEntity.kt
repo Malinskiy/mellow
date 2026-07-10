@@ -1,9 +1,10 @@
 package dev.mellow.core.database.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "tracks")
+@Entity(tableName = "tracks", indices = [Index("artistName")])
 data class TrackEntity(
     @PrimaryKey val id: String,
     val serverId: String,

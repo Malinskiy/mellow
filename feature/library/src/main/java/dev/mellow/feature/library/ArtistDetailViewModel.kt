@@ -11,14 +11,18 @@ import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ArtistDetailUiState(
     val artist: Artist? = null,
     val albums: List<Album> = emptyList(),
     val topTracks: List<Track> = emptyList(),
+    val totalTrackCount: Int = 0,
     val isLoading: Boolean = true,
     val error: String? = null,
 )
@@ -49,13 +53,22 @@ class ArtistDetailViewModel @Inject constructor(
             }
             .launchIn(viewModelScope)
 
-        libraryRepository.getArtistAlbums(artistId)
-            .onEach { albums -> _uiState.value = _uiState.value.copy(albums = albums) }
-            .launchIn(viewModelScope)
+        viewModelScope.launch {
+            val artist = libraryRepository.observeArtist(artistId)
+                .filterNotNull()
+                .first()
 
-        libraryRepository.getArtistTracks(artistId)
-            .onEach { tracks -> _uiState.value = _uiState.value.copy(topTracks = tracks) }
-            .launchIn(viewModelScope)
+            libraryRepository.getArtistAlbums(artist.name)
+                .onEach { albums -> _uiState.value = _uiState.value.copy(albums = albums) }
+                .launchIn(viewModelScope)
+
+            libraryRepository.getArtistTracks(artist.name)
+                .onEach { tracks -> _uiState.value = _uiState.value.copy(topTracks = tracks) }
+                .launchIn(viewModelScope)
+
+            val trackCount = libraryRepository.countArtistTracks(artist.name)
+            _uiState.value = _uiState.value.copy(totalTrackCount = trackCount)
+        }
     }
 
     fun retry() {

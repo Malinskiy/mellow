@@ -13,4 +13,5 @@ data class Album(
     val genres: List<String>,
     val imageId: String?,
     val isFavorite: Boolean,
+    val dateAdded: Long = 0L,
 )
