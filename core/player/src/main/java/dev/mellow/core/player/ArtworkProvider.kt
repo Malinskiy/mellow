@@ -41,7 +41,7 @@ class ArtworkProvider : ContentProvider() {
             ArtworkEntryPoint::class.java,
         )
         val server = runBlocking { entryPoint.serverDao().getActiveServer() } ?: return null
-        val imageUrl = "${server.url}/Items/$itemId/Images/Primary?maxWidth=300&quality=90&api_key=${server.accessToken}"
+        val imageUrl = "${server.url}/Items/$itemId/Images/Primary?maxWidth=600&quality=90&api_key=${server.accessToken}"
 
         return try {
             val tmpFile = File(cacheDir, "$itemId.tmp")

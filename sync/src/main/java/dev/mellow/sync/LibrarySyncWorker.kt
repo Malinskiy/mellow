@@ -13,6 +13,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dev.mellow.core.data.ArtworkPreCacher
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.LibraryRepository
@@ -29,6 +30,7 @@ class LibrarySyncWorker @AssistedInject constructor(
     private val serverDao: ServerDao,
     private val jellyfinClient: JellyfinClientWrapper,
     private val syncPreferences: SyncPreferences,
+    private val artworkPreCacher: ArtworkPreCacher,
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -37,6 +39,16 @@ class LibrarySyncWorker @AssistedInject constructor(
             setForeground(createForegroundInfo("Syncing library…", 0, 0))
             ensureConnected()
             libraryRepository.syncLibrary(serverId) { progress ->
+                setForegroundAsync(createForegroundInfo(progress))
+                setProgressAsync(
+                    workDataOf(
+                        KEY_PHASE to progress.phase,
+                        KEY_CURRENT to progress.current,
+                        KEY_TOTAL to progress.total,
+                    ),
+                )
+            }
+            artworkPreCacher.preCacheArtwork(serverId) { progress ->
                 setForegroundAsync(createForegroundInfo(progress))
                 setProgressAsync(
                     workDataOf(

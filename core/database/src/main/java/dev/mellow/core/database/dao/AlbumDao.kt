@@ -98,4 +98,7 @@ interface AlbumDao {
 
     @Query("DELETE FROM albums WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
+
+    @Query("SELECT id FROM albums WHERE serverId = :serverId AND imageTag IS NOT NULL")
+    suspend fun getIdsWithImage(serverId: String): List<String>
 }
