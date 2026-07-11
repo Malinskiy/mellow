@@ -45,9 +45,11 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
+import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.LoadingContent
+import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowPalette
@@ -97,56 +99,65 @@ fun LibraryScreen(
         if (selectedGenre != null) selectedTab = 0
     }
 
-    Column(
+    val toolbarState = rememberCollapsibleToolbarState()
+    CollapsibleToolbarLayout(
+        state = toolbarState,
+        toolbar = {
+            LibraryTopBar(
+                isConnected = isConnected,
+                isServerUnreachable = isServerUnreachable,
+                onSettingsClick = onSettingsClick,
+                onSortChanged = onSortChanged,
+            )
+        },
         modifier = modifier
             .fillMaxSize()
             .background(MellowTheme.colors.background),
-    ) {
-        LibraryTopBar(
-            isConnected = isConnected,
-            isServerUnreachable = isServerUnreachable,
-            onSettingsClick = onSettingsClick,
-            onSortChanged = onSortChanged,
-        )
+    ) { contentPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = contentPadding.calculateTopPadding()),
+        ) {
+            MellowTabBar(
+                tabs = TABS,
+                selectedIndex = selectedTab,
+                onTabSelected = { selectedTab = it },
+                modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
+            )
 
-        MellowTabBar(
-            tabs = TABS,
-            selectedIndex = selectedTab,
-            onTabSelected = { selectedTab = it },
-            modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
-        )
+            SortRow(
+                tab = TABS[selectedTab],
+                albumCount = albumItems.size,
+                artistCount = artists.size,
+                trackCount = tracks.size,
+                genreCount = genres.size,
+                sortLabel = sortLabel,
+            )
 
-        SortRow(
-            tab = TABS[selectedTab],
-            albumCount = albumItems.size,
-            artistCount = artists.size,
-            trackCount = tracks.size,
-            genreCount = genres.size,
-            sortLabel = sortLabel,
-        )
+            if (selectedGenre != null) {
+                GenreFilterChip(genre = selectedGenre, onClear = onClearGenre)
+            }
 
-        if (selectedGenre != null) {
-            GenreFilterChip(genre = selectedGenre, onClear = onClearGenre)
-        }
-
-        val showLoading = isLoading || isSyncing
-        when (selectedTab) {
-            0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
-                 else if (albumItems.isEmpty()) EmptyContent("No albums yet")
-                 else AlbumsPanel(albumItems, serverUrl, onAlbumClick)
-            1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
-                 else if (artists.isEmpty()) EmptyContent("No artists yet")
-                 else ArtistsPanel(artists, serverUrl, onArtistClick)
-            2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
-                 else if (tracks.isEmpty()) EmptyContent("No tracks yet")
-                 else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick)
-            3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
-                 else if (genres.isEmpty()) EmptyContent("No genres yet")
-                 else GenresPanel(genres, onGenreClick)
-            4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
-                 else if (playlists.isEmpty()) EmptyContent("No playlists yet")
-                 else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist)
-            5 -> EmptyContent("Coming soon")
+            val showLoading = isLoading || isSyncing
+            when (selectedTab) {
+                0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
+                     else if (albumItems.isEmpty()) EmptyContent("No albums yet")
+                     else AlbumsPanel(albumItems, serverUrl, onAlbumClick)
+                1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
+                     else if (artists.isEmpty()) EmptyContent("No artists yet")
+                     else ArtistsPanel(artists, serverUrl, onArtistClick)
+                2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
+                     else if (tracks.isEmpty()) EmptyContent("No tracks yet")
+                     else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick)
+                3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
+                     else if (genres.isEmpty()) EmptyContent("No genres yet")
+                     else GenresPanel(genres, onGenreClick)
+                4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
+                     else if (playlists.isEmpty()) EmptyContent("No playlists yet")
+                     else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist)
+                5 -> EmptyContent("Coming soon")
+            }
         }
     }
 }

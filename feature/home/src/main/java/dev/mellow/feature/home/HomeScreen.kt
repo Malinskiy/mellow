@@ -37,8 +37,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.AlbumCard
+import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -77,19 +79,25 @@ fun HomeScreen(
     onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    val toolbarState = rememberCollapsibleToolbarState()
+    CollapsibleToolbarLayout(
+        state = toolbarState,
+        toolbar = {
+            HomeTopBar(
+                isConnected = isConnected,
+                isServerUnreachable = isServerUnreachable,
+                onSettingsClick = onSettingsClick,
+            )
+        },
         modifier = modifier
             .fillMaxSize()
             .background(MellowTheme.colors.background),
-    ) {
-        HomeTopBar(
-            isConnected = isConnected,
-            isServerUnreachable = isServerUnreachable,
-            onSettingsClick = onSettingsClick,
-        )
-
+    ) { contentPadding ->
         LazyColumn(
-            contentPadding = PaddingValues(bottom = MellowSpacing.Sp8),
+            contentPadding = PaddingValues(
+                top = contentPadding.calculateTopPadding(),
+                bottom = MellowSpacing.Sp8,
+            ),
             modifier = Modifier.fillMaxSize(),
         ) {
             if (quickPicks.isNotEmpty()) {

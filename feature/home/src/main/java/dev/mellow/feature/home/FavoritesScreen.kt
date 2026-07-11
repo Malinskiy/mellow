@@ -39,10 +39,12 @@ import dev.mellow.core.common.jellyfinImageUrl
 import androidx.compose.ui.Alignment
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
+import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
+import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -74,39 +76,48 @@ fun FavoritesScreen(
         viewModel.loadFavorites(serverId)
     }
 
-    Column(
+    val toolbarState = rememberCollapsibleToolbarState()
+    CollapsibleToolbarLayout(
+        state = toolbarState,
+        toolbar = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MellowTheme.colors.background)
+                    .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+            ) {
+                Text(
+                    "Favorites",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MellowTheme.colors.foreground,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                ConnectionStatusDot(
+                    isConnected = isConnected,
+                    isServerUnreachable = isServerUnreachable,
+                )
+                Box(modifier = Modifier.width(MellowSpacing.Sp2))
+                IconButton(onClick = onSettingsClick) {
+                    Icon(
+                        imageVector = PhosphorIcons.Gear,
+                        contentDescription = "Settings",
+                        tint = MellowTheme.colors.foreground,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        },
         modifier = modifier
             .fillMaxSize()
             .background(MellowTheme.colors.background),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+    ) { contentPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+                .fillMaxSize()
+                .padding(top = contentPadding.calculateTopPadding()),
         ) {
-            Text(
-                "Favorites",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MellowTheme.colors.foreground,
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            ConnectionStatusDot(
-                isConnected = isConnected,
-                isServerUnreachable = isServerUnreachable,
-            )
-            Box(modifier = Modifier.width(MellowSpacing.Sp2))
-            IconButton(onClick = onSettingsClick) {
-                Icon(
-                    imageVector = PhosphorIcons.Gear,
-                    contentDescription = "Settings",
-                    tint = MellowTheme.colors.foreground,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
-
-        MellowTabBar(
+            MellowTabBar(
             tabs = TABS,
             selectedIndex = selectedTab,
             onTabSelected = { selectedTab = it },
@@ -221,6 +232,7 @@ fun FavoritesScreen(
                     }
                 }
             }
+        }
         }
     }
 }
