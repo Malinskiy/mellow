@@ -2,6 +2,7 @@ package dev.mellow.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,6 +22,7 @@ import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,6 +64,7 @@ fun FavoritesScreen(
     onTrackClick: (String) -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
     onShuffleAll: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
 ) {
     val viewModel: FavoritesViewModel = hiltViewModel()
     val state by viewModel.uiState.collectAsState()
@@ -92,6 +95,15 @@ fun FavoritesScreen(
                 isConnected = isConnected,
                 isServerUnreachable = isServerUnreachable,
             )
+            Box(modifier = Modifier.width(MellowSpacing.Sp2))
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    imageVector = PhosphorIcons.Gear,
+                    contentDescription = "Settings",
+                    tint = MellowTheme.colors.foreground,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
 
         MellowTabBar(

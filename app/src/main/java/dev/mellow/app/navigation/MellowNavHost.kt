@@ -414,6 +414,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 openContextMenu(track, mainViewModel.serverUrl.value)
                             }
                         },
+                        onSettingsClick = { navController.navigate("settings") },
                     )
                 }
                 composable(MellowNavDestination.Favorites.route) {
@@ -426,6 +427,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
+                        onSettingsClick = { navController.navigate("settings") },
                         onTrackClick = { trackId ->
                             val tracks = favState.tracks
                             val idx = tracks.indexOfFirst { it.id == trackId }
@@ -1040,7 +1042,7 @@ private fun TabScreenTopBar(
         Box(modifier = Modifier.width(MellowSpacing.Sp2))
         androidx.compose.material3.IconButton(onClick = onSettingsClick) {
             androidx.compose.material3.Icon(
-                imageVector = dev.mellow.core.designsystem.icon.PhosphorIcons.HardDrives,
+                imageVector = dev.mellow.core.designsystem.icon.PhosphorIcons.Gear,
                 contentDescription = "Settings",
                 tint = MellowTheme.colors.foreground,
                 modifier = Modifier.height(20.dp).width(20.dp),

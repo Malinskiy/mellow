@@ -205,8 +205,8 @@ private fun LibraryTopBar(
         }
         IconButton(onClick = onSettingsClick) {
             Icon(
-                    imageVector = PhosphorIcons.HardDrives,
-                contentDescription = "Server",
+                imageVector = PhosphorIcons.Gear,
+                contentDescription = "Settings",
                 tint = MellowTheme.colors.foreground,
                 modifier = Modifier.size(20.dp),
             )

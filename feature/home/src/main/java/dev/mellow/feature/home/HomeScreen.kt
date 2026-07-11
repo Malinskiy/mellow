@@ -195,10 +195,10 @@ private fun HomeTopBar(
         Box(modifier = Modifier.width(MellowSpacing.Sp2))
         IconButton(onClick = onSettingsClick) {
             Icon(
-                    imageVector = PhosphorIcons.HardDrives,
+                imageVector = PhosphorIcons.Gear,
                 contentDescription = "Settings",
                 tint = MellowTheme.colors.foreground,
-                modifier = Modifier.height(20.dp).width(20.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }

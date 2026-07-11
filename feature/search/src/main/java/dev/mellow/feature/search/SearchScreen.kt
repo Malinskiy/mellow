@@ -65,6 +65,7 @@ fun SearchScreen(
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
+    onSettingsClick: () -> Unit = {},
 ) {
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -90,6 +91,15 @@ fun SearchScreen(
                 isConnected = isConnected,
                 isServerUnreachable = isServerUnreachable,
             )
+            Box(modifier = Modifier.width(MellowSpacing.Sp2))
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    imageVector = PhosphorIcons.Gear,
+                    contentDescription = "Settings",
+                    tint = MellowTheme.colors.foreground,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
 
         TextField(
