@@ -1,12 +1,9 @@
 package dev.mellow.app.navigation
 
-import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.runtime.CompositionLocalProvider
-import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
-import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
+
 import dev.mellow.app.dev.DevIconComparisonScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -14,11 +11,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
@@ -241,8 +241,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding),
         ) {
-            SharedTransitionLayout {
-            CompositionLocalProvider(LocalSharedTransitionScope provides this@SharedTransitionLayout) {
             NavHost(
                 navController = navController,
                 startDestination = MellowNavDestination.Home.route,
@@ -250,7 +248,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 exitTransition = { fadeOut(tween(300)) },
             ) {
                 composable(MellowNavDestination.Home.route) {
-                CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val homeVm: HomeViewModel = hiltViewModel()
                     val homeState by homeVm.uiState.collectAsState()
                     LaunchedEffect(serverId) {
@@ -258,6 +255,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     }
 
                     HomeScreen(
+                        quickPicks = homeState.quickPicks,
                         recentlyPlayed = homeState.recentlyPlayed,
                         recentlyAdded = homeState.recentlyAdded,
                         favoriteTracks = homeState.favoriteTracks,
@@ -289,14 +287,13 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             navController.navigate("library?genre=${android.net.Uri.encode(genre)}")
                         },
                     )
-                }}
+                }
                 composable(
                     "library?genre={genre}",
                     arguments = listOf(
                         navArgument("genre") { type = NavType.StringType; defaultValue = "" },
                     ),
                 ) {
-                CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val libraryVm: LibraryViewModel = hiltViewModel()
                     val state by libraryVm.uiState.collectAsState()
                     var currentSort by rememberSaveable { mutableStateOf("Recently Added") }
@@ -396,7 +393,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         selectedGenre = selectedGenre,
                         onClearGenre = { selectedGenre = null },
                     )
-                }}
+                }
                 composable(MellowNavDestination.Search.route) {
                     val searchVm: SearchViewModel = hiltViewModel()
                     val searchState by searchVm.uiState.collectAsState()
@@ -497,7 +494,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         navArgument("source") { type = NavType.StringType; defaultValue = "library" },
                     ),
                 ) {
-                CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val routeAlbumId = it.arguments?.getString("albumId") ?: ""
                     val routeSource = it.arguments?.getString("source") ?: "library"
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
@@ -608,7 +604,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             }
                         },
                     )
-                }}
+                }
                 composable("artist/{artistId}") {
                     val artistVm: ArtistDetailViewModel = hiltViewModel()
                     val artistState by artistVm.uiState.collectAsState()
@@ -910,7 +906,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
             }
-            }}
         }
     }
 
@@ -1011,6 +1006,48 @@ private data class ContextMenuState(
     val menuData: TrackMenuData,
     val track: Track,
 )
+
+@Composable
+private fun TabScreenTopBar(
+    route: String,
+    isConnected: Boolean,
+    isServerUnreachable: Boolean,
+    onSettingsClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MellowTheme.colors.background)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+    ) {
+        Text(
+            text = when (route) {
+                MellowNavDestination.Home.route -> "Mellow"
+                MellowNavDestination.Library.route, "library" -> "Library"
+                MellowNavDestination.Search.route -> "Search"
+                MellowNavDestination.Favorites.route -> "Favorites"
+                else -> ""
+            },
+            style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
+            color = MellowTheme.colors.foreground,
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        dev.mellow.core.designsystem.component.ConnectionStatusDot(
+            isConnected = isConnected,
+            isServerUnreachable = isServerUnreachable,
+        )
+        Box(modifier = Modifier.width(MellowSpacing.Sp2))
+        androidx.compose.material3.IconButton(onClick = onSettingsClick) {
+            androidx.compose.material3.Icon(
+                imageVector = dev.mellow.core.designsystem.icon.PhosphorIcons.HardDrives,
+                contentDescription = "Settings",
+                tint = MellowTheme.colors.foreground,
+                modifier = Modifier.height(20.dp).width(20.dp),
+            )
+        }
+    }
+}
 
 private fun formatTrackDuration(duration: Duration): String {
     val totalSeconds = duration.seconds

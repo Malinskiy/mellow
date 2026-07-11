@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Track
+import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,7 @@ import java.time.Duration
 import javax.inject.Inject
 
 data class HomeUiState(
+    val quickPicks: List<HomeAlbumItem> = emptyList(),
     val recentlyPlayed: List<HomeAlbumItem> = emptyList(),
     val recentlyAdded: List<HomeAlbumItem> = emptyList(),
     val favoriteTracks: List<HomeTrackItem> = emptyList(),
@@ -35,6 +37,9 @@ class HomeViewModel @Inject constructor(
     val favTrackModels: StateFlow<List<Track>> = _favTrackModels.asStateFlow()
 
     private var loadedServerId: String? = null
+    private val shuffleSeed = System.nanoTime()
+    private var cachedQuickPicks: List<HomeAlbumItem>? = null
+    private var cachedFavTracks: List<Track>? = null
 
     fun loadHome(serverId: String) {
         if (serverId.isEmpty() || serverId == loadedServerId) return
@@ -48,21 +53,29 @@ class HomeViewModel @Inject constructor(
             libraryRepository.getFavoriteAlbums(serverId),
         ) { albums, favTracks, recentlyPlayedAlbums, mostPlayedAlbums, favoriteAlbums ->
             val recentlyAdded = albums
-                .sortedByDescending { it.id }
+                .sortedByDescending { it.dateAdded }
                 .take(20)
                 .map { it.toHomeAlbumItem() }
 
-            // Build recentlyPlayed: most-played first (for Quick Picks .take(6)),
-            // then recently-played, deduplicated. Falls back to favorites then recently added.
             val mostPlayedIds = mostPlayedAlbums.map { it.id }.toSet()
-            val recentlyPlayed = if (mostPlayedAlbums.isNotEmpty() || recentlyPlayedAlbums.isNotEmpty()) {
-                val combined = mostPlayedAlbums.take(6) +
-                    recentlyPlayedAlbums.filterNot { it.id in mostPlayedIds }
-                combined.map { it.toHomeAlbumItem() }
-            } else if (favoriteAlbums.isNotEmpty()) {
-                favoriteAlbums.take(6).map { it.toHomeAlbumItem() }
+            val recentlyPlayed = if (recentlyPlayedAlbums.isNotEmpty()) {
+                recentlyPlayedAlbums.map { it.toHomeAlbumItem() }
             } else {
                 emptyList()
+            }
+
+            val quickPickPool = cachedQuickPicks ?: run {
+                val picks = if (mostPlayedAlbums.isNotEmpty() || recentlyPlayedAlbums.isNotEmpty()) {
+                    val combined = mostPlayedAlbums +
+                        recentlyPlayedAlbums.filterNot { it.id in mostPlayedIds }
+                    combined.shuffled(Random(shuffleSeed)).take(6).map { it.toHomeAlbumItem() }
+                } else if (favoriteAlbums.isNotEmpty()) {
+                    favoriteAlbums.shuffled(Random(shuffleSeed)).take(6).map { it.toHomeAlbumItem() }
+                } else {
+                    emptyList()
+                }
+                cachedQuickPicks = picks
+                picks
             }
 
             val genres = albums
@@ -74,12 +87,18 @@ class HomeViewModel @Inject constructor(
                 .take(15)
                 .map { it.key }
 
-            _favTrackModels.value = favTracks.take(5)
+            val shuffledFavs = cachedFavTracks ?: run {
+                val picks = favTracks.shuffled(Random(shuffleSeed)).take(5)
+                cachedFavTracks = picks
+                picks
+            }
+            _favTrackModels.value = shuffledFavs
 
             _uiState.value = HomeUiState(
+                quickPicks = quickPickPool,
                 recentlyPlayed = recentlyPlayed,
                 recentlyAdded = recentlyAdded,
-                favoriteTracks = favTracks.take(5).map { it.toHomeTrackItem() },
+                favoriteTracks = shuffledFavs.map { it.toHomeTrackItem() },
                 genres = genres,
                 albumCount = albums.size,
                 isLoading = false,

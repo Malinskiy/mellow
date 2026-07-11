@@ -50,8 +50,7 @@ import dev.mellow.core.designsystem.component.AnimatedSongDownloadIcon
 import dev.mellow.core.designsystem.component.DownloadIconState
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
-import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
-import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
+
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -291,41 +290,26 @@ private fun AlbumHero(
                 .fillMaxWidth()
                 .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp4),
         ) {
-            run {
-                val sts = LocalSharedTransitionScope.current
-                val avs = LocalNavAnimatedVisibilityScope.current
-                Box(
-                    modifier = Modifier
-                        .width(240.dp)
-                        .aspectRatio(1f)
-                        .then(
-                            if (sts != null && avs != null) {
-                                with(sts) {
-                                    Modifier.sharedElement(
-                                        rememberSharedContentState("album_art_${sharedElementSource}_$albumId"),
-                                        avs,
-                                        clipInOverlayDuringTransition = OverlayClip(MellowShapes.Large),
-                                    )
-                                }
-                            } else Modifier
-                        )
-                        .clip(MellowShapes.Large)
-                        .background(MellowTheme.colors.surfaceElevated),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        PhosphorIcons.MusicNote,
-                        contentDescription = null,
-                        tint = MellowTheme.colors.muted,
-                        modifier = Modifier.size(48.dp),
-                    )
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = "Album art",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+            Box(
+                modifier = Modifier
+                    .width(240.dp)
+                    .aspectRatio(1f)
+                    .clip(MellowShapes.Large)
+                    .background(MellowTheme.colors.surfaceElevated),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    PhosphorIcons.MusicNote,
+                    contentDescription = null,
+                    tint = MellowTheme.colors.muted,
+                    modifier = Modifier.size(48.dp),
+                )
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Album art",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
 
             Spacer(Modifier.height(MellowSpacing.Sp5))

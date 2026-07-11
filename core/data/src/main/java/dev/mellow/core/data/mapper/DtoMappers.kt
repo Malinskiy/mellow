@@ -21,7 +21,7 @@ fun BaseItemDto.toAlbumEntity(serverId: String): AlbumEntity = AlbumEntity(
     genres = genres.orEmpty(),
     imageTag = imageTags?.get(ImageType.PRIMARY),
     isFavorite = userData?.isFavorite ?: false,
-    dateAdded = System.currentTimeMillis(),
+    dateAdded = dateCreated?.let { parseDateToEpochMs(it.toString()) } ?: System.currentTimeMillis(),
     lastSynced = System.currentTimeMillis(),
 )
 
@@ -80,7 +80,15 @@ fun BaseItemDto.toTrackEntity(serverId: String): TrackEntity {
         bitrate = audioStream?.bitRate,
         sampleRate = audioStream?.sampleRate,
         channels = audioStream?.channels,
-        dateAdded = System.currentTimeMillis(),
+        dateAdded = dateCreated?.let { parseDateToEpochMs(it.toString()) } ?: System.currentTimeMillis(),
         lastSynced = System.currentTimeMillis(),
     )
+}
+
+private fun parseDateToEpochMs(dateStr: String): Long? = try {
+    java.time.LocalDateTime.parse(dateStr)
+        .toInstant(java.time.ZoneOffset.UTC)
+        .toEpochMilli()
+} catch (_: Exception) {
+    null
 }

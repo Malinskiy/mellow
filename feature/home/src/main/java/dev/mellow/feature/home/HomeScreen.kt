@@ -62,6 +62,7 @@ data class HomeTrackItem(
 
 @Composable
 fun HomeScreen(
+    quickPicks: List<HomeAlbumItem> = emptyList(),
     recentlyPlayed: List<HomeAlbumItem> = emptyList(),
     recentlyAdded: List<HomeAlbumItem> = emptyList(),
     favoriteTracks: List<HomeTrackItem> = emptyList(),
@@ -91,13 +92,13 @@ fun HomeScreen(
             contentPadding = PaddingValues(bottom = MellowSpacing.Sp8),
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (recentlyPlayed.isNotEmpty()) {
+            if (quickPicks.isNotEmpty()) {
                 item {
                     SectionHeader("Quick Picks")
                 }
                 item {
                     QuickPicksGrid(
-                        albums = recentlyPlayed.take(6),
+                        albums = quickPicks,
                         serverUrl = serverUrl,
                         onAlbumClick = { id -> onAlbumClick(id, "quick") },
                     )
@@ -325,7 +326,7 @@ private fun AlbumCarousel(
                 } else null,
                 onClick = { onAlbumClick(album.id) },
                 modifier = Modifier.width(130.dp),
-                sharedElementKey = if (sharedKeyPrefix.isNotEmpty()) "album_art_${sharedKeyPrefix}_${album.id}" else null,
+
             )
         }
     }

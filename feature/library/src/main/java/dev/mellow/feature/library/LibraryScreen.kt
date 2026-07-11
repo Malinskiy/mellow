@@ -297,7 +297,7 @@ private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClic
                     jellyfinImageUrl(serverUrl, album.imageId)
                 } else null,
                 onClick = { onAlbumClick(album.id) },
-                sharedElementKey = "album_art_library_${album.id}",
+
             )
         }
     }

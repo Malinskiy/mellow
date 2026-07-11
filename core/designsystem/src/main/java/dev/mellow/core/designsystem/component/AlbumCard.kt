@@ -32,11 +32,7 @@ fun AlbumCard(
     imageUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    sharedElementKey: String? = null,
 ) {
-    val sts = LocalSharedTransitionScope.current
-    val avs = LocalNavAnimatedVisibilityScope.current
-
     Column(
         modifier = modifier.clickable(onClick = onClick),
     ) {
@@ -44,17 +40,6 @@ fun AlbumCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .then(
-                    if (sharedElementKey != null && sts != null && avs != null) {
-                        with(sts) {
-                            Modifier.sharedElement(
-                                rememberSharedContentState(sharedElementKey),
-                                avs,
-                                clipInOverlayDuringTransition = OverlayClip(MellowShapes.Medium),
-                            )
-                        }
-                    } else Modifier
-                )
                 .clip(MellowShapes.Medium)
                 .background(MellowTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,
