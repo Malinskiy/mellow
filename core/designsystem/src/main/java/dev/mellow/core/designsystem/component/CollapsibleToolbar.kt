@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -28,7 +29,10 @@ class CollapsibleToolbarState(
     private val coroutineScope: CoroutineScope,
 ) {
     internal val offsetY = Animatable(0f)
-    internal var heightPx: Float = 0f
+    private val heightPxState = mutableFloatStateOf(0f)
+    internal var heightPx: Float
+        get() = heightPxState.floatValue
+        set(value) { heightPxState.floatValue = value }
 
     val nestedScrollConnection = object : NestedScrollConnection {
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {

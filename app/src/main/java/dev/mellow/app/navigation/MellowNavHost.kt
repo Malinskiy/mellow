@@ -507,13 +507,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                     )
                 }
-                composable(
-                    "dev_tools",
-                    enterTransition = { slideIntoContainer(SlideDirection.Start, tween(300)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(250)) },
-                    popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(300)) },
-                ) {
+                composable("dev_tools") {
                     DevIconComparisonScreen(onBack = { navController.popBackStack() })
                 }
                 composable(
@@ -522,10 +516,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         navArgument("albumId") { type = NavType.StringType },
                         navArgument("source") { type = NavType.StringType; defaultValue = "library" },
                     ),
-                    enterTransition = { slideIntoContainer(SlideDirection.Start, tween(300)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(250)) },
-                    popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(300)) },
                 ) {
                     CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val routeAlbumId = it.arguments?.getString("albumId") ?: ""
@@ -640,13 +630,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                     }
                 }
-                composable(
-                    "artist/{artistId}",
-                    enterTransition = { slideIntoContainer(SlideDirection.Start, tween(300)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(250)) },
-                    popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(300)) },
-                ) {
+                composable("artist/{artistId}") {
                     val artistVm: ArtistDetailViewModel = hiltViewModel()
                     val artistState by artistVm.uiState.collectAsState()
 
@@ -726,13 +710,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                     )
                 }
-                composable(
-                    "playlist/{playlistId}",
-                    enterTransition = { slideIntoContainer(SlideDirection.Start, tween(300)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(250)) },
-                    popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(300)) },
-                ) {
+                composable("playlist/{playlistId}") {
                     val playlistDetailVm: PlaylistDetailViewModel = hiltViewModel()
                     val playlistDetailState by playlistDetailVm.uiState.collectAsState()
 
@@ -790,13 +768,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                     )
                 }
-                composable(
-                    "now_playing",
-                    enterTransition = { slideIntoContainer(SlideDirection.Up, tween(350)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(250)) },
-                    popExitTransition = { slideOutOfContainer(SlideDirection.Down, tween(350)) },
-                ) {
+                composable("now_playing") {
                     val pState = playbackState
                     val track = pState.currentTrack
 
@@ -856,13 +828,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         codec = track?.codec,
                     )
                 }
-                composable(
-                    "queue",
-                    enterTransition = { slideIntoContainer(SlideDirection.Up, tween(350)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(250)) },
-                    popExitTransition = { slideOutOfContainer(SlideDirection.Down, tween(350)) },
-                ) {
+                composable("queue") {
                     val pState = playbackState
                     val currentIdx = pState.currentIndex
                     val queue = pState.queue
@@ -926,13 +892,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                     )
                 }
-                composable(
-                    "lyrics",
-                    enterTransition = { slideIntoContainer(SlideDirection.Up, tween(350)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(250)) },
-                    popExitTransition = { slideOutOfContainer(SlideDirection.Down, tween(350)) },
-                ) {
+                composable("lyrics") {
                     val pState = playbackState
                     val track = pState.currentTrack
 

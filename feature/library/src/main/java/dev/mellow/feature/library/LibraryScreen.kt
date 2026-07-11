@@ -103,12 +103,20 @@ fun LibraryScreen(
     CollapsibleToolbarLayout(
         state = toolbarState,
         toolbar = {
-            LibraryTopBar(
-                isConnected = isConnected,
-                isServerUnreachable = isServerUnreachable,
-                onSettingsClick = onSettingsClick,
-                onSortChanged = onSortChanged,
-            )
+            Column(modifier = Modifier.background(MellowTheme.colors.background)) {
+                LibraryTopBar(
+                    isConnected = isConnected,
+                    isServerUnreachable = isServerUnreachable,
+                    onSettingsClick = onSettingsClick,
+                    onSortChanged = onSortChanged,
+                )
+                MellowTabBar(
+                    tabs = TABS,
+                    selectedIndex = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
+                )
+            }
         },
         modifier = modifier
             .fillMaxSize()
@@ -119,12 +127,6 @@ fun LibraryScreen(
                 .fillMaxSize()
                 .padding(top = contentPadding.calculateTopPadding()),
         ) {
-            MellowTabBar(
-                tabs = TABS,
-                selectedIndex = selectedTab,
-                onTabSelected = { selectedTab = it },
-                modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
-            )
 
             SortRow(
                 tab = TABS[selectedTab],

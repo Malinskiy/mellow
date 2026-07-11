@@ -80,32 +80,39 @@ fun FavoritesScreen(
     CollapsibleToolbarLayout(
         state = toolbarState,
         toolbar = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MellowTheme.colors.background)
-                    .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
-            ) {
-                Text(
-                    "Favorites",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MellowTheme.colors.foreground,
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                ConnectionStatusDot(
-                    isConnected = isConnected,
-                    isServerUnreachable = isServerUnreachable,
-                )
-                Box(modifier = Modifier.width(MellowSpacing.Sp2))
-                IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = PhosphorIcons.Gear,
-                        contentDescription = "Settings",
-                        tint = MellowTheme.colors.foreground,
-                        modifier = Modifier.size(20.dp),
+            Column(modifier = Modifier.background(MellowTheme.colors.background)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+                ) {
+                    Text(
+                        "Favorites",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MellowTheme.colors.foreground,
                     )
+                    Spacer(modifier = Modifier.weight(1f))
+                    ConnectionStatusDot(
+                        isConnected = isConnected,
+                        isServerUnreachable = isServerUnreachable,
+                    )
+                    Box(modifier = Modifier.width(MellowSpacing.Sp2))
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(
+                            imageVector = PhosphorIcons.Gear,
+                            contentDescription = "Settings",
+                            tint = MellowTheme.colors.foreground,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
+                MellowTabBar(
+                    tabs = TABS,
+                    selectedIndex = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
+                )
             }
         },
         modifier = modifier
@@ -117,13 +124,6 @@ fun FavoritesScreen(
                 .fillMaxSize()
                 .padding(top = contentPadding.calculateTopPadding()),
         ) {
-            MellowTabBar(
-            tabs = TABS,
-            selectedIndex = selectedTab,
-            onTabSelected = { selectedTab = it },
-            modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
-        )
-
         if (state.isLoading) {
             LoadingContent()
         } else {
