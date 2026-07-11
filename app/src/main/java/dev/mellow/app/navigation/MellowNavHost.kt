@@ -2,6 +2,10 @@ package dev.mellow.app.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.runtime.CompositionLocalProvider
+import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
+import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.app.dev.DevIconComparisonScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -236,6 +240,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding),
         ) {
+            SharedTransitionLayout {
+            CompositionLocalProvider(LocalSharedTransitionScope provides this@SharedTransitionLayout) {
             NavHost(
                 navController = navController,
                 startDestination = MellowNavDestination.Home.route,
@@ -243,6 +249,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 exitTransition = { ExitTransition.None },
             ) {
                 composable(MellowNavDestination.Home.route) {
+                CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val homeVm: HomeViewModel = hiltViewModel()
                     val homeState by homeVm.uiState.collectAsState()
                     LaunchedEffect(serverId) {
@@ -254,7 +261,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         recentlyAdded = homeState.recentlyAdded,
                         favoriteTracks = homeState.favoriteTracks,
                         genres = homeState.genres,
-                        albumCount = homeState.albumCount,
                         serverUrl = serverUrl,
                         isConnected = connectionState is ConnectionState.Connected,
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
@@ -282,13 +288,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             navController.navigate("library?genre=${android.net.Uri.encode(genre)}")
                         },
                     )
-                }
+                }}
                 composable(
                     "library?genre={genre}",
                     arguments = listOf(
                         navArgument("genre") { type = NavType.StringType; defaultValue = "" },
                     ),
                 ) {
+                CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val libraryVm: LibraryViewModel = hiltViewModel()
                     val state by libraryVm.uiState.collectAsState()
                     var currentSort by rememberSaveable { mutableStateOf("Recently Added") }
@@ -388,7 +395,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         selectedGenre = selectedGenre,
                         onClearGenre = { selectedGenre = null },
                     )
-                }
+                }}
                 composable(MellowNavDestination.Search.route) {
                     val searchVm: SearchViewModel = hiltViewModel()
                     val searchState by searchVm.uiState.collectAsState()
@@ -483,6 +490,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     DevIconComparisonScreen(onBack = { navController.popBackStack() })
                 }
                 composable("album/{albumId}") {
+                CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
                     val albumState by albumVm.uiState.collectAsState()
                     val downloadState by albumVm.albumDownloadState.collectAsState()
@@ -528,6 +536,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                     AlbumDetailScreen(
                         onBack = { navController.popBackStack() },
+                        albumId = albumState.album?.id ?: "",
                         albumName = albumState.album?.name ?: "",
                         artistName = albumState.album?.artistName ?: "",
                         albumImageUrl = if (serverUrl != null && albumState.album?.imageId != null) {
@@ -589,7 +598,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             }
                         },
                     )
-                }
+                }}
                 composable("artist/{artistId}") {
                     val artistVm: ArtistDetailViewModel = hiltViewModel()
                     val artistState by artistVm.uiState.collectAsState()
@@ -891,6 +900,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
             }
+            }}
         }
     }
 

@@ -28,6 +28,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:data"))
     implementation(project(":core:database"))
+    implementation(project(":core:network"))
 
     implementation(libs.bundles.media3)
     implementation(libs.media3.datasource)

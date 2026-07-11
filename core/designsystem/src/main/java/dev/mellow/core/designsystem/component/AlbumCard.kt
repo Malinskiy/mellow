@@ -2,19 +2,25 @@ package dev.mellow.core.designsystem.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -26,22 +32,45 @@ fun AlbumCard(
     imageUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    sharedElementKey: String? = null,
 ) {
+    val sts = LocalSharedTransitionScope.current
+    val avs = LocalNavAnimatedVisibilityScope.current
+
     Column(
         modifier = modifier.clickable(onClick = onClick),
     ) {
-        AsyncImage(
-            model = imageUrl,
-            contentDescription = "Album art",
-            contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(MellowTheme.colors.surface),
-            error = ColorPainter(MellowTheme.colors.surface),
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(MellowShapes.Medium)
-                .background(MellowTheme.colors.surface),
-        )
+                .background(MellowTheme.colors.surfaceElevated)
+                .then(
+                    if (sharedElementKey != null && sts != null && avs != null) {
+                        with(sts) {
+                            Modifier.sharedElement(
+                                rememberSharedContentState(sharedElementKey),
+                                avs,
+                            )
+                        }
+                    } else Modifier
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                PhosphorIcons.MusicNote,
+                contentDescription = null,
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(32.dp),
+            )
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = "Album art",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,

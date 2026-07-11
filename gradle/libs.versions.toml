@@ -61,6 +61,7 @@ slf4j = "2.0.16"
 
 # Tooling
 desugar-jdk = "2.1.5"
+reorderable = "3.1.0"
 
 [libraries]
 # AndroidX Core
@@ -150,6 +151,7 @@ slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
 
 # Tooling
 desugar-jdk = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar-jdk" }
+reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 
 [bundles]
 compose = ["compose-ui", "compose-ui-graphics", "compose-ui-tooling-preview", "compose-material3"]

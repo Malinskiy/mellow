@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -41,7 +42,7 @@ import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
-import java.util.Calendar
+
 
 data class HomeAlbumItem(
     val id: String,
@@ -65,7 +66,6 @@ fun HomeScreen(
     recentlyAdded: List<HomeAlbumItem> = emptyList(),
     favoriteTracks: List<HomeTrackItem> = emptyList(),
     genres: List<String> = emptyList(),
-    albumCount: Int = 0,
     serverUrl: String? = null,
     isConnected: Boolean = false,
     isServerUnreachable: Boolean = false,
@@ -91,10 +91,6 @@ fun HomeScreen(
             contentPadding = PaddingValues(bottom = MellowSpacing.Sp8),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item {
-                GreetingSection(albumCount = albumCount)
-            }
-
             if (recentlyPlayed.isNotEmpty()) {
                 item {
                     SectionHeader("Quick Picks")
@@ -206,36 +202,6 @@ private fun HomeTopBar(
 }
 
 @Composable
-private fun GreetingSection(albumCount: Int) {
-    val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-        in 5..11 -> "Good morning"
-        in 12..16 -> "Good afternoon"
-        else -> "Good evening"
-    }
-
-    Column(
-        modifier = Modifier.padding(
-            horizontal = MellowSpacing.Sp4,
-            vertical = MellowSpacing.Sp2,
-        ),
-    ) {
-        Text(
-            text = greeting,
-            style = MaterialTheme.typography.titleLarge,
-            color = MellowTheme.colors.foreground,
-        )
-        if (albumCount > 0) {
-            Text(
-                text = "Your Jellyfin library · $albumCount albums",
-                style = MaterialTheme.typography.bodySmall,
-                color = MellowTheme.colors.muted,
-                modifier = Modifier.padding(top = MellowSpacing.Sp1),
-            )
-        }
-    }
-}
-
-@Composable
 private fun SectionHeader(title: String) {
     Text(
         text = title,
@@ -293,18 +259,27 @@ private fun CompactAlbumCard(
             .background(MellowTheme.colors.surface)
             .clickable(onClick = onClick),
     ) {
-        coil3.compose.AsyncImage(
-            model = imageUrl,
-            contentDescription = "Album art",
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-            placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MellowTheme.colors.surface),
-            error = androidx.compose.ui.graphics.painter.ColorPainter(MellowTheme.colors.surface),
+        androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .height(60.dp)
                 .width(60.dp)
                 .clip(MellowShapes.Small)
-                .background(MellowTheme.colors.border),
-        )
+                .background(MellowTheme.colors.surfaceElevated),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Icon(
+                dev.mellow.core.designsystem.icon.PhosphorIcons.MusicNote,
+                contentDescription = null,
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(24.dp),
+            )
+            coil3.compose.AsyncImage(
+                model = imageUrl,
+                contentDescription = "Album art",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -347,6 +322,7 @@ private fun AlbumCarousel(
                 } else null,
                 onClick = { onAlbumClick(album.id) },
                 modifier = Modifier.width(130.dp),
+                sharedElementKey = "album_art_${album.id}",
             )
         }
     }

@@ -57,6 +57,12 @@ interface DownloadDao {
     @Query("SELECT trackId FROM downloads WHERE status = 2")
     suspend fun getDownloadedTrackIds(): List<String>
 
+    @Query("SELECT DISTINCT t.albumId FROM tracks t INNER JOIN downloads d ON t.id = d.trackId WHERE d.status = 2 AND t.albumId IS NOT NULL")
+    suspend fun getDownloadedAlbumIds(): List<String>
+
+    @Query("SELECT DISTINCT t.artistName FROM tracks t INNER JOIN downloads d ON t.id = d.trackId WHERE d.status = 2 AND t.artistName IS NOT NULL")
+    suspend fun getDownloadedArtistNames(): List<String>
+
     @Query("SELECT * FROM downloads WHERE albumId = :albumId")
     suspend fun getDownloadsByAlbum(albumId: String): List<DownloadEntity>
 

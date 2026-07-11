@@ -1,7 +1,6 @@
 package dev.mellow.feature.player
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,30 +13,27 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import dev.mellow.core.designsystem.icon.PhosphorIcons
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
-import kotlin.math.roundToInt
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 data class QueueTrack(
     val id: String,
@@ -108,11 +104,15 @@ fun QueueScreen(
         if (nowPlaying == null && upNext.isEmpty()) {
             EmptyContent("Queue is empty")
         } else {
-            var dragIndex by remember { mutableIntStateOf(-1) }
-            var dragOffsetY by remember { mutableFloatStateOf(0f) }
-            val itemHeight = 72f
+            val hapticFeedback = LocalHapticFeedback.current
+            val headerCount = (if (nowPlaying != null) 2 else 0) + 1
+            val lazyListState = rememberLazyListState()
+            val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+                onMoveTrack(from.index - headerCount, to.index - headerCount)
+            }
 
             LazyColumn(
+                state = lazyListState,
                 contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
             ) {
                 if (nowPlaying != null) {
@@ -164,84 +164,63 @@ fun QueueScreen(
                         )
                     }
                     itemsIndexed(upNext, key = { idx, t -> "${t.id}_$idx" }) { index, track ->
-                        val isDragging = dragIndex == index
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .padding(start = MellowSpacing.Sp2)
-                                .then(
-                                    if (isDragging) {
-                                        Modifier
-                                            .zIndex(1f)
-                                            .graphicsLayer {
-                                                translationY = dragOffsetY
-                                                shadowElevation = 8f
-                                                scaleX = 1.02f
-                                                scaleY = 1.02f
-                                            }
-                                            .background(MellowTheme.colors.surfaceElevated)
-                                    } else {
-                                        Modifier
-                                    }
-                                ),
-                        ) {
-                            Icon(
-                                PhosphorIcons.DotsSixVertical,
-                                contentDescription = "Reorder",
-                                tint = if (isDragging) MellowTheme.colors.foreground else MellowPalette.Stone600,
+                        ReorderableItem(reorderableState, key = "${track.id}_$index") { isDragging ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .size(20.dp)
-                                    .pointerInput(index) {
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                dragIndex = index
-                                                dragOffsetY = 0f
-                                            },
-                                            onDrag = { change, dragAmount ->
-                                                change.consume()
-                                                dragOffsetY += dragAmount.y
-                                            },
-                                            onDragEnd = {
-                                                if (dragIndex >= 0) {
-                                                    val steps = (dragOffsetY / itemHeight).roundToInt()
-                                                    val targetIndex = (dragIndex + steps).coerceIn(0, upNext.lastIndex)
-                                                    if (targetIndex != dragIndex) {
-                                                        onMoveTrack(dragIndex, targetIndex)
-                                                    }
+                                    .padding(start = MellowSpacing.Sp2)
+                                    .then(
+                                        if (isDragging) {
+                                            Modifier
+                                                .graphicsLayer {
+                                                    shadowElevation = 8f
+                                                    scaleX = 1.02f
+                                                    scaleY = 1.02f
                                                 }
-                                                dragIndex = -1
-                                                dragOffsetY = 0f
-                                            },
-                                            onDragCancel = {
-                                                dragIndex = -1
-                                                dragOffsetY = 0f
-                                            },
-                                        )
-                                    },
-                            )
-                            Spacer(Modifier.width(MellowSpacing.Sp1))
-                            TrackRow(
-                                title = track.title,
-                                subtitle = "${track.artist} \u00B7 ${track.album}",
-                                duration = track.duration,
-                                imageUrl = track.imageUrl,
-                                onClick = { onTrackClick(index) },
-                                showDivider = index < upNext.lastIndex,
-                                modifier = Modifier
-                                    .weight(1f),
-                            )
-                            IconButton(
-                                onClick = { onRemoveTrack(index) },
-                                modifier = Modifier.size(32.dp),
+                                                .background(MellowTheme.colors.surfaceElevated)
+                                        } else {
+                                            Modifier
+                                        }
+                                    ),
                             ) {
                                 Icon(
-                                    PhosphorIcons.X,
-                                    contentDescription = "Remove from queue",
-                                    tint = MellowPalette.Stone600,
-                                    modifier = Modifier.size(16.dp),
+                                    PhosphorIcons.DotsSixVertical,
+                                    contentDescription = "Reorder",
+                                    tint = if (isDragging) MellowTheme.colors.foreground else MellowPalette.Stone600,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .draggableHandle(
+                                            onDragStarted = {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            },
+                                            onDragStopped = {
+                                                hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            },
+                                        ),
                                 )
+                                Spacer(Modifier.width(MellowSpacing.Sp1))
+                                TrackRow(
+                                    title = track.title,
+                                    subtitle = "${track.artist} \u00B7 ${track.album}",
+                                    duration = track.duration,
+                                    imageUrl = track.imageUrl,
+                                    onClick = { onTrackClick(index) },
+                                    showDivider = index < upNext.lastIndex,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(
+                                    onClick = { onRemoveTrack(index) },
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Icon(
+                                        PhosphorIcons.X,
+                                        contentDescription = "Remove from queue",
+                                        tint = MellowPalette.Stone600,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                                Spacer(Modifier.width(MellowSpacing.Sp2))
                             }
-                            Spacer(Modifier.width(MellowSpacing.Sp2))
                         }
                     }
                 }

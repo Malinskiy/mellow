@@ -13,8 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Button
@@ -166,9 +167,12 @@ fun FavoritesScreen(
                     if (state.albums.isEmpty()) {
                         EmptyContent("No favorite albums yet")
                     } else {
-                        LazyRow(
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 130.dp),
                             contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
                             horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                            verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
+                            modifier = Modifier.fillMaxSize(),
                         ) {
                             items(state.albums, key = { it.id }) { album ->
                                 AlbumCard(
@@ -178,7 +182,6 @@ fun FavoritesScreen(
                                         jellyfinImageUrl(serverUrl, album.imageId!!)
                                     } else null,
                                     onClick = { onAlbumClick(album.id) },
-                                    modifier = Modifier.width(130.dp),
                                 )
                             }
                         }

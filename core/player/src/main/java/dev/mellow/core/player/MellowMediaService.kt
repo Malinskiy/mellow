@@ -30,6 +30,9 @@ import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.PlaylistEntity
 import dev.mellow.core.database.entity.TrackEntity
+import dev.mellow.core.database.dao.DownloadDao
+import dev.mellow.core.network.ConnectionState
+import dev.mellow.core.network.NetworkStateObserver
 import dev.mellow.core.player.cache.MellowDataSourceFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +50,8 @@ class MellowMediaService : MediaLibraryService() {
     @Inject lateinit var artistDao: ArtistDao
     @Inject lateinit var trackDao: TrackDao
     @Inject lateinit var playlistDao: PlaylistDao
+    @Inject lateinit var downloadDao: DownloadDao
+    @Inject lateinit var networkStateObserver: NetworkStateObserver
 
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
@@ -251,26 +256,42 @@ class MellowMediaService : MediaLibraryService() {
             return asyncFuture {
                 val server = serverDao.getActiveServer()
                 val serverId = server?.id ?: ""
+                val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
+                val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
+                val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
+                val dlArtistNames = if (!isOnline) downloadDao.getDownloadedArtistNames().toSet() else null
+
+                fun List<TrackEntity>.onlineFilter() =
+                    if (dlTrackIds != null) filter { it.id in dlTrackIds } else this
+                fun List<AlbumEntity>.onlineFilter() =
+                    if (dlAlbumIds != null) filter { it.id in dlAlbumIds } else this
+                fun List<ArtistEntity>.onlineFilter() =
+                    if (dlArtistNames != null) filter { it.name in dlArtistNames } else this
 
                 val items = when {
                     parentId == TAB_RECENT -> {
                         trackDao.getRecentlyPlayedTracks(serverId, limit = 50)
+                            .onlineFilter()
                             .map { it.toPlayableItem() }
                     }
                     parentId == TAB_FAVORITES -> {
                         trackDao.getFavoriteTracksSync(serverId)
+                            .onlineFilter()
                             .map { it.toPlayableItem() }
                     }
                     parentId == LIBRARY_ALBUMS -> {
                         albumDao.getAllAlbumsByServer(serverId)
+                            .onlineFilter()
                             .map { it.toBrowsableItem() }
                     }
                     parentId == LIBRARY_ARTISTS -> {
                         artistDao.getAllArtistsByServer(serverId)
+                            .onlineFilter()
                             .map { it.toBrowsableItem() }
                     }
                     parentId == LIBRARY_GENRES -> {
-                        albumDao.getRawGenreStrings(serverId)
+                        val genreAlbums = albumDao.getRawGenreStrings(serverId)
+                        genreAlbums
                             .flatMap { it.split(GENRE_SEPARATOR) }
                             .filter { it.isNotBlank() }
                             .distinct()
@@ -284,27 +305,47 @@ class MellowMediaService : MediaLibraryService() {
                     parentId.startsWith("album:") -> {
                         val albumId = parentId.removePrefix("album:")
                         trackDao.getTracksByAlbumSync(albumId)
+                            .onlineFilter()
                             .map { it.toPlayableItem() }
                     }
                     parentId.startsWith("artist:") -> {
                         val artistId = parentId.removePrefix("artist:")
                         albumDao.getAllAlbumsByArtist(artistId)
+                            .onlineFilter()
                             .map { it.toBrowsableItem() }
                     }
                     parentId.startsWith("genre:") -> {
                         val genre = parentId.removePrefix("genre:")
                         albumDao.getAlbumsByGenre(genre, serverId)
+                            .onlineFilter()
                             .map { it.toBrowsableItem() }
                     }
                     parentId.startsWith("playlist:") -> {
                         val playlistId = parentId.removePrefix("playlist:")
                         playlistDao.getPlaylistTracksSync(playlistId)
+                            .onlineFilter()
                             .map { it.toPlayableItem() }
                     }
                     else -> emptyList()
                 }
                 LibraryResult.ofItemList(ImmutableList.copyOf(items), params)
             }
+        }
+
+        override fun onSearch(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<Void>> {
+            serviceScope.launch {
+                val server = serverDao.getActiveServer()
+                val serverId = server?.id ?: ""
+                val albumCount = albumDao.search(serverId, query, limit = 10).size
+                val trackCount = trackDao.search(serverId, query, limit = 20).size
+                session.notifySearchResultChanged(browser, query, albumCount + trackCount, params)
+            }
+            return Futures.immediateFuture(LibraryResult.ofVoid())
         }
 
         override fun onGetSearchResult(

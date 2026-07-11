@@ -50,6 +50,8 @@ import dev.mellow.core.designsystem.component.AnimatedSongDownloadIcon
 import dev.mellow.core.designsystem.component.DownloadIconState
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
+import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
+import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -79,6 +81,7 @@ data class AlbumDetailTrack(
 fun AlbumDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    albumId: String = "",
     albumName: String = "",
     artistName: String = "",
     albumImageUrl: String? = null,
@@ -124,6 +127,7 @@ fun AlbumDetailScreen(
                     item { AlbumDetailTopBar(onBack) }
                     item {
                         AlbumHero(
+                            albumId = albumId,
                             albumName = albumName,
                             artistName = artistName,
                             imageUrl = albumImageUrl,
@@ -237,6 +241,7 @@ private fun AlbumDetailTopBar(onBack: () -> Unit) {
 
 @Composable
 private fun AlbumHero(
+    albumId: String,
     albumName: String,
     artistName: String,
     imageUrl: String?,
@@ -283,18 +288,41 @@ private fun AlbumHero(
                 .fillMaxWidth()
                 .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp4),
         ) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = "Album art",
-                contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(MellowTheme.colors.surface),
-                error = ColorPainter(MellowTheme.colors.surface),
-                modifier = Modifier
-                    .width(240.dp)
-                    .aspectRatio(1f)
-                    .clip(MellowShapes.Large)
-                    .background(MellowTheme.colors.surface),
-            )
+            run {
+                val sts = LocalSharedTransitionScope.current
+                val avs = LocalNavAnimatedVisibilityScope.current
+                Box(
+                    modifier = Modifier
+                        .width(240.dp)
+                        .aspectRatio(1f)
+                        .clip(MellowShapes.Large)
+                        .background(MellowTheme.colors.surfaceElevated)
+                        .then(
+                            if (sts != null && avs != null) {
+                                with(sts) {
+                                    Modifier.sharedElement(
+                                        rememberSharedContentState("album_art_$albumId"),
+                                        avs,
+                                    )
+                                }
+                            } else Modifier
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        PhosphorIcons.MusicNote,
+                        contentDescription = null,
+                        tint = MellowTheme.colors.muted,
+                        modifier = Modifier.size(48.dp),
+                    )
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Album art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
 
             Spacer(Modifier.height(MellowSpacing.Sp5))
             Text(

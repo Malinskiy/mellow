@@ -2,8 +2,10 @@ package dev.mellow.core.designsystem.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -18,7 +20,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -37,17 +38,26 @@ fun ArtistRow(
             .clickable(onClick = onClick)
             .padding(vertical = MellowSpacing.Sp2),
     ) {
-        AsyncImage(
-            model = imageUrl,
-            contentDescription = "Artist image",
-            contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(MellowTheme.colors.surface),
-            error = ColorPainter(MellowTheme.colors.surface),
+        Box(
             modifier = Modifier
                 .size(56.dp)
                 .clip(CircleShape)
-                .background(MellowTheme.colors.surface),
-        )
+                .background(MellowTheme.colors.surfaceElevated),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                PhosphorIcons.User,
+                contentDescription = null,
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(24.dp),
+            )
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = "Artist image",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         Column(
             modifier = Modifier
