@@ -188,6 +188,7 @@ private fun HomeTopBar(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .background(MellowTheme.colors.background)
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
         Text(

@@ -45,11 +45,9 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.ArtistRow
-import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
-import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.model.Track
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -72,47 +70,37 @@ fun SearchScreen(
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
 
-    val toolbarState = rememberCollapsibleToolbarState()
-    CollapsibleToolbarLayout(
-        state = toolbarState,
-        toolbar = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MellowTheme.colors.background)
-                    .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
-            ) {
-                Text(
-                    text = "Search",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MellowTheme.colors.foreground,
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                ConnectionStatusDot(
-                    isConnected = isConnected,
-                    isServerUnreachable = isServerUnreachable,
-                )
-                Box(modifier = Modifier.width(MellowSpacing.Sp2))
-                IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = PhosphorIcons.Gear,
-                        contentDescription = "Settings",
-                        tint = MellowTheme.colors.foreground,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        },
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(MellowTheme.colors.background),
-    ) { contentPadding ->
-        Column(
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = contentPadding.calculateTopPadding()),
+                .fillMaxWidth()
+                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
         ) {
+            Text(
+                text = "Search",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MellowTheme.colors.foreground,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            ConnectionStatusDot(
+                isConnected = isConnected,
+                isServerUnreachable = isServerUnreachable,
+            )
+            Box(modifier = Modifier.width(MellowSpacing.Sp2))
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    imageVector = PhosphorIcons.Gear,
+                    contentDescription = "Settings",
+                    tint = MellowTheme.colors.foreground,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
             TextField(
             value = uiState.query,
             onValueChange = { viewModel.onQueryChanged(it, serverId) },
@@ -234,7 +222,6 @@ fun SearchScreen(
             else -> {
                 EmptyContent("Search your music library")
             }
-        }
         }
     }
 }

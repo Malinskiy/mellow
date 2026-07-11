@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
@@ -116,50 +117,34 @@ fun LibraryScreen(
                     onTabSelected = { selectedTab = it },
                     modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
                 )
+                if (selectedGenre != null) {
+                    GenreFilterChip(genre = selectedGenre, onClear = onClearGenre)
+                }
             }
         },
         modifier = modifier
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) { contentPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = contentPadding.calculateTopPadding()),
-        ) {
-
-            SortRow(
-                tab = TABS[selectedTab],
-                albumCount = albumItems.size,
-                artistCount = artists.size,
-                trackCount = tracks.size,
-                genreCount = genres.size,
-                sortLabel = sortLabel,
-            )
-
-            if (selectedGenre != null) {
-                GenreFilterChip(genre = selectedGenre, onClear = onClearGenre)
-            }
-
-            val showLoading = isLoading || isSyncing
-            when (selectedTab) {
-                0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
-                     else if (albumItems.isEmpty()) EmptyContent("No albums yet")
-                     else AlbumsPanel(albumItems, serverUrl, onAlbumClick)
-                1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
-                     else if (artists.isEmpty()) EmptyContent("No artists yet")
-                     else ArtistsPanel(artists, serverUrl, onArtistClick)
-                2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
-                     else if (tracks.isEmpty()) EmptyContent("No tracks yet")
-                     else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick)
-                3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
-                     else if (genres.isEmpty()) EmptyContent("No genres yet")
-                     else GenresPanel(genres, onGenreClick)
-                4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
-                     else if (playlists.isEmpty()) EmptyContent("No playlists yet")
-                     else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist)
-                5 -> EmptyContent("Coming soon")
-            }
+        val topPadding = contentPadding.calculateTopPadding()
+        val showLoading = isLoading || isSyncing
+        when (selectedTab) {
+            0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
+                 else if (albumItems.isEmpty()) EmptyContent("No albums yet")
+                 else AlbumsPanel(albumItems, serverUrl, onAlbumClick, topPadding)
+            1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
+                 else if (artists.isEmpty()) EmptyContent("No artists yet")
+                 else ArtistsPanel(artists, serverUrl, onArtistClick, topPadding)
+            2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
+                 else if (tracks.isEmpty()) EmptyContent("No tracks yet")
+                 else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, topPadding)
+            3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
+                 else if (genres.isEmpty()) EmptyContent("No genres yet")
+                 else GenresPanel(genres, onGenreClick, topPadding)
+            4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
+                 else if (playlists.isEmpty()) EmptyContent("No playlists yet")
+                 else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist, topPadding)
+            5 -> EmptyContent("Coming soon")
         }
     }
 }
@@ -215,6 +200,14 @@ private fun LibraryTopBar(
                     )
                 }
             }
+        }
+        IconButton(onClick = { /* TODO: toggle grid/list */ }) {
+            Icon(
+                imageVector = PhosphorIcons.GridFour,
+                contentDescription = "Toggle view",
+                tint = MellowTheme.colors.foreground,
+                modifier = Modifier.size(20.dp),
+            )
         }
         IconButton(onClick = onSettingsClick) {
             Icon(
@@ -295,10 +288,10 @@ private fun SortRow(
 }
 
 @Composable
-private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit) {
+private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+        contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp3, bottom = MellowSpacing.Sp3, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
         horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
         verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
     ) {
@@ -317,9 +310,9 @@ private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClic
 }
 
 @Composable
-private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit) {
+private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+        contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
     ) {
         items(artists, key = { it.id.ifEmpty { it.name } }) { artist ->
             ArtistRow(
@@ -340,9 +333,10 @@ private fun TracksPanel(
     serverUrl: String?,
     onTrackClick: (String) -> Unit,
     onTrackMenuClick: (String) -> Unit,
+    topPadding: Dp = 0.dp,
 ) {
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+        contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
     ) {
         items(tracks, key = { it.id }) { track ->
             TrackRow(
@@ -361,9 +355,9 @@ private fun TracksPanel(
 }
 
 @Composable
-private fun GenresPanel(genres: List<String>, onGenreClick: (String) -> Unit) {
+private fun GenresPanel(genres: List<String>, onGenreClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+        contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp2, bottom = MellowSpacing.Sp2, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
     ) {
         items(genres, key = { it }) { genre ->
             Text(
@@ -385,9 +379,10 @@ private fun PlaylistsPanel(
     serverUrl: String?,
     onPlaylistClick: (String) -> Unit,
     @Suppress("UNUSED_PARAMETER") onCreatePlaylist: (String) -> Unit,
+    topPadding: Dp = 0.dp,
 ) {
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+        contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
     ) {
         items(playlists, key = { it.id }) { playlist ->
             Row(

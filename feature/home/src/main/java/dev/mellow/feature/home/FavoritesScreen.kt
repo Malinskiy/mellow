@@ -119,54 +119,18 @@ fun FavoritesScreen(
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) { contentPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = contentPadding.calculateTopPadding()),
-        ) {
+        val topPadding = contentPadding.calculateTopPadding()
         if (state.isLoading) {
             LoadingContent()
         } else {
-            val totalCount = state.tracks.size + state.albums.size + state.artists.size
-            if (totalCount > 0) {
-                Row(
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp1),
-                ) {
-                    Text(
-                        "$totalCount favorites",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MellowTheme.colors.muted,
-                    )
-                    Button(
-                        onClick = onShuffleAll,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MellowPalette.Stone200,
-                            contentColor = MellowPalette.Stone950,
-                        ),
-                        shape = MellowShapes.Full,
-                        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
-                    ) {
-                        Icon(PhosphorIcons.Shuffle, null, modifier = Modifier.size(16.dp))
-                        Text(
-                            "Shuffle All",
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(start = MellowSpacing.Sp2),
-                        )
-                    }
-                }
-            }
-
+            Box(modifier = Modifier.fillMaxSize()) {
             when (selectedTab) {
                 0 -> {
                     if (state.tracks.isEmpty()) {
                         EmptyContent("No favorite tracks yet")
                     } else {
                         LazyColumn(
-                            contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+                            contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             itemsIndexed(state.tracks, key = { _, t -> t.id }) { index, track ->
@@ -192,7 +156,7 @@ fun FavoritesScreen(
                     } else {
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = 130.dp),
-                            contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+                            contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
                             horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                             verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
                             modifier = Modifier.fillMaxSize(),
@@ -215,7 +179,7 @@ fun FavoritesScreen(
                         EmptyContent("No favorite artists yet")
                     } else {
                         LazyColumn(
-                            contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+                            contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             itemsIndexed(state.artists, key = { _, a -> a.id }) { _, artist ->
@@ -230,6 +194,19 @@ fun FavoritesScreen(
                             }
                         }
                     }
+                }
+            }
+            val totalCount = state.tracks.size + state.albums.size + state.artists.size
+            if (totalCount > 0) {
+                androidx.compose.material3.FloatingActionButton(
+                    onClick = onShuffleAll,
+                    containerColor = MellowTheme.colors.foreground,
+                    contentColor = MellowTheme.colors.background,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(MellowSpacing.Sp4),
+                ) {
+                    Icon(PhosphorIcons.Shuffle, contentDescription = "Shuffle all", modifier = Modifier.size(24.dp))
                 }
             }
         }
