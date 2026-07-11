@@ -1,8 +1,9 @@
 package dev.mellow.app.navigation
 
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.CompositionLocalProvider
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
@@ -245,8 +246,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             NavHost(
                 navController = navController,
                 startDestination = MellowNavDestination.Home.route,
-                enterTransition = { EnterTransition.None },
-                exitTransition = { ExitTransition.None },
+                enterTransition = { fadeIn(tween(300)) },
+                exitTransition = { fadeOut(tween(300)) },
             ) {
                 composable(MellowNavDestination.Home.route) {
                 CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
@@ -264,7 +265,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         serverUrl = serverUrl,
                         isConnected = connectionState is ConnectionState.Connected,
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
-                        onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
+                        onAlbumClick = { albumId, source -> navController.navigate("album/$albumId?source=$source") },
                         onTrackClick = { trackId ->
                             val favTracks = homeVm.uiState.value.favoriteTracks
                             val idx = favTracks.indexOfFirst { it.id == trackId }
@@ -372,7 +373,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         isConnected = connectionState is ConnectionState.Connected,
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
                         sortLabel = currentSort,
-                        onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
+                        onAlbumClick = { albumId -> navController.navigate("album/$albumId?source=library") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                         onTrackClick = { trackId ->
                             val tracks = state.tracks
@@ -489,8 +490,16 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable("dev_tools") {
                     DevIconComparisonScreen(onBack = { navController.popBackStack() })
                 }
-                composable("album/{albumId}") {
+                composable(
+                    "album/{albumId}?source={source}",
+                    arguments = listOf(
+                        navArgument("albumId") { type = NavType.StringType },
+                        navArgument("source") { type = NavType.StringType; defaultValue = "library" },
+                    ),
+                ) {
                 CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
+                    val routeAlbumId = it.arguments?.getString("albumId") ?: ""
+                    val routeSource = it.arguments?.getString("source") ?: "library"
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
                     val albumState by albumVm.uiState.collectAsState()
                     val downloadState by albumVm.albumDownloadState.collectAsState()
@@ -536,7 +545,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                     AlbumDetailScreen(
                         onBack = { navController.popBackStack() },
-                        albumId = albumState.album?.id ?: "",
+                        albumId = routeAlbumId,
+                        sharedElementSource = routeSource,
                         albumName = albumState.album?.name ?: "",
                         artistName = albumState.album?.artistName ?: "",
                         albumImageUrl = if (serverUrl != null && albumState.album?.imageId != null) {

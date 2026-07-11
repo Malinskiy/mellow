@@ -105,11 +105,9 @@ class LibraryRepositoryImpl @Inject constructor(
         val userId = UUID.fromString(server.userId)
 
         val lastSyncMs = syncPreferences.lastSyncTimestamp.first()
-        val syncCount = syncPreferences.syncCount.first()
-        val isFullSync = lastSyncMs == 0L || syncCount % SyncPreferences.FULL_SYNC_INTERVAL == 0
 
-        if (isFullSync) {
-            Log.d(TAG, "Full sync (count=$syncCount)")
+        if (lastSyncMs == 0L) {
+            Log.d(TAG, "First sync — full")
             fullSync(serverId, userId, onProgress)
         } else {
             Log.d(TAG, "Incremental sync since ${Instant.ofEpochMilli(lastSyncMs)}")

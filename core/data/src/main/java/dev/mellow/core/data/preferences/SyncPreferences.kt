@@ -71,6 +71,5 @@ class SyncPreferences @Inject constructor(
         private val LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
         private val SYNC_COUNT = intPreferencesKey("sync_count")
         const val DEFAULT_SYNC_INTERVAL_HOURS = 6
-        const val FULL_SYNC_INTERVAL = 7
     }
 }

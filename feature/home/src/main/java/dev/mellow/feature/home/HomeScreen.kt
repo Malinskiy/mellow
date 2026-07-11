@@ -69,7 +69,7 @@ fun HomeScreen(
     serverUrl: String? = null,
     isConnected: Boolean = false,
     isServerUnreachable: Boolean = false,
-    onAlbumClick: (String) -> Unit = {},
+    onAlbumClick: (String, String) -> Unit = { _, _ -> },
     onTrackClick: (String) -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
     onGenreClick: (String) -> Unit = {},
@@ -99,7 +99,7 @@ fun HomeScreen(
                     QuickPicksGrid(
                         albums = recentlyPlayed.take(6),
                         serverUrl = serverUrl,
-                        onAlbumClick = onAlbumClick,
+                        onAlbumClick = { id -> onAlbumClick(id, "quick") },
                     )
                 }
             }
@@ -112,7 +112,8 @@ fun HomeScreen(
                     AlbumCarousel(
                         albums = recentlyPlayed,
                         serverUrl = serverUrl,
-                        onAlbumClick = onAlbumClick,
+                        onAlbumClick = { id -> onAlbumClick(id, "recent") },
+                        sharedKeyPrefix = "recent",
                     )
                 }
             }
@@ -125,7 +126,8 @@ fun HomeScreen(
                     AlbumCarousel(
                         albums = recentlyAdded,
                         serverUrl = serverUrl,
-                        onAlbumClick = onAlbumClick,
+                        onAlbumClick = { id -> onAlbumClick(id, "added") },
+                        sharedKeyPrefix = "added",
                     )
                 }
             }
@@ -308,6 +310,7 @@ private fun AlbumCarousel(
     albums: List<HomeAlbumItem>,
     serverUrl: String?,
     onAlbumClick: (String) -> Unit,
+    sharedKeyPrefix: String = "",
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
@@ -322,7 +325,7 @@ private fun AlbumCarousel(
                 } else null,
                 onClick = { onAlbumClick(album.id) },
                 modifier = Modifier.width(130.dp),
-                sharedElementKey = "album_art_${album.id}",
+                sharedElementKey = if (sharedKeyPrefix.isNotEmpty()) "album_art_${sharedKeyPrefix}_${album.id}" else null,
             )
         }
     }

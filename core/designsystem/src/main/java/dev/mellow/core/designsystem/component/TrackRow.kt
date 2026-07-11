@@ -67,7 +67,7 @@ fun TrackRow(
                 )
             }
 
-            if (imageUrl != null) {
+            if (trackNumber == null) {
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -81,12 +81,14 @@ fun TrackRow(
                         tint = MellowTheme.colors.muted,
                         modifier = Modifier.size(20.dp),
                     )
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    if (imageUrl != null) {
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
                 Box(modifier = Modifier.width(MellowSpacing.Sp3))
             }

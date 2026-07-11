@@ -82,6 +82,7 @@ fun AlbumDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     albumId: String = "",
+    sharedElementSource: String = "library",
     albumName: String = "",
     artistName: String = "",
     albumImageUrl: String? = null,
@@ -128,6 +129,7 @@ fun AlbumDetailScreen(
                     item {
                         AlbumHero(
                             albumId = albumId,
+                            sharedElementSource = sharedElementSource,
                             albumName = albumName,
                             artistName = artistName,
                             imageUrl = albumImageUrl,
@@ -242,6 +244,7 @@ private fun AlbumDetailTopBar(onBack: () -> Unit) {
 @Composable
 private fun AlbumHero(
     albumId: String,
+    sharedElementSource: String = "library",
     albumName: String,
     artistName: String,
     imageUrl: String?,
@@ -295,18 +298,19 @@ private fun AlbumHero(
                     modifier = Modifier
                         .width(240.dp)
                         .aspectRatio(1f)
-                        .clip(MellowShapes.Large)
-                        .background(MellowTheme.colors.surfaceElevated)
                         .then(
                             if (sts != null && avs != null) {
                                 with(sts) {
                                     Modifier.sharedElement(
-                                        rememberSharedContentState("album_art_$albumId"),
+                                        rememberSharedContentState("album_art_${sharedElementSource}_$albumId"),
                                         avs,
+                                        clipInOverlayDuringTransition = OverlayClip(MellowShapes.Large),
                                     )
                                 }
                             } else Modifier
-                        ),
+                        )
+                        .clip(MellowShapes.Large)
+                        .background(MellowTheme.colors.surfaceElevated),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(

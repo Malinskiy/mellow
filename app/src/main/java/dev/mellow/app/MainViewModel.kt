@@ -86,7 +86,7 @@ class MainViewModel @Inject constructor(
                 _serverId.value = server?.id
                 _serverUrl.value = server?.url
                 _authState.value = AuthState.LOGGED_IN
-                networkStateObserver.refresh()
+                networkStateObserver.markConnected()
                 server?.id?.let { id ->
                     syncScheduler.schedulePeriodicSync(id)
                     syncScheduler.syncNow(id)
@@ -103,7 +103,7 @@ class MainViewModel @Inject constructor(
             _serverId.value = serverId
             _serverUrl.value = server?.url
             _authState.value = AuthState.LOGGED_IN
-            networkStateObserver.refresh()
+            networkStateObserver.markConnected()
             syncScheduler.schedulePeriodicSync(serverId)
             syncScheduler.syncNow(serverId)
         }

@@ -69,9 +69,13 @@ class NetworkStateObserver @Inject constructor(
         }
     }
 
-    /** Force an immediate heartbeat check. Call after session restore. */
     fun refresh() {
         refreshConnectionState()
+    }
+
+    fun markConnected() {
+        hasNetwork = true
+        _connectionState.value = ConnectionState.Connected
     }
 
     fun cleanup() {

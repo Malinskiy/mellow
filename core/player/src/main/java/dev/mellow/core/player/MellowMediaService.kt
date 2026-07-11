@@ -341,9 +341,15 @@ class MellowMediaService : MediaLibraryService() {
             serviceScope.launch {
                 val server = serverDao.getActiveServer()
                 val serverId = server?.id ?: ""
-                val albumCount = albumDao.search(serverId, query, limit = 10).size
-                val trackCount = trackDao.search(serverId, query, limit = 20).size
-                session.notifySearchResultChanged(browser, query, albumCount + trackCount, params)
+                val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
+                val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
+                val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
+
+                val albums = albumDao.search(serverId, query, limit = 10)
+                    .let { if (dlAlbumIds != null) it.filter { a -> a.id in dlAlbumIds } else it }
+                val tracks = trackDao.search(serverId, query, limit = 20)
+                    .let { if (dlTrackIds != null) it.filter { t -> t.id in dlTrackIds } else it }
+                session.notifySearchResultChanged(browser, query, albums.size + tracks.size, params)
             }
             return Futures.immediateFuture(LibraryResult.ofVoid())
         }
@@ -362,10 +368,15 @@ class MellowMediaService : MediaLibraryService() {
             return asyncFuture {
                 val server = serverDao.getActiveServer()
                 val serverId = server?.id ?: ""
+                val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
+                val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
+                val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
 
                 val albums = albumDao.search(serverId, query, limit = 10)
+                    .let { if (dlAlbumIds != null) it.filter { a -> a.id in dlAlbumIds } else it }
                     .map { it.toBrowsableItem() }
                 val tracks = trackDao.search(serverId, query, limit = 20)
+                    .let { if (dlTrackIds != null) it.filter { t -> t.id in dlTrackIds } else it }
                     .map { it.toPlayableItem() }
 
                 LibraryResult.ofItemList(ImmutableList.copyOf(albums + tracks), params)

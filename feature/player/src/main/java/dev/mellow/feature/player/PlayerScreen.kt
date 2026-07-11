@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -311,6 +312,12 @@ private fun ProgressBar(progress: Float, positionMs: Long, durationMs: Long, onS
     var seekProgress by remember { mutableFloatStateOf(0f) }
     val displayProgress = if (isSeeking) seekProgress else progress
 
+    LaunchedEffect(progress) {
+        if (isSeeking && kotlin.math.abs(progress - seekProgress) < 0.02f) {
+            isSeeking = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -323,7 +330,6 @@ private fun ProgressBar(progress: Float, positionMs: Long, durationMs: Long, onS
                 seekProgress = value
             },
             onValueChangeFinished = {
-                isSeeking = false
                 val seekMs = (seekProgress * durationMs).toLong()
                 onSeekTo(seekMs)
             },

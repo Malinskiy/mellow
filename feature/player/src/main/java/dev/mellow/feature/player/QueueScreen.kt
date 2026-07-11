@@ -19,6 +19,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -106,9 +111,16 @@ fun QueueScreen(
         } else {
             val hapticFeedback = LocalHapticFeedback.current
             val headerCount = (if (nowPlaying != null) 2 else 0) + 1
+            var localUpNext by remember { mutableStateOf(upNext) }
+            LaunchedEffect(upNext) { localUpNext = upNext }
             val lazyListState = rememberLazyListState()
             val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
-                onMoveTrack(from.index - headerCount, to.index - headerCount)
+                val fromIdx = from.index - headerCount
+                val toIdx = to.index - headerCount
+                localUpNext = localUpNext.toMutableList().apply {
+                    add(toIdx, removeAt(fromIdx))
+                }
+                onMoveTrack(fromIdx, toIdx)
             }
 
             LazyColumn(
@@ -144,12 +156,12 @@ fun QueueScreen(
                     }
                 }
 
-                if (upNext.isNotEmpty()) {
+                if (localUpNext.isNotEmpty()) {
                     item {
                         val label = if (currentAlbumName.isNotEmpty()) {
-                            "NEXT UP FROM: $currentAlbumName \u00B7 ${upNext.size} tracks"
+                            "NEXT UP FROM: $currentAlbumName \u00B7 ${localUpNext.size} tracks"
                         } else {
-                            "UP NEXT \u00B7 ${upNext.size} tracks"
+                            "UP NEXT \u00B7 ${localUpNext.size} tracks"
                         }
                         Text(
                             label.uppercase(),
@@ -163,7 +175,7 @@ fun QueueScreen(
                             ),
                         )
                     }
-                    itemsIndexed(upNext, key = { idx, t -> "${t.id}_$idx" }) { index, track ->
+                    itemsIndexed(localUpNext, key = { idx, t -> "${t.id}_$idx" }) { index, track ->
                         ReorderableItem(reorderableState, key = "${track.id}_$index") { isDragging ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -205,7 +217,7 @@ fun QueueScreen(
                                     duration = track.duration,
                                     imageUrl = track.imageUrl,
                                     onClick = { onTrackClick(index) },
-                                    showDivider = index < upNext.lastIndex,
+                                    showDivider = index < localUpNext.lastIndex,
                                     modifier = Modifier.weight(1f),
                                 )
                                 IconButton(
