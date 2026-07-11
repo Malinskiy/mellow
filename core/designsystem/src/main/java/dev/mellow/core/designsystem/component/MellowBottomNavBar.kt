@@ -10,11 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -32,10 +30,10 @@ enum class MellowNavDestination(
     val label: String,
     val icon: ImageVector,
 ) {
-    Home("home", "Home", Icons.Outlined.Home),
-    Library("library", "Library", Icons.Filled.LibraryMusic),
-    Search("search", "Search", Icons.Outlined.Search),
-    Favorites("favorites", "Favorites", Icons.Outlined.FavoriteBorder),
+    Home("home", "Home", PhosphorIcons.House),
+    Library("library", "Library", PhosphorIcons.VinylRecord),
+    Search("search", "Search", PhosphorIcons.MagnifyingGlass),
+    Favorites("favorites", "Favorites", PhosphorIcons.Heart),
 }
 
 @Composable
@@ -61,8 +59,9 @@ fun MellowBottomNavBar(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable { onNavigate(dest.route) }
-                        .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp1),
+                        .padding(horizontal = MellowSpacing.Sp3, vertical = MellowSpacing.Sp1),
                 ) {
                     Icon(
                         imageVector = dest.icon,

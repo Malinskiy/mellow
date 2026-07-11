@@ -9,10 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.outlined.FavoriteBorder
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,13 +46,16 @@ fun TrackRow(
 ) {
     val contentColor = if (isPlaying) MellowTheme.colors.accentStrong else MellowTheme.colors.foreground
 
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = MellowSpacing.Sp3),
+                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
         ) {
             if (trackNumber != null) {
                 Text(
@@ -113,20 +113,17 @@ fun TrackRow(
             }
 
             if (onFavoriteClick != null) {
-                IconButton(onClick = onFavoriteClick, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
-                        tint = if (isFavorite) MellowTheme.colors.favorite else MellowTheme.colors.muted,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
+                AnimatedHeartIcon(
+                    isFavorite = isFavorite,
+                    onToggle = onFavoriteClick,
+                    iconSize = 16.dp,
+                )
             }
 
             if (onMenuClick != null) {
                 IconButton(onClick = onMenuClick, modifier = Modifier.size(32.dp)) {
                     Icon(
-                        imageVector = Icons.Filled.MoreVert,
+                        imageVector = PhosphorIcons.DotsThreeVertical,
                         contentDescription = "More options",
                         tint = MellowTheme.colors.muted,
                         modifier = Modifier.size(16.dp),

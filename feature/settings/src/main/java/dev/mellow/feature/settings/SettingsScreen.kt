@@ -14,17 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Sync
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,7 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -82,6 +75,7 @@ fun SettingsScreen(
     onStorageCapChange: (Long) -> Unit = {},
     onAutoCleanupChange: (Int) -> Unit = {},
     onClearAllDownloads: () -> Unit = {},
+    onDevToolsClick: () -> Unit = {},
 ) {
     var showIntervalPicker by remember { mutableStateOf(false) }
     var showQualityPicker by remember { mutableStateOf(false) }
@@ -140,7 +134,7 @@ fun SettingsScreen(
             modifier = Modifier.padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MellowTheme.colors.foreground)
+                Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
             }
             Text("Settings", style = MaterialTheme.typography.headlineLarge, color = MellowTheme.colors.foreground)
         }
@@ -150,13 +144,13 @@ fun SettingsScreen(
         LastSyncedRow(lastSyncTimestamp, isSyncing, syncProgress, onSyncNow)
         CleanupRow(isCleaningUp, onCleanup)
         SettingsRow(
-            icon = Icons.Filled.Sync,
+            icon = PhosphorIcons.ArrowsClockwise,
             title = "Auto-Sync Frequency",
             value = formatSyncInterval(autoSyncIntervalHours),
             onClick = { showIntervalPicker = true },
         )
         SettingsToggleRow(
-            icon = Icons.Filled.Sync,
+            icon = PhosphorIcons.ArrowsClockwise,
             title = "Force Offline Mode",
             subtitle = "Play downloaded music only",
             checked = isForceOffline,
@@ -165,25 +159,25 @@ fun SettingsScreen(
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Server")
-        SettingsRow(Icons.Filled.Dns, "Jellyfin Server", serverUrl.ifEmpty { "Not connected" })
+        SettingsRow(PhosphorIcons.HardDrives, "Jellyfin Server", serverUrl.ifEmpty { "Not connected" })
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Playback")
-        SettingsRow(Icons.Filled.PlayCircle, "Audio Quality", "Original / FLAC")
-        SettingsRow(Icons.Filled.PlayCircle, "Transcoding", "When needed · 320 kbps")
-        SettingsRow(Icons.Filled.PlayCircle, "Gapless Playback", "Enabled")
-        SettingsRow(Icons.Filled.PlayCircle, "ReplayGain", "Album mode")
+        SettingsRow(PhosphorIcons.PlayCircle, "Audio Quality", "Original / FLAC")
+        SettingsRow(PhosphorIcons.PlayCircle, "Transcoding", "When needed · 320 kbps")
+        SettingsRow(PhosphorIcons.PlayCircle, "Gapless Playback", "Enabled")
+        SettingsRow(PhosphorIcons.PlayCircle, "ReplayGain", "Album mode")
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Downloads & Offline")
         SettingsRow(
-            icon = Icons.Filled.Download,
+            icon = PhosphorIcons.DownloadSimple,
             title = "Download Quality",
             value = formatQualityLabel(downloadQuality),
             onClick = { showQualityPicker = true },
         )
         SettingsToggleRow(
-            icon = Icons.Filled.Download,
+            icon = PhosphorIcons.DownloadSimple,
             title = "Wi-Fi Only",
             subtitle = "Only download over Wi-Fi",
             checked = wifiOnly,
@@ -191,13 +185,13 @@ fun SettingsScreen(
         )
         StorageBar(usedBytes = totalDownloadedBytes, capBytes = storageCap)
         SettingsRow(
-            icon = Icons.Filled.Download,
+            icon = PhosphorIcons.DownloadSimple,
             title = "Storage Cap",
             value = formatStorageCap(storageCap),
             onClick = { showStorageCapPicker = true },
         )
         SettingsToggleRow(
-            icon = Icons.Filled.Download,
+            icon = PhosphorIcons.DownloadSimple,
             title = "Auto-Cleanup",
             subtitle = "Remove downloads not played in 30 days",
             checked = autoCleanupDays > 0,
@@ -210,18 +204,30 @@ fun SettingsScreen(
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Appearance")
-        SettingsRow(Icons.Filled.Palette, "Theme", "Dark")
-        SettingsRow(Icons.Filled.Palette, "Dynamic Colors", "From album art")
+        SettingsRow(PhosphorIcons.Palette, "Theme", "Dark")
+        SettingsRow(PhosphorIcons.Palette, "Dynamic Colors", "From album art")
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Android Auto")
-        SettingsRow(Icons.Filled.DirectionsCar, "Content Tabs", "Recent, Albums, Artists, Playlists")
-        SettingsRow(Icons.Filled.DirectionsCar, "Grid Size", "Large artwork")
+        SettingsRow(PhosphorIcons.Car, "Content Tabs", "Recent, Albums, Artists, Playlists")
+        SettingsRow(PhosphorIcons.Car, "Grid Size", "Large artwork")
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("About")
-        SettingsRow(Icons.Filled.Info, "Version", "0.1.0")
-        SettingsRow(Icons.Filled.Info, "Licenses", "")
+        var devTapCount by remember { mutableIntStateOf(0) }
+        var showDevTools by remember { mutableStateOf(false) }
+        val context = LocalContext.current
+        SettingsRow(PhosphorIcons.Info, "Version", "0.1.0", onClick = {
+            devTapCount++
+            if (devTapCount >= 7 && !showDevTools) {
+                showDevTools = true
+                Toast.makeText(context, "Developer mode enabled", Toast.LENGTH_SHORT).show()
+            }
+        })
+        SettingsRow(PhosphorIcons.Info, "Licenses", "")
+        if (showDevTools) {
+            SettingsRow(PhosphorIcons.Info, "Dev Tools", "Icon comparison", onClick = onDevToolsClick)
+        }
         Spacer(Modifier.height(MellowSpacing.Sp16))
     }
 }
@@ -287,7 +293,7 @@ private fun ClearAllDownloadsRow(totalBytes: Long, onClick: () -> Unit) {
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
         Icon(
-            Icons.Filled.Delete,
+            PhosphorIcons.Trash,
             null,
             tint = if (totalBytes > 0) MellowPalette.Red500 else MellowTheme.colors.muted,
             modifier = Modifier.size(22.dp),
@@ -425,7 +431,7 @@ private fun ConnectionStatusRow(connectionState: ConnectionState) {
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
-        Icon(Icons.Filled.Sync, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+        Icon(PhosphorIcons.ArrowsClockwise, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -450,7 +456,7 @@ private fun LastSyncedRow(
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
-        Icon(Icons.Filled.Sync, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+        Icon(PhosphorIcons.ArrowsClockwise, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -499,7 +505,7 @@ private fun CleanupRow(isCleaningUp: Boolean, onCleanup: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
-        Icon(Icons.Filled.Sync, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+        Icon(PhosphorIcons.ArrowsClockwise, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -621,7 +627,7 @@ private fun SettingsRow(
                 Text(value, style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
             }
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
+        Icon(PhosphorIcons.CaretRight, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
     }
 }
 

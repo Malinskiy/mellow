@@ -10,16 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Shuffle
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -95,15 +86,15 @@ fun TrackContextMenu(
                 modifier = Modifier.padding(vertical = MellowSpacing.Sp2),
             )
 
-            MenuAction(Icons.Filled.SkipNext, "Play Next", onClick = {
+            MenuAction(PhosphorIcons.SkipForward, "Play Next", onClick = {
                 onPlayNext()
                 onDismiss()
             })
-            MenuAction(Icons.AutoMirrored.Filled.QueueMusic, "Add to Queue", onClick = {
+            MenuAction(PhosphorIcons.Queue, "Add to Queue", onClick = {
                 onAddToQueue()
                 onDismiss()
             })
-            MenuAction(Icons.Filled.PlaylistAdd, "Add to Playlist\u2026", onClick = {
+            MenuAction(PhosphorIcons.ListPlus, "Add to Playlist\u2026", onClick = {
                 onAddToPlaylist()
                 onDismiss()
             })
@@ -113,11 +104,11 @@ fun TrackContextMenu(
                 modifier = Modifier.padding(vertical = MellowSpacing.Sp2),
             )
 
-            MenuAction(Icons.Filled.Album, "Go to Album", onClick = {
+            MenuAction(PhosphorIcons.VinylRecord, "Go to Album", onClick = {
                 onGoToAlbum()
                 onDismiss()
             })
-            MenuAction(Icons.Filled.Person, "Go to Artist", onClick = {
+            MenuAction(PhosphorIcons.User, "Go to Artist", onClick = {
                 onGoToArtist()
                 onDismiss()
             })
@@ -127,12 +118,12 @@ fun TrackContextMenu(
                 modifier = Modifier.padding(vertical = MellowSpacing.Sp2),
             )
 
-            MenuAction(Icons.Outlined.Shuffle, "Start Mix", onClick = {
+            MenuAction(PhosphorIcons.Shuffle, "Start Mix", onClick = {
                 onStartMix()
                 onDismiss()
             })
             MenuAction(
-                icon = if (track.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                icon = if (track.isFavorite) PhosphorIcons.HeartFill else PhosphorIcons.Heart,
                 label = if (track.isFavorite) "Remove from Favorites" else "Add to Favorites",
                 tint = if (track.isFavorite) MellowTheme.colors.favorite else MellowTheme.colors.foreground,
                 onClick = {
@@ -146,7 +137,7 @@ fun TrackContextMenu(
                 modifier = Modifier.padding(vertical = MellowSpacing.Sp2),
             )
 
-            MenuAction(Icons.Filled.Info, "Track Info", onClick = {
+            MenuAction(PhosphorIcons.Info, "Track Info", onClick = {
                 onTrackInfo()
                 onDismiss()
             })

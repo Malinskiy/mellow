@@ -68,7 +68,7 @@ fun LoginScreen(
         Spacer(Modifier.height(80.dp))
 
         Text(
-            text = "Melowdy",
+            text = "Mellow",
             style = MaterialTheme.typography.displayLarge,
             color = MellowTheme.colors.foreground,
             modifier = Modifier.align(Alignment.CenterHorizontally),

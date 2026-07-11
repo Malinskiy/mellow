@@ -8,6 +8,7 @@ import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
 import dev.mellow.core.database.dao.DownloadDao
+import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkStateObserver
 import dev.mellow.core.network.datasource.JellyfinDataSource
@@ -15,6 +16,7 @@ import dev.mellow.core.player.MellowPlayer
 import dev.mellow.sync.SyncScheduler
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +35,7 @@ class MainViewModel @Inject constructor(
     private val syncScheduler: SyncScheduler,
     private val jellyfinDataSource: JellyfinDataSource,
     private val downloadDao: DownloadDao,
+    private val trackDao: TrackDao,
     private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
 
@@ -147,6 +150,10 @@ class MainViewModel @Inject constructor(
 
     fun isTrackDownloaded(trackId: String): kotlinx.coroutines.flow.Flow<Boolean> {
         return downloadDao.isDownloaded(trackId)
+    }
+
+    fun observeTrackFavorite(trackId: String): kotlinx.coroutines.flow.Flow<Boolean> {
+        return trackDao.observeIsFavorite(trackId).map { it ?: false }
     }
 
     suspend fun addTrackToPlaylist(playlistId: String, trackId: String, serverId: String) {

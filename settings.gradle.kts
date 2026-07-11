@@ -17,7 +17,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://repo.jellyfin.org/releases/")
+        maven("https://repo.jellyfin.org/releases/") {
+            content {
+                includeGroupByRegex("org\\.jellyfin.*")
+            }
+        }
     }
 }
 

@@ -14,23 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.DownloadDone
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Lyrics
-import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.automirrored.outlined.QueueMusic
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -61,6 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.AnimatedHeartIcon
+import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.QualityBadge
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -177,7 +163,7 @@ private fun PlaybackErrorOverlay(
             modifier = Modifier.padding(MellowSpacing.Sp8),
         ) {
             Icon(
-                Icons.Filled.CloudOff,
+                PhosphorIcons.CloudSlash,
                 contentDescription = null,
                 tint = MellowTheme.colors.muted,
                 modifier = Modifier.size(56.dp),
@@ -215,7 +201,7 @@ private fun PlaybackErrorOverlay(
                 ),
             ) {
                 Icon(
-                    Icons.Outlined.DownloadDone,
+                    PhosphorIcons.CheckCircle,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                 )
@@ -236,14 +222,14 @@ private fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueC
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
         IconButton(onClick = onCollapse) {
-            Icon(Icons.Filled.KeyboardArrowDown, "Collapse", tint = MellowTheme.colors.foreground)
+            Icon(PhosphorIcons.CaretDown, "Collapse", tint = MellowTheme.colors.foreground)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("PLAYING FROM", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
             Text(albumName.ifEmpty { "Unknown" }, style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.foreground)
         }
         IconButton(onClick = onQueueClick) {
-            Icon(Icons.AutoMirrored.Outlined.QueueMusic, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+            Icon(PhosphorIcons.Queue, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -296,7 +282,7 @@ private fun TrackInfo(
                 if (isDownloaded) {
                     Spacer(Modifier.width(MellowSpacing.Sp2))
                     Icon(
-                        Icons.Outlined.CheckCircle,
+                        PhosphorIcons.CheckCircle,
                         contentDescription = "Downloaded",
                         tint = MellowPalette.Green500,
                         modifier = Modifier.size(18.dp),
@@ -310,14 +296,11 @@ private fun TrackInfo(
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
-        IconButton(onClick = onFavoriteClick) {
-            Icon(
-                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                contentDescription = "Favorite",
-                tint = if (isFavorite) MellowTheme.colors.favorite else MellowTheme.colors.muted,
-                modifier = Modifier.size(24.dp),
-            )
-        }
+        AnimatedHeartIcon(
+            isFavorite = isFavorite,
+            onToggle = onFavoriteClick,
+            iconSize = 24.dp,
+        )
     }
 }
 
@@ -402,7 +385,7 @@ private fun PlaybackControls(
     ) {
         IconButton(onClick = onShuffleClick, modifier = Modifier.size(36.dp)) {
             Icon(
-                Icons.Filled.Shuffle,
+                PhosphorIcons.Shuffle,
                 "Shuffle",
                 tint = if (shuffleEnabled) MellowTheme.colors.accentStrong else MellowTheme.colors.muted,
                 modifier = Modifier.size(22.dp),
@@ -410,30 +393,22 @@ private fun PlaybackControls(
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
         IconButton(onClick = onSkipPreviousClick, modifier = Modifier.size(44.dp)) {
-            Icon(Icons.Filled.SkipPrevious, "Previous", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
+            Icon(PhosphorIcons.SkipBack, "Previous", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
-        IconButton(
-            onClick = onPlayPauseClick,
-            modifier = Modifier
-                .size(64.dp)
-                .background(MellowTheme.colors.foreground, MellowShapes.Full),
-        ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                tint = MellowTheme.colors.background,
-                modifier = Modifier.size(28.dp),
-            )
-        }
+        AnimatedPlayPauseButton(
+            isPlaying = isPlaying,
+            onToggle = onPlayPauseClick,
+            buttonSize = 64.dp,
+        )
         Spacer(Modifier.width(MellowSpacing.Sp8))
         IconButton(onClick = onSkipNextClick, modifier = Modifier.size(44.dp)) {
-            Icon(Icons.Filled.SkipNext, "Next", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
+            Icon(PhosphorIcons.SkipForward, "Next", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.width(MellowSpacing.Sp8))
         IconButton(onClick = onRepeatClick, modifier = Modifier.size(36.dp)) {
             Icon(
-                imageVector = if (repeatMode == 1) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                imageVector = if (repeatMode == 1) PhosphorIcons.RepeatOnce else PhosphorIcons.Repeat,
                 contentDescription = "Repeat",
                 tint = if (repeatMode != 0) MellowTheme.colors.accentStrong else MellowTheme.colors.muted,
                 modifier = Modifier.size(22.dp),
@@ -458,7 +433,7 @@ private fun BottomActions(codec: String? = null, onLyricsClick: () -> Unit = {})
             .padding(bottom = MellowSpacing.Sp8),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.PhoneAndroid, "Device", tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
+            Icon(PhosphorIcons.DeviceMobile, "Device", tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
             Spacer(Modifier.height(4.dp))
             Text("This device", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
         }
@@ -466,7 +441,7 @@ private fun BottomActions(codec: String? = null, onLyricsClick: () -> Unit = {})
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.clickable(onClick = onLyricsClick),
         ) {
-            Icon(Icons.Outlined.Lyrics, "Lyrics", tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
+            Icon(PhosphorIcons.TextAa, "Lyrics", tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
             Spacer(Modifier.height(4.dp))
             Text("Lyrics", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
         }

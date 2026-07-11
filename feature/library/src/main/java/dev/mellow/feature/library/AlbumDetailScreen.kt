@@ -2,6 +2,7 @@ package dev.mellow.feature.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,17 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.outlined.FavoriteBorder
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -52,6 +43,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.AnimatedAlbumDownloadIndicator
+import dev.mellow.core.designsystem.component.AnimatedHeartIcon
+import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
+import dev.mellow.core.designsystem.component.AnimatedSongDownloadIcon
+import dev.mellow.core.designsystem.component.DownloadIconState
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.TrackRow
@@ -189,10 +185,19 @@ fun AlbumDetailScreen(
                                 },
                                 showDivider = index < tracks.lastIndex,
                                 trailingContent = if (showDownloadIndicators) {
-                                    { TrackDownloadIcon(track.downloadIndicator) }
+                                    {
+                                        AnimatedSongDownloadIcon(
+                                            state = when (track.downloadIndicator) {
+                                                TrackDownloadIndicator.DOWNLOADED -> DownloadIconState.Done
+                                                TrackDownloadIndicator.DOWNLOADING -> DownloadIconState.Downloading
+                                                else -> DownloadIconState.Idle
+                                            },
+                                            progress = if (track.downloadIndicator == TrackDownloadIndicator.DOWNLOADING) 0.5f else 0f,
+                                            size = 28.dp,
+                                        )
+                                    }
                                 } else null,
                                 modifier = Modifier
-                                    .padding(horizontal = MellowSpacing.Sp4)
                                     .graphicsLayer {
                                         alpha = if (isNotDownloadedOffline) 0.5f else 1f
                                     },
@@ -205,37 +210,7 @@ fun AlbumDetailScreen(
     }
 }
 
-@Composable
-private fun TrackDownloadIcon(indicator: TrackDownloadIndicator) {
-    when (indicator) {
-        TrackDownloadIndicator.NONE -> {}
-        TrackDownloadIndicator.DOWNLOADED -> {
-            Icon(
-                Icons.Filled.Check,
-                "Downloaded",
-                tint = MellowPalette.Green500,
-                modifier = Modifier.size(14.dp),
-            )
-        }
-        TrackDownloadIndicator.DOWNLOADING -> {
-            CircularProgressIndicator(
-                modifier = Modifier.size(14.dp),
-                strokeWidth = 1.5.dp,
-                color = MellowTheme.colors.muted,
-            )
-        }
-        TrackDownloadIndicator.NOT_DOWNLOADED -> {
-            Icon(
-                Icons.Filled.Download,
-                "Not downloaded",
-                tint = MellowTheme.colors.muted,
-                modifier = Modifier
-                    .size(14.dp)
-                    .graphicsLayer { alpha = 0.5f },
-            )
-        }
-    }
-}
+
 
 @Composable
 private fun AlbumDetailTopBar(onBack: () -> Unit) {
@@ -247,14 +222,14 @@ private fun AlbumDetailTopBar(onBack: () -> Unit) {
             .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MellowTheme.colors.foreground)
+            Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
         }
         Row {
             IconButton(onClick = {}) {
-                Icon(Icons.Filled.Share, "Share", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                Icon(PhosphorIcons.ShareNetwork, "Share", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }
             IconButton(onClick = {}) {
-                Icon(Icons.Filled.MoreVert, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }
         }
     }
@@ -366,25 +341,19 @@ private fun AlbumHero(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onShuffle) {
-                    Icon(Icons.Filled.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+                    Icon(PhosphorIcons.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
                 }
-                IconButton(
-                    onClick = onPlayAll,
-                    modifier = Modifier
-                        .size(52.dp)
-                        .background(MellowPalette.Stone200, MellowShapes.Full),
-                ) {
-                    Icon(Icons.Filled.PlayArrow, "Play", tint = MellowPalette.Stone950, modifier = Modifier.size(26.dp))
-                }
-                IconButton(onClick = onFavoriteClick) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
-                        tint = if (isFavorite) MellowTheme.colors.favorite else MellowTheme.colors.muted,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-                DownloadButton(
+                AnimatedPlayPauseButton(
+                    isPlaying = false,
+                    onToggle = onPlayAll,
+                    buttonSize = 52.dp,
+                )
+                AnimatedHeartIcon(
+                    isFavorite = isFavorite,
+                    onToggle = onFavoriteClick,
+                    iconSize = 22.dp,
+                )
+                AlbumDownloadButton(
                     status = downloadStatus,
                     downloadProgress = downloadProgress,
                     downloadedCount = downloadedCount,
@@ -398,7 +367,7 @@ private fun AlbumHero(
 }
 
 @Composable
-private fun DownloadButton(
+private fun AlbumDownloadButton(
     status: AlbumDownloadState.Status,
     downloadProgress: Float,
     downloadedCount: Int,
@@ -425,72 +394,33 @@ private fun DownloadButton(
         )
     }
 
-    when (status) {
-        AlbumDownloadState.Status.NONE -> {
-            IconButton(onClick = onDownloadClick) {
-                Icon(Icons.Filled.Download, "Download", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+    val dlState = when (status) {
+        AlbumDownloadState.Status.NONE -> DownloadIconState.Idle
+        AlbumDownloadState.Status.DOWNLOADING -> DownloadIconState.Downloading
+        AlbumDownloadState.Status.COMPLETED -> DownloadIconState.Done
+        AlbumDownloadState.Status.PARTIAL -> DownloadIconState.Downloading
+    }
+
+    Box(
+        modifier = Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+        ) {
+            when (status) {
+                AlbumDownloadState.Status.NONE -> onDownloadClick()
+                AlbumDownloadState.Status.COMPLETED -> showRemoveDialog = true
+                AlbumDownloadState.Status.PARTIAL -> onDownloadClick()
+                else -> {}
             }
-        }
-        AlbumDownloadState.Status.DOWNLOADING -> {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clickable(onClick = {})
-                    .padding(horizontal = MellowSpacing.Sp1),
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
-                    CircularProgressIndicator(
-                        progress = { downloadProgress },
-                        modifier = Modifier.size(32.dp),
-                        color = MellowTheme.colors.accentStrong,
-                        strokeWidth = 2.dp,
-                    )
-                    Icon(
-                        Icons.Filled.Download,
-                        "Downloading",
-                        tint = MellowTheme.colors.foreground,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
-                Text(
-                    "$downloadedCount/$totalDownloadCount",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MellowTheme.colors.muted,
-                )
-            }
-        }
-        AlbumDownloadState.Status.COMPLETED -> {
-            IconButton(onClick = { showRemoveDialog = true }) {
-                Icon(
-                    Icons.Filled.CheckCircle,
-                    "Downloaded",
-                    tint = MellowPalette.Green500,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
-        AlbumDownloadState.Status.PARTIAL -> {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clickable(onClick = onDownloadClick)
-                    .padding(horizontal = MellowSpacing.Sp1),
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
-                    CircularProgressIndicator(
-                        progress = { downloadProgress },
-                        modifier = Modifier.size(32.dp),
-                        color = MellowPalette.Green500,
-                        strokeWidth = 2.dp,
-                    )
-                    Text(
-                        "$downloadedCount/$totalDownloadCount",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MellowTheme.colors.foreground,
-                    )
-                }
-            }
-        }
+        },
+    ) {
+        AnimatedAlbumDownloadIndicator(
+            state = dlState,
+            progress = downloadProgress,
+            tracksDone = downloadedCount,
+            totalTracks = totalDownloadCount,
+            modifier = Modifier.size(36.dp),
+        )
     }
 }
 

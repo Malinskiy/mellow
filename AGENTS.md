@@ -132,6 +132,15 @@ gradle wrapper --gradle-version 8.12
    - Provide `placeholder` (blurhash) and `error` drawables
    - Set explicit `contentScale` and `contentDescription`
 
+5. **Animations**:
+   - Use `Crossfade` or `AnimatedContent` for icon/content swaps — they skip animation on first composition automatically
+   - Use `animateFloatAsState` / `animateDpAsState` for state-driven value changes — also skips initial composition
+   - Use `Animatable` only for imperative fire-and-forget effects (ripples, press feedback) triggered by user taps
+   - **Never use `LaunchedEffect(stateKey)` + `Animatable.animateTo()`** for state-driven animations — it animates on first composition. Use `Crossfade`/`animateXAsState` instead
+   - Spring easing for pop/overshoot: `spring(dampingRatio = 0.45f, stiffness = 400f)`
+   - All animated icons live in `core/designsystem/component/`: `AnimatedPlayPause.kt`, `AnimatedHeartIcon.kt`, `AnimatedDownloadIcon.kt`
+   - Icon SVG paths rendered via `PathParser().parsePathString()` on Canvas — Phosphor 256x256 viewport
+
 ### Room Database
 
 1. **Entities**: 

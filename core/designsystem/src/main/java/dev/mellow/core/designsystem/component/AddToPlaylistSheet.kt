@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MusicNote
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -85,7 +83,7 @@ fun AddToPlaylistSheet(
                     .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
             ) {
                 Icon(
-                    Icons.Filled.Add,
+                    PhosphorIcons.Plus,
                     contentDescription = null,
                     tint = MellowTheme.colors.accentStrong,
                     modifier = Modifier.size(22.dp),
@@ -118,7 +116,7 @@ fun AddToPlaylistSheet(
                             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
                     ) {
                         Icon(
-                            Icons.Filled.MusicNote,
+                            PhosphorIcons.MusicNote,
                             contentDescription = null,
                             tint = MellowTheme.colors.muted,
                             modifier = Modifier.size(22.dp),

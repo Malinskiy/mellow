@@ -20,13 +20,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Sort
-import androidx.compose.material.icons.filled.ViewList
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -188,7 +182,7 @@ private fun LibraryTopBar(
         Box {
             IconButton(onClick = { showSortMenu = true }) {
                 Icon(
-                    imageVector = Icons.Filled.Sort,
+                    imageVector = PhosphorIcons.FunnelSimple,
                     contentDescription = "Sort",
                     tint = MellowTheme.colors.foreground,
                     modifier = Modifier.size(20.dp),
@@ -211,7 +205,7 @@ private fun LibraryTopBar(
         }
         IconButton(onClick = onSettingsClick) {
             Icon(
-                imageVector = Icons.Filled.Dns,
+                    imageVector = PhosphorIcons.HardDrives,
                 contentDescription = "Server",
                 tint = MellowTheme.colors.foreground,
                 modifier = Modifier.size(20.dp),
@@ -264,7 +258,7 @@ private fun SortRow(
                     .background(MellowPalette.Stone800, RoundedCornerShape(MellowSpacing.Sp2)),
             ) {
                 Icon(
-                    imageVector = Icons.Filled.GridView,
+                    imageVector = PhosphorIcons.GridFour,
                     contentDescription = "Grid view",
                     tint = MellowTheme.colors.foreground,
                     modifier = Modifier.size(16.dp),
@@ -277,7 +271,7 @@ private fun SortRow(
                     .height(32.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Filled.ViewList,
+                    imageVector = PhosphorIcons.List,
                     contentDescription = "List view",
                     tint = MellowTheme.colors.muted,
                     modifier = Modifier.size(16.dp),
@@ -421,7 +415,7 @@ private fun PlaylistsPanel(
                     )
                 }
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    imageVector = PhosphorIcons.CaretRight,
                     contentDescription = null,
                     tint = MellowTheme.colors.muted,
                     modifier = Modifier.size(20.dp),
@@ -447,7 +441,7 @@ private fun GenreFilterChip(genre: String, onClear: () -> Unit) {
         )
         IconButton(onClick = onClear, modifier = Modifier.size(24.dp)) {
             Icon(
-                imageVector = Icons.Filled.Close,
+                    imageVector = PhosphorIcons.X,
                 contentDescription = "Clear genre filter",
                 tint = MellowTheme.colors.muted,
                 modifier = Modifier.size(16.dp),

@@ -10,10 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -94,18 +91,16 @@ fun MiniPlayer(
                 )
             }
 
-            IconButton(onClick = onPlayPauseClick) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = MellowTheme.colors.foreground,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
+            AnimatedPlayPauseIcon(
+                isPlaying = isPlaying,
+                onToggle = onPlayPauseClick,
+                iconSize = 22.dp,
+                tint = MellowTheme.colors.foreground,
+            )
 
             IconButton(onClick = onNextClick) {
                 Icon(
-                    imageVector = Icons.Filled.SkipNext,
+                    imageVector = PhosphorIcons.SkipForward,
                     contentDescription = "Next",
                     tint = MellowTheme.colors.foreground,
                     modifier = Modifier.size(20.dp),

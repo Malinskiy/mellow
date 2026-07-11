@@ -14,14 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ClearAll
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -83,7 +76,7 @@ fun QueueScreen(
                 .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MellowTheme.colors.foreground)
+                Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
             }
             Text(
                 "Queue",
@@ -93,7 +86,7 @@ fun QueueScreen(
             )
             IconButton(onClick = onShuffleClick) {
                 Icon(
-                    Icons.Filled.Shuffle,
+                    PhosphorIcons.Shuffle,
                     "Shuffle",
                     tint = if (shuffleEnabled) MellowTheme.colors.accentStrong else MellowTheme.colors.foreground,
                     modifier = Modifier.size(20.dp),
@@ -101,14 +94,14 @@ fun QueueScreen(
             }
             IconButton(onClick = onRepeatClick) {
                 Icon(
-                    imageVector = if (repeatMode == 1) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                    imageVector = if (repeatMode == 1) PhosphorIcons.RepeatOnce else PhosphorIcons.Repeat,
                     contentDescription = "Repeat",
                     tint = if (repeatMode != 0) MellowTheme.colors.accentStrong else MellowTheme.colors.foreground,
                     modifier = Modifier.size(20.dp),
                 )
             }
             IconButton(onClick = onClearClick) {
-                Icon(Icons.Filled.ClearAll, "Clear", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                Icon(PhosphorIcons.Broom, "Clear", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }
         }
 
@@ -193,7 +186,7 @@ fun QueueScreen(
                                 ),
                         ) {
                             Icon(
-                                Icons.Filled.DragHandle,
+                                PhosphorIcons.DotsSixVertical,
                                 contentDescription = "Reorder",
                                 tint = if (isDragging) MellowTheme.colors.foreground else MellowPalette.Stone600,
                                 modifier = Modifier
@@ -242,7 +235,7 @@ fun QueueScreen(
                                 modifier = Modifier.size(32.dp),
                             ) {
                                 Icon(
-                                    Icons.Filled.Close,
+                                    PhosphorIcons.X,
                                     contentDescription = "Remove from queue",
                                     tint = MellowPalette.Stone600,
                                     modifier = Modifier.size(16.dp),

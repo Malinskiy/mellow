@@ -37,6 +37,7 @@ okhttp = "4.12.0"
 # Jellyfin SDK
 jellyfin = "1.8.7"
 
+# Icons
 # Image loading
 coil = "3.1.0"
 
@@ -123,6 +124,8 @@ jellyfin-api-okhttp = { group = "org.jellyfin.sdk", name = "jellyfin-api-okhttp"
 # Image Loading
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+
+
 
 # WorkManager
 work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }

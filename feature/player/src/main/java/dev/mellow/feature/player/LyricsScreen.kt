@@ -19,13 +19,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.outlined.MusicNote
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.AnimatedPlayPauseIcon
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -154,7 +149,7 @@ fun LyricsScreen(
                             verticalArrangement = Arrangement.Center,
                         ) {
                             Icon(
-                                Icons.Outlined.MusicNote,
+                                PhosphorIcons.MusicNote,
                                 contentDescription = null,
                                 tint = MellowTheme.colors.muted,
                                 modifier = Modifier.size(48.dp),
@@ -233,7 +228,7 @@ private fun LyricsTopBar(
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
         IconButton(onClick = onClose) {
-            Icon(Icons.Filled.KeyboardArrowDown, "Close", tint = MellowTheme.colors.foreground)
+            Icon(PhosphorIcons.CaretDown, "Close", tint = MellowTheme.colors.foreground)
         }
 
         Spacer(Modifier.width(MellowSpacing.Sp2))
@@ -300,7 +295,7 @@ private fun LyricsMiniControls(
             modifier = Modifier.fillMaxWidth(),
         ) {
             IconButton(onClick = onSkipPreviousClick, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Filled.SkipPrevious, "Previous", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+                Icon(PhosphorIcons.SkipBack, "Previous", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
             }
 
             Spacer(Modifier.width(MellowSpacing.Sp4))
@@ -345,24 +340,17 @@ private fun LyricsMiniControls(
 
             Spacer(Modifier.width(MellowSpacing.Sp4))
 
-            IconButton(
-                onClick = onPlayPauseClick,
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(MellowTheme.colors.foreground, MellowShapes.Full),
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = MellowTheme.colors.background,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            AnimatedPlayPauseIcon(
+                isPlaying = isPlaying,
+                onToggle = onPlayPauseClick,
+                iconSize = 20.dp,
+                tint = MellowTheme.colors.foreground,
+            )
 
             Spacer(Modifier.width(MellowSpacing.Sp4))
 
             IconButton(onClick = onSkipNextClick, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Filled.SkipNext, "Next", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+                Icon(PhosphorIcons.SkipForward, "Next", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
             }
         }
 

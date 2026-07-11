@@ -14,10 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,10 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
-import dev.mellow.core.designsystem.theme.MellowPalette
-import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 
@@ -69,7 +65,7 @@ fun PlaylistDetailScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
+                    PhosphorIcons.ArrowLeft,
                     "Back",
                     tint = MellowTheme.colors.foreground,
                 )
@@ -96,25 +92,17 @@ fun PlaylistDetailScreen(
                 )
                 IconButton(onClick = onShuffle) {
                     Icon(
-                        Icons.Filled.Shuffle,
+                        PhosphorIcons.Shuffle,
                         "Shuffle",
                         tint = MellowTheme.colors.muted,
                         modifier = Modifier.size(22.dp),
                     )
                 }
-                IconButton(
-                    onClick = onPlayAll,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(MellowPalette.Stone200, MellowShapes.Full),
-                ) {
-                    Icon(
-                        Icons.Filled.PlayArrow,
-                        "Play all",
-                        tint = MellowPalette.Stone950,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
+                AnimatedPlayPauseButton(
+                    isPlaying = false,
+                    onToggle = onPlayAll,
+                    buttonSize = 44.dp,
+                )
             }
         }
 
@@ -155,7 +143,6 @@ fun PlaylistDetailScreen(
                             onClick = { onTrackClick(track.id) },
                             onMenuClick = { onTrackMenuClick(track.id) },
                             showDivider = index < tracks.lastIndex,
-                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
                         )
                     }
                 }

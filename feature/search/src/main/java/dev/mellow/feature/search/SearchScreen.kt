@@ -17,9 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -98,11 +96,11 @@ fun SearchScreen(
             value = uiState.query,
             onValueChange = { viewModel.onQueryChanged(it, serverId) },
             placeholder = { Text("Albums, artists, tracks…", color = MellowPalette.Stone600) },
-            leadingIcon = { Icon(Icons.Filled.Search, null, tint = MellowTheme.colors.muted) },
+            leadingIcon = { Icon(PhosphorIcons.MagnifyingGlass, null, tint = MellowTheme.colors.muted) },
             trailingIcon = {
                 if (uiState.query.isNotEmpty()) {
                     IconButton(onClick = { viewModel.onQueryChanged("", serverId) }) {
-                        Icon(Icons.Filled.Close, "Clear", tint = MellowTheme.colors.muted)
+                        Icon(PhosphorIcons.X, "Clear", tint = MellowTheme.colors.muted)
                     }
                 }
             },
@@ -171,7 +169,6 @@ fun SearchScreen(
                                 onClick = { onPlayTracks(uiState.tracks, index) },
                                 onMenuClick = { onTrackMenuClick(track.id) },
                                 showDivider = index < uiState.tracks.take(5).lastIndex,
-                                modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
                             )
                         }
                     }

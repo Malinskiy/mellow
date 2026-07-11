@@ -2,6 +2,7 @@ package dev.mellow.app.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import dev.mellow.app.dev.DevIconComparisonScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -473,7 +474,13 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onStorageCapChange = settingsVm::setStorageCap,
                         onAutoCleanupChange = settingsVm::setAutoCleanupDays,
                         onClearAllDownloads = settingsVm::clearAllDownloads,
+                        onDevToolsClick = {
+                            navController.navigate("dev_tools")
+                        },
                     )
+                }
+                composable("dev_tools") {
+                    DevIconComparisonScreen(onBack = { navController.popBackStack() })
                 }
                 composable("album/{albumId}") {
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
@@ -730,6 +737,11 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         else kotlinx.coroutines.flow.flowOf(false)
                     }.collectAsState(initial = false)
 
+                    val isFavorite by remember(track?.id) {
+                        if (track != null) mainViewModel.observeTrackFavorite(track.id)
+                        else kotlinx.coroutines.flow.flowOf(false)
+                    }.collectAsState(initial = track?.isFavorite ?: false)
+
                     PlayerScreen(
                         trackName = track?.name ?: "",
                         artistName = track?.artistName ?: "",
@@ -744,7 +756,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         } else 0f,
                         positionMs = positionState.positionMs,
                         durationMs = positionState.durationMs,
-                        isFavorite = track?.isFavorite ?: false,
+                        isFavorite = isFavorite,
                         isDownloaded = isDownloaded,
                         error = pState.error,
                         onCollapse = { navController.popBackStack() },
@@ -760,7 +772,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onRepeatClick = { mainViewModel.player.cycleRepeatMode() },
                         onFavoriteClick = {
                             if (track != null) {
-                                mainViewModel.toggleFavorite(track.id, track.isFavorite)
+                                mainViewModel.toggleFavorite(track.id, isFavorite)
                             }
                         },
                         onRetryClick = {

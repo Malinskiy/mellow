@@ -14,9 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MusicNote
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -70,7 +68,7 @@ fun PlaylistsScreen(
                 contentColor = MellowPalette.Stone950,
                 shape = CircleShape,
             ) {
-                Icon(Icons.Filled.Add, "Create playlist")
+                Icon(PhosphorIcons.Plus, "Create playlist")
             }
         },
         modifier = modifier,
@@ -150,7 +148,7 @@ private fun PlaylistRow(
                     .background(MellowTheme.colors.surface),
             ) {
                 Icon(
-                    Icons.Filled.MusicNote,
+                    PhosphorIcons.MusicNote,
                     contentDescription = null,
                     tint = MellowTheme.colors.muted,
                     modifier = Modifier.size(24.dp),

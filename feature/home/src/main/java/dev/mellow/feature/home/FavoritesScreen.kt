@@ -16,8 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Shuffle
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -127,7 +126,7 @@ fun FavoritesScreen(
                         shape = MellowShapes.Full,
                         contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
                     ) {
-                        Icon(Icons.Filled.Shuffle, null, modifier = Modifier.size(16.dp))
+                        Icon(PhosphorIcons.Shuffle, null, modifier = Modifier.size(16.dp))
                         Text(
                             "Shuffle All",
                             style = MaterialTheme.typography.labelMedium,

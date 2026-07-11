@@ -17,6 +17,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.media3.datasource.HttpDataSource
 import dev.mellow.core.common.PlaybackReporter
 import dev.mellow.core.common.jellyfinStreamUrl
+import dev.mellow.core.data.mapper.toModel
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
@@ -277,16 +278,35 @@ class MellowPlayer @Inject constructor(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            val idx = controller?.currentMediaItemIndex ?: return
+            val ctrl = controller ?: return
+            val idx = ctrl.currentMediaItemIndex
             val track = currentQueue.getOrNull(idx)
-            _state.value = _state.value.copy(
-                currentTrack = track,
-                currentIndex = idx,
-                error = null,
-            )
-            positionUpdateCount = 0
+
             if (track != null) {
+                _state.value = _state.value.copy(
+                    currentTrack = track,
+                    currentIndex = idx,
+                    error = null,
+                )
+                positionUpdateCount = 0
                 reportingScope.launch { playbackReporter.reportStarted(track.id) }
+            } else if (mediaItem != null) {
+                reportingScope.launch {
+                    val newQueue = (0 until ctrl.mediaItemCount).mapNotNull { i ->
+                        trackDao.getTrackById(ctrl.getMediaItemAt(i).mediaId)?.toModel()
+                    }
+                    currentQueue = newQueue
+                    val resolved = newQueue.getOrNull(idx)
+                    _state.value = _state.value.copy(
+                        currentTrack = resolved,
+                        currentIndex = idx,
+                        queue = newQueue,
+                        error = null,
+                    )
+                    if (resolved != null) {
+                        playbackReporter.reportStarted(resolved.id)
+                    }
+                }
             }
         }
 

@@ -17,13 +17,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.outlined.FavoriteBorder
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,11 +32,11 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.AlbumCard
+import dev.mellow.core.designsystem.component.AnimatedHeartIcon
+import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.TrackRow
-import dev.mellow.core.designsystem.theme.MellowPalette
-import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 
@@ -96,10 +90,10 @@ fun ArtistDetailScreen(
                                 .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
                         ) {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MellowTheme.colors.foreground)
+                                Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
                             }
                             IconButton(onClick = {}) {
-                                Icon(Icons.Filled.MoreVert, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                                Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -132,7 +126,6 @@ fun ArtistDetailScreen(
                                 onClick = { onTrackClick(track.id) },
                                 onMenuClick = { onTrackMenuClick(track.id) },
                                 showDivider = index < topTracks.lastIndex,
-                                modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
                             )
                         }
                     }
@@ -215,24 +208,18 @@ private fun ArtistHero(
             modifier = Modifier.padding(top = MellowSpacing.Sp5),
         ) {
             IconButton(onClick = onShuffle) {
-                Icon(Icons.Filled.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+                Icon(PhosphorIcons.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
             }
-            IconButton(
-                onClick = onPlayAll,
-                modifier = Modifier
-                    .size(52.dp)
-                    .background(MellowPalette.Stone200, MellowShapes.Full),
-            ) {
-                Icon(Icons.Filled.PlayArrow, "Play", tint = MellowPalette.Stone950, modifier = Modifier.size(26.dp))
-            }
-            IconButton(onClick = onFavoriteClick) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
-                    tint = if (isFavorite) MellowTheme.colors.favorite else MellowTheme.colors.muted,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
+            AnimatedPlayPauseButton(
+                isPlaying = false,
+                onToggle = onPlayAll,
+                buttonSize = 52.dp,
+            )
+            AnimatedHeartIcon(
+                isFavorite = isFavorite,
+                onToggle = onFavoriteClick,
+                iconSize = 22.dp,
+            )
         }
     }
 }

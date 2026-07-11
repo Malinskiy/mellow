@@ -23,8 +23,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Dns
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -153,7 +152,6 @@ fun HomeScreen(
                         onClick = { onTrackClick(track.id) },
                         onMenuClick = { onTrackMenuClick(track.id) },
                         showDivider = index < favoriteTracks.take(5).lastIndex,
-                        modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
                     )
                 }
             }
@@ -186,7 +184,7 @@ private fun HomeTopBar(
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
         Text(
-            text = "Melowdy",
+            text = "Mellow",
             style = MaterialTheme.typography.headlineLarge,
             color = MellowTheme.colors.foreground,
         )
@@ -198,7 +196,7 @@ private fun HomeTopBar(
         Box(modifier = Modifier.width(MellowSpacing.Sp2))
         IconButton(onClick = onSettingsClick) {
             Icon(
-                imageVector = Icons.Filled.Dns,
+                    imageVector = PhosphorIcons.HardDrives,
                 contentDescription = "Settings",
                 tint = MellowTheme.colors.foreground,
                 modifier = Modifier.height(20.dp).width(20.dp),

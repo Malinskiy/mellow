@@ -19,6 +19,9 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE id = :id")
     suspend fun getTrackById(id: String): TrackEntity?
 
+    @Query("SELECT isFavorite FROM tracks WHERE id = :id")
+    fun observeIsFavorite(id: String): Flow<Boolean?>
+
     @Query("SELECT * FROM tracks WHERE isFavorite = 1 AND serverId = :serverId")
     fun getFavoriteTracks(serverId: String): Flow<List<TrackEntity>>
 
