@@ -252,7 +252,8 @@ private fun TopResultRow(result: SearchResult, serverUrl: String, onClick: () ->
         }
         is SearchResult.TrackResult -> {
             val t = result.track
-            val img = if (serverUrl.isNotEmpty() && t.imageId != null) jellyfinImageUrl(serverUrl, t.imageId!!) else null
+            val imgId = t.imageId ?: t.albumId
+            val img = if (serverUrl.isNotEmpty() && imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
             listOf(t.name, "Track · ${t.artistName ?: ""}", img, false)
         }
     }
@@ -353,5 +354,8 @@ private fun formatDuration(track: Track): String {
     return "$minutes:${seconds.toString().padStart(2, '0')}"
 }
 
-private fun trackImageUrl(serverUrl: String, track: Track): String? =
-    if (serverUrl.isNotEmpty() && track.imageId != null) jellyfinImageUrl(serverUrl, track.imageId!!) else null
+private fun trackImageUrl(serverUrl: String, track: Track): String? {
+    if (serverUrl.isEmpty()) return null
+    val imgId = track.imageId ?: track.albumId ?: return null
+    return jellyfinImageUrl(serverUrl, imgId)
+}

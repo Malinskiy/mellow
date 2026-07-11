@@ -138,8 +138,9 @@ fun FavoritesScreen(
                                     title = track.name,
                                     subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
                                     duration = formatFavDuration(track.duration),
-                                    imageUrl = if (serverUrl != null && track.imageId != null) {
-                                        jellyfinImageUrl(serverUrl, track.imageId!!)
+                                    imageUrl = if (serverUrl != null) {
+                                        val imgId = track.imageId ?: track.albumId
+                                        if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
                                     } else null,
                                     isFavorite = true,
                                     onClick = { onTrackClick(track.id) },

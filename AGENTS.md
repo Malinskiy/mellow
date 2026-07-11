@@ -209,7 +209,14 @@ Two delivery mechanisms — use the right one for the context:
 
 **Never use HTTPS URLs for MediaSession/notification artwork** — Media3's default `SimpleBitmapLoader` uses `URL.openStream()` which doesn't support `content://`, and Android Auto rejects non-content:// URIs.
 
-**Never gate artwork on `track.imageId != null`** — fall back to `track.albumId` since most tracks inherit album art.
+**Never gate artwork on `track.imageId != null`** — fall back to `track.albumId` since most tracks inherit album art. The correct pattern for track image URLs everywhere (screens, DTOs, search results):
+
+```kotlin
+val imgId = track.imageId ?: track.albumId
+val imageUrl = if (serverUrl != null && imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
+```
+
+When creating UI data classes that carry track image info (e.g. `TrackItem`, `HomeTrackItem`), always include both `imageId` and `albumId` fields so the fallback can be applied at the call site.
 
 ## UI State Pattern (MANDATORY for all data-dependent screens)
 

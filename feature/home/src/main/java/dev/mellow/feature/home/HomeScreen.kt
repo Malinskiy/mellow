@@ -1,5 +1,6 @@
 package dev.mellow.feature.home
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +38,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.AlbumCard
+import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
+import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.TrackRow
@@ -60,6 +63,7 @@ data class HomeTrackItem(
     val album: String,
     val duration: String,
     val imageId: String?,
+    val albumId: String? = null,
 )
 
 @Composable
@@ -153,8 +157,9 @@ fun HomeScreen(
                         title = track.title,
                         subtitle = "${track.artist} · ${track.album}",
                         duration = track.duration,
-                        imageUrl = if (serverUrl != null && track.imageId != null) {
-                            jellyfinImageUrl(serverUrl, track.imageId)
+                        imageUrl = if (serverUrl != null) {
+                            val imgId = track.imageId ?: track.albumId
+                            if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
                         } else null,
                         onClick = { onTrackClick(track.id) },
                         onMenuClick = { onTrackMenuClick(track.id) },
@@ -250,18 +255,24 @@ private fun QuickPicksGrid(
                     jellyfinImageUrl(serverUrl, album.imageId)
                 } else null,
                 onClick = { onAlbumClick(album.id) },
+                sharedElementKey = "album_art_quick_${album.id}",
             )
         }
     }
 }
 
 @Composable
+@OptIn(ExperimentalSharedTransitionApi::class)
 private fun CompactAlbumCard(
     title: String,
     artist: String,
     imageUrl: String?,
     onClick: () -> Unit,
+    sharedElementKey: String? = null,
 ) {
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -275,6 +286,19 @@ private fun CompactAlbumCard(
             modifier = Modifier
                 .height(60.dp)
                 .width(60.dp)
+                .then(
+                    if (sharedElementKey != null && sharedTransitionScope != null && animatedVisibilityScope != null) {
+                        with(sharedTransitionScope) {
+                            Modifier.sharedElement(
+                                rememberSharedContentState(key = sharedElementKey),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                                clipInOverlayDuringTransition = OverlayClip(MellowShapes.Small),
+                            )
+                        }
+                    } else {
+                        Modifier
+                    }
+                )
                 .clip(MellowShapes.Small)
                 .background(MellowTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,

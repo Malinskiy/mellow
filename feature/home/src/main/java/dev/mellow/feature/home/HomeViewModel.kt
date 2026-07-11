@@ -121,6 +121,7 @@ private fun Track.toHomeTrackItem() = HomeTrackItem(
     album = albumName ?: "",
     duration = formatDuration(duration),
     imageId = imageId,
+    albumId = albumId,
 )
 
 private fun formatDuration(duration: Duration): String {

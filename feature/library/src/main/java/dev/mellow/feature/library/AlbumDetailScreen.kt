@@ -302,20 +302,21 @@ private fun AlbumHero(
                 modifier = Modifier
                     .width(240.dp)
                     .aspectRatio(1f)
-                    .clip(MellowShapes.Large)
-                    .background(MellowTheme.colors.surfaceElevated)
                     .then(
                         if (sharedTransitionScope != null && animatedVisibilityScope != null) {
                             with(sharedTransitionScope) {
                                 Modifier.sharedElement(
                                     rememberSharedContentState(key = sharedElementKey),
                                     animatedVisibilityScope = animatedVisibilityScope,
+                                    clipInOverlayDuringTransition = OverlayClip(MellowShapes.Large),
                                 )
                             }
                         } else {
                             Modifier
                         }
-                    ),
+                    )
+                    .clip(MellowShapes.Large)
+                    .background(MellowTheme.colors.surfaceElevated),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(

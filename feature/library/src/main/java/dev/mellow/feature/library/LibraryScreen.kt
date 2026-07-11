@@ -64,7 +64,7 @@ private val TABS = listOf("Albums", "Artists", "Tracks", "Genres", "Playlists", 
 
 data class ArtistItem(val id: String, val name: String, val albumCount: Int, val imageId: String?)
 
-data class TrackItem(val id: String, val title: String, val artist: String, val album: String, val duration: String, val imageId: String?)
+data class TrackItem(val id: String, val title: String, val artist: String, val album: String, val duration: String, val imageId: String?, val albumId: String? = null)
 
 data class AlbumItem(val id: String, val name: String, val artist: String, val imageId: String?)
 
@@ -95,6 +95,7 @@ fun LibraryScreen(
     onClearGenre: () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var isGridView by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(selectedGenre) {
         if (selectedGenre != null) selectedTab = 0
@@ -110,6 +111,9 @@ fun LibraryScreen(
                     isServerUnreachable = isServerUnreachable,
                     onSettingsClick = onSettingsClick,
                     onSortChanged = onSortChanged,
+                    showViewToggle = selectedTab == 0,
+                    isGridView = isGridView,
+                    onToggleView = { isGridView = !isGridView },
                 )
                 MellowTabBar(
                     tabs = TABS,
@@ -131,7 +135,8 @@ fun LibraryScreen(
         when (selectedTab) {
             0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
                  else if (albumItems.isEmpty()) EmptyContent("No albums yet")
-                 else AlbumsPanel(albumItems, serverUrl, onAlbumClick, topPadding)
+                 else if (isGridView) AlbumsPanel(albumItems, serverUrl, onAlbumClick, topPadding)
+                 else AlbumsListPanel(albumItems, serverUrl, onAlbumClick, topPadding)
             1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
                  else if (artists.isEmpty()) EmptyContent("No artists yet")
                  else ArtistsPanel(artists, serverUrl, onArtistClick, topPadding)
@@ -157,6 +162,9 @@ private fun LibraryTopBar(
     isServerUnreachable: Boolean = false,
     onSettingsClick: () -> Unit = {},
     onSortChanged: (String) -> Unit = {},
+    showViewToggle: Boolean = false,
+    isGridView: Boolean = true,
+    onToggleView: () -> Unit = {},
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
 
@@ -201,13 +209,15 @@ private fun LibraryTopBar(
                 }
             }
         }
-        IconButton(onClick = { /* TODO: toggle grid/list */ }) {
-            Icon(
-                imageVector = PhosphorIcons.GridFour,
-                contentDescription = "Toggle view",
-                tint = MellowTheme.colors.foreground,
-                modifier = Modifier.size(20.dp),
-            )
+        if (showViewToggle) {
+            IconButton(onClick = onToggleView) {
+                Icon(
+                    imageVector = if (isGridView) PhosphorIcons.List else PhosphorIcons.GridFour,
+                    contentDescription = if (isGridView) "List view" else "Grid view",
+                    tint = MellowTheme.colors.foreground,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
         IconButton(onClick = onSettingsClick) {
             Icon(
@@ -310,6 +320,57 @@ private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClic
 }
 
 @Composable
+private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+    LazyColumn(
+        contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
+    ) {
+        items(albums, key = { it.id.ifEmpty { it.name } }) { album ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onAlbumClick(album.id) }
+                    .padding(vertical = MellowSpacing.Sp2),
+            ) {
+                AsyncImage(
+                    model = if (serverUrl != null && album.imageId != null) {
+                        jellyfinImageUrl(serverUrl, album.imageId)
+                    } else null,
+                    contentDescription = album.name,
+                    contentScale = ContentScale.Crop,
+                    placeholder = ColorPainter(MellowTheme.colors.surface),
+                    error = ColorPainter(MellowTheme.colors.surface),
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(MellowSpacing.Sp2))
+                        .background(MellowTheme.colors.surface),
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = MellowSpacing.Sp3),
+                ) {
+                    Text(
+                        text = album.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MellowTheme.colors.foreground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = album.artist,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MellowTheme.colors.muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     LazyColumn(
         contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
@@ -343,8 +404,9 @@ private fun TracksPanel(
                 title = track.title,
                 subtitle = "${track.artist} · ${track.album}",
                 duration = track.duration,
-                imageUrl = if (serverUrl != null && track.imageId != null) {
-                    jellyfinImageUrl(serverUrl, track.imageId)
+                imageUrl = if (serverUrl != null) {
+                    val imgId = track.imageId ?: track.albumId
+                    if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
                 } else null,
                 onClick = { onTrackClick(track.id) },
                 onMenuClick = { onTrackMenuClick(track.id) },

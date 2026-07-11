@@ -46,20 +46,21 @@ fun AlbumCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(MellowShapes.Medium)
-                .background(MellowTheme.colors.surfaceElevated)
                 .then(
                     if (sharedElementKey != null && sharedTransitionScope != null && animatedVisibilityScope != null) {
                         with(sharedTransitionScope) {
                             Modifier.sharedElement(
                                 rememberSharedContentState(key = sharedElementKey),
                                 animatedVisibilityScope = animatedVisibilityScope,
+                                clipInOverlayDuringTransition = OverlayClip(MellowShapes.Medium),
                             )
                         }
                     } else {
                         Modifier
                     }
-                ),
+                )
+                .clip(MellowShapes.Medium)
+                .background(MellowTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

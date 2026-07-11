@@ -360,6 +360,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 album = track.albumName ?: "",
                                 duration = formatTrackDuration(track.duration),
                                 imageId = track.imageId,
+                                albumId = track.albumId,
                             )
                         }
                     }
