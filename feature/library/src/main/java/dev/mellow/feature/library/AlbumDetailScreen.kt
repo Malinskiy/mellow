@@ -1,5 +1,6 @@
 package dev.mellow.feature.library
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -43,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
+import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.AnimatedAlbumDownloadIndicator
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -241,6 +244,7 @@ private fun AlbumDetailTopBar(onBack: () -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalSharedTransitionApi::class)
 private fun AlbumHero(
     albumId: String,
     sharedElementSource: String = "library",
@@ -284,6 +288,10 @@ private fun AlbumHero(
             )
         }
 
+        val sharedTransitionScope = LocalSharedTransitionScope.current
+        val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+        val sharedElementKey = "album_art_${sharedElementSource}_$albumId"
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -295,7 +303,19 @@ private fun AlbumHero(
                     .width(240.dp)
                     .aspectRatio(1f)
                     .clip(MellowShapes.Large)
-                    .background(MellowTheme.colors.surfaceElevated),
+                    .background(MellowTheme.colors.surfaceElevated)
+                    .then(
+                        if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                            with(sharedTransitionScope) {
+                                Modifier.sharedElement(
+                                    rememberSharedContentState(key = sharedElementKey),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                )
+                            }
+                        } else {
+                            Modifier
+                        }
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(

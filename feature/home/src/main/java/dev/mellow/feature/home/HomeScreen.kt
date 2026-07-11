@@ -334,7 +334,7 @@ private fun AlbumCarousel(
                 } else null,
                 onClick = { onAlbumClick(album.id) },
                 modifier = Modifier.width(130.dp),
-
+                sharedElementKey = if (sharedKeyPrefix.isNotEmpty()) "album_art_${sharedKeyPrefix}_${album.id}" else null,
             )
         }
     }

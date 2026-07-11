@@ -5,6 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import dev.mellow.app.dev.DevIconComparisonScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -26,6 +28,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,6 +50,8 @@ import androidx.navigation.navArgument
 import dev.mellow.app.AuthState
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
+import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
+import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.MellowBottomNavBar
 import dev.mellow.core.player.PositionState
 import dev.mellow.core.designsystem.component.MellowNavDestination
@@ -236,21 +241,25 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         },
         modifier = Modifier.fillMaxSize(),
     ) { innerPadding ->
+        @OptIn(ExperimentalSharedTransitionApi::class)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding),
         ) {
-            NavHost(
-                navController = navController,
-                startDestination = MellowNavDestination.Home.route,
-                enterTransition = { fadeIn(tween(250)) },
-                exitTransition = { fadeOut(tween(250)) },
-                popEnterTransition = { fadeIn(tween(250)) },
-                popExitTransition = { fadeOut(tween(250)) },
-            ) {
+            SharedTransitionLayout {
+                CompositionLocalProvider(LocalSharedTransitionScope provides this) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = MellowNavDestination.Home.route,
+                        enterTransition = { fadeIn(tween(250)) },
+                        exitTransition = { fadeOut(tween(250)) },
+                        popEnterTransition = { fadeIn(tween(250)) },
+                        popExitTransition = { fadeOut(tween(250)) },
+                    ) {
                 composable(MellowNavDestination.Home.route) {
+                    CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val homeVm: HomeViewModel = hiltViewModel()
                     val homeState by homeVm.uiState.collectAsState()
                     LaunchedEffect(serverId) {
@@ -290,6 +299,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             navController.navigate("library?genre=${android.net.Uri.encode(genre)}")
                         },
                     )
+                    }
                 }
                 composable(
                     "library?genre={genre}",
@@ -297,6 +307,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         navArgument("genre") { type = NavType.StringType; defaultValue = "" },
                     ),
                 ) {
+                    CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val libraryVm: LibraryViewModel = hiltViewModel()
                     val state by libraryVm.uiState.collectAsState()
                     var currentSort by rememberSaveable { mutableStateOf("Recently Added") }
@@ -396,6 +407,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         selectedGenre = selectedGenre,
                         onClearGenre = { selectedGenre = null },
                     )
+                    }
                 }
                 composable(MellowNavDestination.Search.route) {
                     val searchVm: SearchViewModel = hiltViewModel()
@@ -515,6 +527,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     popEnterTransition = { fadeIn(tween(250)) },
                     popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(300)) },
                 ) {
+                    CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val routeAlbumId = it.arguments?.getString("albumId") ?: ""
                     val routeSource = it.arguments?.getString("source") ?: "library"
                     val albumVm: AlbumDetailViewModel = hiltViewModel()
@@ -625,6 +638,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             }
                         },
                     )
+                    }
                 }
                 composable(
                     "artist/{artistId}",
@@ -955,6 +969,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onSkipNextClick = { mainViewModel.player.skipNext() },
                         onSkipPreviousClick = { mainViewModel.player.skipPrevious() },
                     )
+                }
+            }
                 }
             }
         }

@@ -1,5 +1,6 @@
 package dev.mellow.core.designsystem.component
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun AlbumCard(
     title: String,
@@ -32,7 +34,11 @@ fun AlbumCard(
     imageUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    sharedElementKey: String? = null,
 ) {
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+
     Column(
         modifier = modifier.clickable(onClick = onClick),
     ) {
@@ -41,7 +47,19 @@ fun AlbumCard(
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(MellowShapes.Medium)
-                .background(MellowTheme.colors.surfaceElevated),
+                .background(MellowTheme.colors.surfaceElevated)
+                .then(
+                    if (sharedElementKey != null && sharedTransitionScope != null && animatedVisibilityScope != null) {
+                        with(sharedTransitionScope) {
+                            Modifier.sharedElement(
+                                rememberSharedContentState(key = sharedElementKey),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            )
+                        }
+                    } else {
+                        Modifier
+                    }
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
