@@ -305,7 +305,7 @@ private fun SortRow(
 
 @Composable
 private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
-    val gridMinSize = if (LocalWindowWidthClass.current != WindowWidthClass.Compact) 220.dp else 160.dp
+    val gridMinSize = if (LocalWindowWidthClass.current == WindowWidthClass.Expanded) 220.dp else 160.dp
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = gridMinSize),
         contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp3, bottom = MellowSpacing.Sp3, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),

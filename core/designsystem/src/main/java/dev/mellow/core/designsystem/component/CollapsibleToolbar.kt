@@ -32,7 +32,20 @@ class CollapsibleToolbarState {
     val nestedScrollConnection = object : NestedScrollConnection {
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
             if (heightPx <= 0f) return Offset.Zero
-            _offsetY.floatValue = (_offsetY.floatValue + available.y).coerceIn(-heightPx, 0f)
+            if (available.y > 0f && _offsetY.floatValue < 0f) {
+                val newOffset = (_offsetY.floatValue + available.y).coerceIn(-heightPx, 0f)
+                val consumed = newOffset - _offsetY.floatValue
+                _offsetY.floatValue = newOffset
+                return Offset(0f, consumed)
+            }
+            return Offset.Zero
+        }
+
+        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+            if (heightPx <= 0f) return Offset.Zero
+            if (consumed.y < 0f) {
+                _offsetY.floatValue = (_offsetY.floatValue + consumed.y).coerceIn(-heightPx, 0f)
+            }
             return Offset.Zero
         }
     }

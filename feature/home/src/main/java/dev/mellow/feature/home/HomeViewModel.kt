@@ -59,7 +59,7 @@ class HomeViewModel @Inject constructor(
 
             val mostPlayedIds = mostPlayedAlbums.map { it.id }.toSet()
             val recentlyPlayed = if (recentlyPlayedAlbums.isNotEmpty()) {
-                recentlyPlayedAlbums.map { it.toHomeAlbumItem() }
+                recentlyPlayedAlbums.take(12).map { it.toHomeAlbumItem() }
             } else {
                 emptyList()
             }
@@ -68,9 +68,9 @@ class HomeViewModel @Inject constructor(
                 val picks = if (mostPlayedAlbums.isNotEmpty() || recentlyPlayedAlbums.isNotEmpty()) {
                     val combined = mostPlayedAlbums +
                         recentlyPlayedAlbums.filterNot { it.id in mostPlayedIds }
-                    combined.shuffled(Random(shuffleSeed)).take(6).map { it.toHomeAlbumItem() }
+                    combined.shuffled(Random(shuffleSeed)).take(12).map { it.toHomeAlbumItem() }
                 } else if (favoriteAlbums.isNotEmpty()) {
-                    favoriteAlbums.shuffled(Random(shuffleSeed)).take(6).map { it.toHomeAlbumItem() }
+                    favoriteAlbums.shuffled(Random(shuffleSeed)).take(12).map { it.toHomeAlbumItem() }
                 } else {
                     emptyList()
                 }

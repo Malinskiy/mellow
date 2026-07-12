@@ -132,23 +132,25 @@ fun HomeScreen(
                 }
                 item {
                     if (isExpanded) {
+                        val rpMinSize = if (LocalWindowWidthClass.current == WindowWidthClass.Expanded) 180.dp else 150.dp
                         BoxWithConstraints(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = MellowSpacing.Sp4),
                         ) {
-                            val minItemWidth = 130.dp
-                            val columns = (maxWidth / minItemWidth).toInt().coerceAtLeast(1)
-                            val rows = ceil(recentlyPlayed.size.toFloat() / columns).toInt()
+                            val columns = (maxWidth / rpMinSize).toInt().coerceAtLeast(1)
+                            val maxItems = (columns * 2).coerceAtMost(recentlyPlayed.size)
+                            val clippedItems = recentlyPlayed.take(maxItems / columns * columns)
+                            val rows = clippedItems.size / columns
                             val gridHeight = (60.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
                             LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 180.dp),
+                                columns = GridCells.Adaptive(minSize = rpMinSize),
                                 horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 userScrollEnabled = false,
                                 modifier = Modifier.height(gridHeight),
                             ) {
-                                items(recentlyPlayed, key = { it.id }) { album ->
+                                items(clippedItems, key = { it.id }) { album ->
                                     CompactAlbumCard(
                                         title = album.name,
                                         artist = album.artist,
@@ -183,18 +185,22 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = MellowSpacing.Sp4),
                         ) {
-                            val minItemWidth = 130.dp
-                            val columns = (maxWidth / minItemWidth).toInt().coerceAtLeast(1)
-                            val rows = ceil(recentlyAdded.size.toFloat() / columns).toInt()
-                            val gridHeight = (170.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
+                            val raMinSize = if (LocalWindowWidthClass.current == WindowWidthClass.Expanded) 200.dp else 150.dp
+                            val columns = (maxWidth / raMinSize).toInt().coerceAtLeast(1)
+                            val maxAdded = (columns * 2).coerceAtMost(recentlyAdded.size)
+                            val clippedAdded = recentlyAdded.take(maxAdded / columns * columns)
+                            val rows = clippedAdded.size / columns
+                            val columnWidth = (maxWidth - MellowSpacing.Sp3 * (columns - 1)) / columns
+                            val rowHeight = columnWidth + 50.dp
+                            val gridHeight = (rowHeight * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
                             LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 200.dp),
+                                columns = GridCells.Adaptive(minSize = raMinSize),
                                 horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 userScrollEnabled = false,
                                 modifier = Modifier.height(gridHeight),
                             ) {
-                                items(recentlyAdded, key = { it.id }) { album ->
+                                items(clippedAdded, key = { it.id }) { album ->
                                     AlbumCard(
                                         title = album.name,
                                         artist = album.artist,
@@ -313,15 +319,16 @@ private fun QuickPicksGrid(
     serverUrl: String?,
     onAlbumClick: (String) -> Unit,
 ) {
-    val gridMinSize = if (LocalWindowWidthClass.current != WindowWidthClass.Compact) 180.dp else 160.dp
+    val gridMinSize = if (LocalWindowWidthClass.current == WindowWidthClass.Expanded) 180.dp else 150.dp
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp4),
     ) {
-        val minItemWidth = 130.dp
-        val columns = (maxWidth / minItemWidth).toInt().coerceAtLeast(1)
-        val rows = ceil(albums.size.toFloat() / columns).toInt()
+        val columns = (maxWidth / gridMinSize).toInt().coerceAtLeast(1)
+        val maxItems = (columns * 3).coerceAtMost(albums.size)
+        val clippedAlbums = albums.take(maxItems / columns * columns)
+        val rows = clippedAlbums.size / columns
         val gridHeight = (60.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = gridMinSize),
@@ -330,7 +337,7 @@ private fun QuickPicksGrid(
             userScrollEnabled = false,
             modifier = Modifier.height(gridHeight),
         ) {
-            items(albums, key = { it.id }) { album ->
+            items(clippedAlbums, key = { it.id }) { album ->
                 CompactAlbumCard(
                     title = album.name,
                     artist = album.artist,
