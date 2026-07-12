@@ -291,10 +291,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     NavHost(
                         navController = navController,
                         startDestination = MellowNavDestination.Home.route,
-                enterTransition = { fadeIn(tween(150)) },
-                exitTransition = { fadeOut(tween(150)) },
-                popEnterTransition = { fadeIn(tween(150)) },
-                popExitTransition = { fadeOut(tween(150)) },
+                enterTransition = { fadeIn(tween(300)) },
+                exitTransition = { fadeOut(tween(300)) },
+                popEnterTransition = { fadeIn(tween(300)) },
+                popExitTransition = { fadeOut(tween(300)) },
                     ) {
                 composable(MellowNavDestination.Home.route) {
                     CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
