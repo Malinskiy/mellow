@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -44,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
@@ -249,14 +252,14 @@ private fun ArtistDetailExpanded(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = MellowSpacing.Sp5, vertical = MellowSpacing.Sp6),
+                    .windowInsetsPadding(WindowInsets.systemBars),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
                 ) {
                     IconButton(onClick = onBack) {
                         Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
@@ -265,61 +268,70 @@ private fun ArtistDetailExpanded(
                         Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
                     }
                 }
-                Spacer(Modifier.height(MellowSpacing.Sp6))
-                AsyncImage(
-                    model = artistImageUrl,
-                    contentDescription = "Artist image",
-                    contentScale = ContentScale.Crop,
-                    placeholder = ColorPainter(MellowTheme.colors.surface),
-                    error = ColorPainter(MellowTheme.colors.surface),
-                    modifier = Modifier
-                        .size(200.dp)
-                        .clip(CircleShape)
-                        .background(MellowTheme.colors.surface),
-                )
-                Spacer(Modifier.height(MellowSpacing.Sp5))
-                Text(
-                    artistName,
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MellowTheme.colors.foreground,
-                )
-                if (albumCount > 0 || totalTrackCount > 0) {
-                    val parts = mutableListOf<String>()
-                    if (albumCount > 0) parts.add("$albumCount albums")
-                    if (totalTrackCount > 0) parts.add("$totalTrackCount tracks")
-                    Text(
-                        parts.joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MellowTheme.colors.muted,
-                        modifier = Modifier.padding(top = MellowSpacing.Sp2),
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = MellowSpacing.Sp5),
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.weight(1f),
                 ) {
-                    IconButton(onClick = onShuffle) {
-                        Icon(PhosphorIcons.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
-                    }
-                    AnimatedPlayPauseButton(
-                        isPlaying = false,
-                        onToggle = onPlayAll,
-                        buttonSize = 52.dp,
+                    AsyncImage(
+                        model = artistImageUrl,
+                        contentDescription = "Artist image",
+                        contentScale = ContentScale.Crop,
+                        placeholder = ColorPainter(MellowTheme.colors.surface),
+                        error = ColorPainter(MellowTheme.colors.surface),
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .padding(horizontal = MellowSpacing.Sp12)
+                            .aspectRatio(1f)
+                            .clip(CircleShape)
+                            .background(MellowTheme.colors.surface),
                     )
-                    AnimatedHeartIcon(
-                        isFavorite = isFavorite,
-                        onToggle = onFavoriteClick,
-                        iconSize = 22.dp,
-                    )
-                }
-                if (!overview.isNullOrBlank()) {
+                    Spacer(Modifier.height(MellowSpacing.Sp5))
                     Text(
-                        overview,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MellowTheme.colors.muted,
-                        modifier = Modifier.padding(top = MellowSpacing.Sp4),
+                        artistName,
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MellowTheme.colors.foreground,
                     )
+                    if (albumCount > 0 || totalTrackCount > 0) {
+                        val parts = mutableListOf<String>()
+                        if (albumCount > 0) parts.add("$albumCount albums")
+                        if (totalTrackCount > 0) parts.add("$totalTrackCount tracks")
+                        Text(
+                            parts.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MellowTheme.colors.muted,
+                            modifier = Modifier.padding(top = MellowSpacing.Sp2),
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = MellowSpacing.Sp5),
+                    ) {
+                        IconButton(onClick = onShuffle) {
+                            Icon(PhosphorIcons.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+                        }
+                        AnimatedPlayPauseButton(
+                            isPlaying = false,
+                            onToggle = onPlayAll,
+                            buttonSize = 52.dp,
+                        )
+                        AnimatedHeartIcon(
+                            isFavorite = isFavorite,
+                            onToggle = onFavoriteClick,
+                            iconSize = 22.dp,
+                        )
+                    }
+                    if (!overview.isNullOrBlank()) {
+                        Text(
+                            overview,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MellowTheme.colors.muted,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = MellowSpacing.Sp4, start = MellowSpacing.Sp5, end = MellowSpacing.Sp5),
+                        )
+                    }
                 }
             }
         }
@@ -341,12 +353,11 @@ private fun ArtistDetailExpanded(
                 tabs = ARTIST_TABS,
                 selectedIndex = selectedTab,
                 onTabSelected = { selectedTab = it },
-                modifier = Modifier.padding(top = MellowSpacing.Sp3),
+                modifier = Modifier.padding(top = MellowSpacing.Sp3, bottom = MellowSpacing.Sp3),
             )
 
             when (selectedTab) {
                 0 -> {
-                    // Top Tracks
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
                         modifier = Modifier.fillMaxSize(),
@@ -372,7 +383,6 @@ private fun ArtistDetailExpanded(
                         contentPadding = PaddingValues(
                             start = MellowSpacing.Sp4,
                             end = MellowSpacing.Sp4,
-                            top = MellowSpacing.Sp4,
                             bottom = MellowSpacing.Sp16,
                         ),
                         horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),

@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -123,6 +126,10 @@ fun PlayerScreen(
             )
         }
 
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.systemBars),
+        ) {
         when (windowWidthClass) {
             WindowWidthClass.Expanded -> {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -181,8 +188,6 @@ fun PlayerScreen(
                             .padding(
                                 start = MellowSpacing.Sp8,
                                 end = MellowSpacing.Sp4,
-                                top = MellowSpacing.Sp6,
-                                bottom = MellowSpacing.Sp6,
                             ),
                     ) {
                         NowPlayingCollapseButton(onCollapse)
@@ -261,6 +266,7 @@ fun PlayerScreen(
                     BottomActions(codec = codec, onLyricsClick = onLyricsClick)
                 }
             }
+        }
         }
 
         if (error != null) {

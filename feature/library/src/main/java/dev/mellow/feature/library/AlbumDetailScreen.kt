@@ -155,12 +155,18 @@ fun AlbumDetailScreen(
                         .windowInsetsPadding(WindowInsets.statusBars),
                 ) {
                     AlbumDetailTopBar(onBack)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.weight(1f),
+                    ) {
                     val sharedTransitionScope = LocalSharedTransitionScope.current
                     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
                     val sharedElementKey = "album_art_${sharedElementSource}_$albumId"
                     Box(
                         modifier = Modifier
-                            .weight(3f, fill = false)
+                            .weight(1f, fill = false)
+                            .padding(horizontal = MellowSpacing.Sp12)
                             .aspectRatio(1f)
                             .then(
                                 if (sharedTransitionScope != null && animatedVisibilityScope != null) {
@@ -262,7 +268,7 @@ fun AlbumDetailScreen(
                             onRemoveDownloadsClick = onRemoveDownloadsClick,
                         )
                     }
-                    Spacer(Modifier.weight(1f))
+                    }
                 }
             }
             Box(
