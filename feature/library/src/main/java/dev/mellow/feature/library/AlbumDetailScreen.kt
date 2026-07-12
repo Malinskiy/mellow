@@ -10,15 +10,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,10 +61,12 @@ import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
 import dev.mellow.core.model.AlbumDownloadState
 
 enum class TrackDownloadIndicator {
@@ -114,46 +122,99 @@ fun AlbumDetailScreen(
     val tracksLoading = tracks.isEmpty() && (isSyncing || expectedTrackCount > 0)
     val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
     val showDownloadIndicators = downloadStatus != AlbumDownloadState.Status.NONE
+    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MellowTheme.colors.background),
-    ) {
-        LazyColumn(
-            contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
+    if (isExpanded) {
+        Row(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MellowTheme.colors.background),
         ) {
-            item { AlbumDetailTopBar(onBack) }
-            item {
-                AlbumHero(
-                    albumId = albumId,
-                    sharedElementSource = sharedElementSource,
-                    albumName = albumName,
-                    artistName = artistName,
-                    imageUrl = albumImageUrl,
-                    year = year,
-                    trackCount = displayTrackCount,
-                    totalDuration = formatTotalDuration(tracks),
-                    isFavorite = isFavorite,
-                    onPlayAll = onPlayAll,
-                    onShuffle = onShuffle,
-                    onFavoriteClick = onFavoriteClick,
-                    downloadStatus = downloadStatus,
-                    downloadProgress = downloadProgress,
-                    downloadedCount = downloadedCount,
-                    totalDownloadCount = totalDownloadCount,
-                    downloadInfoText = downloadInfoText,
-                    onDownloadClick = onDownloadClick,
-                    onRemoveDownloadsClick = onRemoveDownloadsClick,
-                )
+            Box(
+                modifier = Modifier
+                    .width(420.dp)
+                    .fillMaxHeight(),
+            ) {
+                if (albumImageUrl != null) {
+                    AsyncImage(
+                        model = albumImageUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        placeholder = ColorPainter(MellowTheme.colors.surface),
+                        error = ColorPainter(MellowTheme.colors.surface),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = 0.35f }
+                            .blur(60.dp),
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    AlbumDetailTopBar(onBack)
+                    AlbumHero(
+                        albumId = albumId,
+                        sharedElementSource = sharedElementSource,
+                        albumName = albumName,
+                        artistName = artistName,
+                        imageUrl = albumImageUrl,
+                        year = year,
+                        trackCount = displayTrackCount,
+                        totalDuration = formatTotalDuration(tracks),
+                        isFavorite = isFavorite,
+                        onPlayAll = onPlayAll,
+                        onShuffle = onShuffle,
+                        onFavoriteClick = onFavoriteClick,
+                        downloadStatus = downloadStatus,
+                        downloadProgress = downloadProgress,
+                        downloadedCount = downloadedCount,
+                        totalDownloadCount = totalDownloadCount,
+                        downloadInfoText = downloadInfoText,
+                        onDownloadClick = onDownloadClick,
+                        onRemoveDownloadsClick = onRemoveDownloadsClick,
+                        showBackground = false,
+                    )
+                }
             }
-            when {
-                isLoading -> {
-                    item {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .width(1.dp)
+                    .background(MellowTheme.colors.border)
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .windowInsetsPadding(WindowInsets.statusBars),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MellowSpacing.Sp5, vertical = MellowSpacing.Sp4),
+                ) {
+                    Text(
+                        "Tracklist",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MellowTheme.colors.foreground,
+                    )
+                    Spacer(Modifier.width(MellowSpacing.Sp3))
+                    Text(
+                        "$displayTrackCount tracks",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MellowTheme.colors.muted,
+                    )
+                }
+                when {
+                    isLoading -> {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = MellowSpacing.Sp8),
+                                .weight(1f),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -171,18 +232,14 @@ fun AlbumDetailScreen(
                             }
                         }
                     }
-                }
-                error != null -> {
-                    item {
+                    error != null -> {
                         ErrorContent(message = error, onRetry = onRetry)
                     }
-                }
-                tracksLoading -> {
-                    item {
+                    tracksLoading -> {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = MellowSpacing.Sp8),
+                                .weight(1f),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -200,43 +257,176 @@ fun AlbumDetailScreen(
                             }
                         }
                     }
-                }
-                else -> {
-                    itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
-                        val isNotDownloadedOffline = isOffline &&
-                            showDownloadIndicators &&
-                            track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED
-                        TrackRow(
-                            title = track.title,
-                            subtitle = "",
-                            duration = track.duration,
-                            trackNumber = if (track.isPlaying) null else "${track.trackNumber ?: (index + 1)}",
-                            isPlaying = track.isPlaying,
-                            isFavorite = track.isFavorite,
-                            onFavoriteClick = { onTrackFavoriteClick(track.id) },
-                            onMenuClick = { onTrackMenuClick(track.id) },
-                            onClick = {
-                                if (!isNotDownloadedOffline) onTrackClick(track.id)
-                            },
-                            showDivider = index < tracks.lastIndex,
-                            trailingContent = if (showDownloadIndicators) {
-                                {
-                                    AnimatedSongDownloadIcon(
-                                        state = when (track.downloadIndicator) {
-                                            TrackDownloadIndicator.DOWNLOADED -> DownloadIconState.Done
-                                            TrackDownloadIndicator.DOWNLOADING -> DownloadIconState.Downloading
-                                            else -> DownloadIconState.Idle
+                    else -> {
+                        LazyColumn(
+                            contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
+                                val isNotDownloadedOffline = isOffline &&
+                                    showDownloadIndicators &&
+                                    track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED
+                                TrackRow(
+                                    title = track.title,
+                                    subtitle = "",
+                                    duration = track.duration,
+                                    trackNumber = if (track.isPlaying) null else "${track.trackNumber ?: (index + 1)}",
+                                    isPlaying = track.isPlaying,
+                                    isFavorite = track.isFavorite,
+                                    onFavoriteClick = { onTrackFavoriteClick(track.id) },
+                                    onMenuClick = { onTrackMenuClick(track.id) },
+                                    onClick = {
+                                        if (!isNotDownloadedOffline) onTrackClick(track.id)
+                                    },
+                                    showDivider = index < tracks.lastIndex,
+                                    trailingContent = if (showDownloadIndicators) {
+                                        {
+                                            AnimatedSongDownloadIcon(
+                                                state = when (track.downloadIndicator) {
+                                                    TrackDownloadIndicator.DOWNLOADED -> DownloadIconState.Done
+                                                    TrackDownloadIndicator.DOWNLOADING -> DownloadIconState.Downloading
+                                                    else -> DownloadIconState.Idle
+                                                },
+                                                progress = if (track.downloadIndicator == TrackDownloadIndicator.DOWNLOADING) 0.5f else 0f,
+                                                size = 28.dp,
+                                            )
+                                        }
+                                    } else null,
+                                    modifier = Modifier
+                                        .graphicsLayer {
+                                            alpha = if (isNotDownloadedOffline) 0.5f else 1f
                                         },
-                                        progress = if (track.downloadIndicator == TrackDownloadIndicator.DOWNLOADING) 0.5f else 0f,
-                                        size = 28.dp,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MellowTheme.colors.background),
+        ) {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
+            ) {
+                item { AlbumDetailTopBar(onBack) }
+                item {
+                    AlbumHero(
+                        albumId = albumId,
+                        sharedElementSource = sharedElementSource,
+                        albumName = albumName,
+                        artistName = artistName,
+                        imageUrl = albumImageUrl,
+                        year = year,
+                        trackCount = displayTrackCount,
+                        totalDuration = formatTotalDuration(tracks),
+                        isFavorite = isFavorite,
+                        onPlayAll = onPlayAll,
+                        onShuffle = onShuffle,
+                        onFavoriteClick = onFavoriteClick,
+                        downloadStatus = downloadStatus,
+                        downloadProgress = downloadProgress,
+                        downloadedCount = downloadedCount,
+                        totalDownloadCount = totalDownloadCount,
+                        downloadInfoText = downloadInfoText,
+                        onDownloadClick = onDownloadClick,
+                        onRemoveDownloadsClick = onRemoveDownloadsClick,
+                    )
+                }
+                when {
+                    isLoading -> {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = MellowSpacing.Sp8),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(
+                                        color = MellowTheme.colors.foreground,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                    Spacer(Modifier.height(MellowSpacing.Sp3))
+                                    Text(
+                                        "Loading album…",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MellowTheme.colors.muted,
                                     )
                                 }
-                            } else null,
-                            modifier = Modifier
-                                .graphicsLayer {
-                                    alpha = if (isNotDownloadedOffline) 0.5f else 1f
+                            }
+                        }
+                    }
+                    error != null -> {
+                        item {
+                            ErrorContent(message = error, onRetry = onRetry)
+                        }
+                    }
+                    tracksLoading -> {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = MellowSpacing.Sp8),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(
+                                        color = MellowTheme.colors.foreground,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                    Spacer(Modifier.height(MellowSpacing.Sp3))
+                                    Text(
+                                        "Loading tracks…",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MellowTheme.colors.muted,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
+                            val isNotDownloadedOffline = isOffline &&
+                                showDownloadIndicators &&
+                                track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED
+                            TrackRow(
+                                title = track.title,
+                                subtitle = "",
+                                duration = track.duration,
+                                trackNumber = if (track.isPlaying) null else "${track.trackNumber ?: (index + 1)}",
+                                isPlaying = track.isPlaying,
+                                isFavorite = track.isFavorite,
+                                onFavoriteClick = { onTrackFavoriteClick(track.id) },
+                                onMenuClick = { onTrackMenuClick(track.id) },
+                                onClick = {
+                                    if (!isNotDownloadedOffline) onTrackClick(track.id)
                                 },
-                        )
+                                showDivider = index < tracks.lastIndex,
+                                trailingContent = if (showDownloadIndicators) {
+                                    {
+                                        AnimatedSongDownloadIcon(
+                                            state = when (track.downloadIndicator) {
+                                                TrackDownloadIndicator.DOWNLOADED -> DownloadIconState.Done
+                                                TrackDownloadIndicator.DOWNLOADING -> DownloadIconState.Downloading
+                                                else -> DownloadIconState.Idle
+                                            },
+                                            progress = if (track.downloadIndicator == TrackDownloadIndicator.DOWNLOADING) 0.5f else 0f,
+                                            size = 28.dp,
+                                        )
+                                    }
+                                } else null,
+                                modifier = Modifier
+                                    .graphicsLayer {
+                                        alpha = if (isNotDownloadedOffline) 0.5f else 1f
+                                    },
+                            )
+                        }
                     }
                 }
             }
@@ -291,27 +481,30 @@ private fun AlbumHero(
     downloadInfoText: String? = null,
     onDownloadClick: () -> Unit = {},
     onRemoveDownloadsClick: () -> Unit = {},
+    showBackground: Boolean = true,
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
-        if (imageUrl != null) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(MellowTheme.colors.surface),
-                error = ColorPainter(MellowTheme.colors.surface),
-                modifier = Modifier
-                    .matchParentSize()
-                    .graphicsLayer { alpha = 0.35f }
-                    .blur(60.dp),
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(MellowPalette.Stone800)
-                    .blur(60.dp),
-            )
+        if (showBackground) {
+            if (imageUrl != null) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    placeholder = ColorPainter(MellowTheme.colors.surface),
+                    error = ColorPainter(MellowTheme.colors.surface),
+                    modifier = Modifier
+                        .matchParentSize()
+                        .graphicsLayer { alpha = 0.35f }
+                        .blur(60.dp),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(MellowPalette.Stone800)
+                        .blur(60.dp),
+                )
+            }
         }
 
         val sharedTransitionScope = LocalSharedTransitionScope.current

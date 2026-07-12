@@ -11,14 +11,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -44,9 +48,12 @@ import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
+import kotlin.math.ceil
 
 
 data class HomeAlbumItem(
@@ -83,6 +90,7 @@ fun HomeScreen(
     onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
     val toolbarState = rememberCollapsibleToolbarState()
     CollapsibleToolbarLayout(
         state = toolbarState,
@@ -122,12 +130,44 @@ fun HomeScreen(
                     SectionHeader("Recently Played")
                 }
                 item {
-                    AlbumCarousel(
-                        albums = recentlyPlayed,
-                        serverUrl = serverUrl,
-                        onAlbumClick = { id -> onAlbumClick(id, "recent") },
-                        sharedKeyPrefix = "recent",
-                    )
+                    if (isExpanded) {
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = MellowSpacing.Sp4),
+                        ) {
+                            val minItemWidth = 130.dp
+                            val columns = (maxWidth / minItemWidth).toInt().coerceAtLeast(1)
+                            val rows = ceil(recentlyPlayed.size.toFloat() / columns).toInt()
+                            val gridHeight = (60.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
+                            LazyVerticalGrid(
+                                columns = GridCells.Adaptive(minSize = 130.dp),
+                                horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                                verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                                userScrollEnabled = false,
+                                modifier = Modifier.height(gridHeight),
+                            ) {
+                                items(recentlyPlayed, key = { it.id }) { album ->
+                                    CompactAlbumCard(
+                                        title = album.name,
+                                        artist = album.artist,
+                                        imageUrl = if (serverUrl != null && album.imageId != null) {
+                                            jellyfinImageUrl(serverUrl, album.imageId)
+                                        } else null,
+                                        onClick = { onAlbumClick(album.id, "recent") },
+                                        sharedElementKey = "album_art_recent_${album.id}",
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        AlbumCarousel(
+                            albums = recentlyPlayed,
+                            serverUrl = serverUrl,
+                            onAlbumClick = { id -> onAlbumClick(id, "recent") },
+                            sharedKeyPrefix = "recent",
+                        )
+                    }
                 }
             }
 
@@ -136,12 +176,44 @@ fun HomeScreen(
                     SectionHeader("Recently Added")
                 }
                 item {
-                    AlbumCarousel(
-                        albums = recentlyAdded,
-                        serverUrl = serverUrl,
-                        onAlbumClick = { id -> onAlbumClick(id, "added") },
-                        sharedKeyPrefix = "added",
-                    )
+                    if (isExpanded) {
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = MellowSpacing.Sp4),
+                        ) {
+                            val minItemWidth = 130.dp
+                            val columns = (maxWidth / minItemWidth).toInt().coerceAtLeast(1)
+                            val rows = ceil(recentlyAdded.size.toFloat() / columns).toInt()
+                            val gridHeight = (170.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
+                            LazyVerticalGrid(
+                                columns = GridCells.Adaptive(minSize = 130.dp),
+                                horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                                verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                                userScrollEnabled = false,
+                                modifier = Modifier.height(gridHeight),
+                            ) {
+                                items(recentlyAdded, key = { it.id }) { album ->
+                                    AlbumCard(
+                                        title = album.name,
+                                        artist = album.artist,
+                                        imageUrl = if (serverUrl != null && album.imageId != null) {
+                                            jellyfinImageUrl(serverUrl, album.imageId)
+                                        } else null,
+                                        onClick = { onAlbumClick(album.id, "added") },
+                                        sharedElementKey = "album_art_added_${album.id}",
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        AlbumCarousel(
+                            albums = recentlyAdded,
+                            serverUrl = serverUrl,
+                            onAlbumClick = { id -> onAlbumClick(id, "added") },
+                            sharedKeyPrefix = "added",
+                        )
+                    }
                 }
             }
 
@@ -194,6 +266,7 @@ private fun HomeTopBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(MellowTheme.colors.background)
+            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
         Text(
@@ -239,24 +312,33 @@ private fun QuickPicksGrid(
     serverUrl: String?,
     onAlbumClick: (String) -> Unit,
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
-        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-        verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-        userScrollEnabled = false,
-        modifier = Modifier.height((68.dp * 3) + (MellowSpacing.Sp3 * 2)),
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MellowSpacing.Sp4),
     ) {
-        items(albums, key = { it.id }) { album ->
-            CompactAlbumCard(
-                title = album.name,
-                artist = album.artist,
-                imageUrl = if (serverUrl != null && album.imageId != null) {
-                    jellyfinImageUrl(serverUrl, album.imageId)
-                } else null,
-                onClick = { onAlbumClick(album.id) },
-                sharedElementKey = "album_art_quick_${album.id}",
-            )
+        val minItemWidth = 130.dp
+        val columns = (maxWidth / minItemWidth).toInt().coerceAtLeast(1)
+        val rows = ceil(albums.size.toFloat() / columns).toInt()
+        val gridHeight = (60.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 130.dp),
+            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+            verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+            userScrollEnabled = false,
+            modifier = Modifier.height(gridHeight),
+        ) {
+            items(albums, key = { it.id }) { album ->
+                CompactAlbumCard(
+                    title = album.name,
+                    artist = album.artist,
+                    imageUrl = if (serverUrl != null && album.imageId != null) {
+                        jellyfinImageUrl(serverUrl, album.imageId)
+                    } else null,
+                    onClick = { onAlbumClick(album.id) },
+                    sharedElementKey = "album_art_quick_${album.id}",
+                )
+            }
         }
     }
 }

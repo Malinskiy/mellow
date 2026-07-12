@@ -3,17 +3,24 @@ package dev.mellow.feature.search
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -49,10 +56,12 @@ import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.model.Track
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
 
 @Composable
 fun SearchScreen(
@@ -66,9 +75,12 @@ fun SearchScreen(
     onArtistClick: (String) -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    genres: List<String> = emptyList(),
+    onGenreClick: (String) -> Unit = {},
 ) {
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
+    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
     Column(
         modifier = modifier
@@ -79,6 +91,7 @@ fun SearchScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
         ) {
             Text(
@@ -220,7 +233,41 @@ fun SearchScreen(
                 EmptyContent("No results found")
             }
             else -> {
-                EmptyContent("Search your music library")
+                if (isExpanded) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Column(modifier = Modifier.weight(1f).padding(MellowSpacing.Sp4)) {
+                            SectionHeader("Recent Searches")
+                            EmptyContent("Search your music library")
+                        }
+                        Column(modifier = Modifier.weight(1f).padding(MellowSpacing.Sp4)) {
+                            SectionHeader("Browse Genres")
+                            if (genres.isNotEmpty()) {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Adaptive(minSize = 100.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp2),
+                                    verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp2),
+                                ) {
+                                    items(genres, key = { it }) { genre ->
+                                        Text(
+                                            text = genre,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MellowTheme.colors.foreground,
+                                            modifier = Modifier
+                                                .clip(MellowShapes.Full)
+                                                .border(1.dp, MellowTheme.colors.border, MellowShapes.Full)
+                                                .clickable { onGenreClick(genre) }
+                                                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+                                        )
+                                    }
+                                }
+                            } else {
+                                EmptyContent("No genres available")
+                            }
+                        }
+                    }
+                } else {
+                    EmptyContent("Search your music library")
+                }
             }
         }
     }

@@ -43,16 +43,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.QualityBadge
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
 
 @Composable
 fun PlayerScreen(
@@ -84,6 +90,8 @@ fun PlayerScreen(
     onPlayDownloadedClick: () -> Unit = {},
     codec: String? = null,
 ) {
+    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -115,24 +123,51 @@ fun PlayerScreen(
             )
         }
 
-        Column(
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            NowPlayingTopBar(albumName, onCollapse, onQueueClick)
-            AlbumArt(albumImageUrl, modifier = Modifier.weight(1f))
-            TrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
-            ProgressBar(progress, positionMs, durationMs, onSeekTo)
-            PlaybackControls(
-                isPlaying = isPlaying,
-                onPlayPauseClick = onPlayPauseClick,
-                onSkipPreviousClick = onSkipPreviousClick,
-                onSkipNextClick = onSkipNextClick,
-                shuffleEnabled = shuffleEnabled,
-                repeatMode = repeatMode,
-                onShuffleClick = onShuffleClick,
-                onRepeatClick = onRepeatClick,
-            )
-            BottomActions(codec = codec, onLyricsClick = onLyricsClick)
+        if (isExpanded) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                ) {
+                    NowPlayingTopBar(albumName, onCollapse, onQueueClick)
+                    AlbumArt(albumImageUrl, artSize = 380.dp, modifier = Modifier.weight(1f))
+                    TrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                    ProgressBar(progress, positionMs, durationMs, onSeekTo)
+                    PlaybackControls(
+                        isPlaying = isPlaying,
+                        onPlayPauseClick = onPlayPauseClick,
+                        onSkipPreviousClick = onSkipPreviousClick,
+                        onSkipNextClick = onSkipNextClick,
+                        shuffleEnabled = shuffleEnabled,
+                        repeatMode = repeatMode,
+                        onShuffleClick = onShuffleClick,
+                        onRepeatClick = onRepeatClick,
+                    )
+                    BottomActions(codec = codec, onLyricsClick = onLyricsClick, reducedBottomPadding = true)
+                }
+                QueuePanel()
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                NowPlayingTopBar(albumName, onCollapse, onQueueClick)
+                AlbumArt(albumImageUrl, modifier = Modifier.weight(1f))
+                TrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                ProgressBar(progress, positionMs, durationMs, onSeekTo)
+                PlaybackControls(
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onSkipPreviousClick = onSkipPreviousClick,
+                    onSkipNextClick = onSkipNextClick,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    onShuffleClick = onShuffleClick,
+                    onRepeatClick = onRepeatClick,
+                )
+                BottomActions(codec = codec, onLyricsClick = onLyricsClick)
+            }
         }
 
         if (error != null) {
@@ -236,7 +271,7 @@ private fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueC
 }
 
 @Composable
-private fun AlbumArt(albumImageUrl: String?, modifier: Modifier = Modifier) {
+private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, modifier: Modifier = Modifier) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -250,7 +285,7 @@ private fun AlbumArt(albumImageUrl: String?, modifier: Modifier = Modifier) {
             placeholder = ColorPainter(MellowTheme.colors.surface),
             error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
-                .width(320.dp)
+                .width(artSize)
                 .aspectRatio(1f)
                 .clip(MellowShapes.Large)
                 .background(MellowTheme.colors.surface),
@@ -424,7 +459,7 @@ private fun PlaybackControls(
 }
 
 @Composable
-private fun BottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}) {
+private fun BottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}, reducedBottomPadding: Boolean = false) {
     val qualityLabel = when (codec?.lowercase()) {
         "flac", "alac", "wav", "pcm" -> "Lossless"
         "aac", "mp3", "opus", "vorbis", "ogg" -> "Lossy"
@@ -436,7 +471,7 @@ private fun BottomActions(codec: String? = null, onLyricsClick: () -> Unit = {})
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp2)
-            .padding(bottom = MellowSpacing.Sp8),
+            .padding(bottom = if (reducedBottomPadding) MellowSpacing.Sp4 else MellowSpacing.Sp8),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(PhosphorIcons.DeviceMobile, "Device", tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
@@ -455,6 +490,74 @@ private fun BottomActions(codec: String? = null, onLyricsClick: () -> Unit = {})
             QualityBadge(codec = codec?.uppercase() ?: "\u2014")
             Spacer(Modifier.height(4.dp))
             Text(qualityLabel, style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
+        }
+    }
+}
+
+@Composable
+private fun QueuePanel() {
+    val borderColor = MellowTheme.colors.border
+    Column(
+        modifier = Modifier
+            .width(400.dp)
+            .fillMaxHeight()
+            .drawBehind {
+                drawLine(
+                    color = borderColor,
+                    start = Offset(0f, 0f),
+                    end = Offset(0f, size.height),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            }
+            .background(MellowTheme.colors.background.copy(alpha = 0.3f)),
+    ) {
+        Text(
+            "Up Next",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MellowTheme.colors.foreground,
+            modifier = Modifier.padding(top = 20.dp, start = 24.dp, end = 24.dp, bottom = 12.dp),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+        ) {
+            Text(
+                "Queue",
+                fontSize = 13.sp,
+                color = MellowTheme.colors.foreground,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .drawBehind {
+                        drawLine(
+                            color = borderColor,
+                            start = Offset(0f, size.height),
+                            end = Offset(size.width, size.height),
+                            strokeWidth = 2.dp.toPx(),
+                        )
+                    },
+            )
+            Spacer(Modifier.width(MellowSpacing.Sp4))
+            Text(
+                "Lyrics",
+                fontSize = 13.sp,
+                color = MellowTheme.colors.muted,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(MellowSpacing.Sp4),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "Queue available from queue screen",
+                style = MaterialTheme.typography.bodySmall,
+                color = MellowTheme.colors.muted,
+            )
         }
     }
 }

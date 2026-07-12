@@ -10,6 +10,7 @@ import androidx.compose.animation.SharedTransitionLayout
 import dev.mellow.app.dev.DevIconComparisonScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -19,8 +20,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,13 +57,16 @@ import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.MellowBottomNavBar
+import dev.mellow.core.designsystem.component.MellowNavigationRail
 import dev.mellow.core.player.PositionState
 import dev.mellow.core.designsystem.component.MellowNavDestination
 import dev.mellow.core.designsystem.component.MiniPlayer
 import dev.mellow.core.designsystem.component.TrackContextMenu
 import dev.mellow.core.designsystem.component.TrackMenuData
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
 import dev.mellow.core.network.ConnectionState
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.common.jellyfinImageUrl
@@ -197,49 +204,80 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         )
     }
 
+    val navigateToTab: (String) -> Unit = { route ->
+        if (baseRoute !in tabRoutes) {
+            navController.popBackStack(route, inclusive = false)
+        }
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    val selectedTabRoute = if (baseRoute in tabRoutes) baseRoute else ""
+
+    @Composable
+    fun MiniPlayerBar(modifier: Modifier = Modifier) {
+        if (playbackState.currentTrack != null) {
+            val track = playbackState.currentTrack!!
+            MiniPlayer(
+                title = track.name,
+                artist = track.artistName ?: "",
+                imageUrl = if (serverUrl != null) {
+                    val imgId = track.imageId ?: track.albumId
+                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                } else null,
+                isPlaying = playbackState.isPlaying,
+                progress = if (positionState.durationMs > 0) {
+                    positionState.positionMs.toFloat() / positionState.durationMs
+                } else 0f,
+                onPlayPauseClick = { mainViewModel.player.playPause() },
+                onNextClick = { mainViewModel.player.skipNext() },
+                onClick = { navController.navigate("now_playing") },
+                modifier = modifier.padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp1),
+            )
+        }
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val windowWidthClass = when {
+            maxWidth >= 840.dp -> WindowWidthClass.Expanded
+            maxWidth >= 600.dp -> WindowWidthClass.Medium
+            else -> WindowWidthClass.Compact
+        }
+        val isExpanded = windowWidthClass != WindowWidthClass.Compact
+
+    CompositionLocalProvider(LocalWindowWidthClass provides windowWidthClass) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (isExpanded && !isFullScreen) {
+            MellowNavigationRail(
+                selectedRoute = selectedTabRoute,
+                onNavigate = navigateToTab,
+            )
+        }
+
     Scaffold(
-        contentWindowInsets = WindowInsets.systemBars,
+        contentWindowInsets = if (isExpanded && !isFullScreen) {
+            WindowInsets(0)
+        } else {
+            WindowInsets.systemBars
+        },
+        containerColor = MellowTheme.colors.background,
         bottomBar = {
-            if (!isFullScreen) {
+            if (!isFullScreen && !isExpanded) {
                 Column {
-                    if (playbackState.currentTrack != null) {
-                        val track = playbackState.currentTrack!!
-                        MiniPlayer(
-                            title = track.name,
-                            artist = track.artistName ?: "",
-                            imageUrl = if (serverUrl != null) {
-                                val imgId = track.imageId ?: track.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
-                            } else null,
-                            isPlaying = playbackState.isPlaying,
-                            progress = if (positionState.durationMs > 0) {
-                                positionState.positionMs.toFloat() / positionState.durationMs
-                            } else 0f,
-                            onPlayPauseClick = { mainViewModel.player.playPause() },
-                            onNextClick = { mainViewModel.player.skipNext() },
-                            onClick = { navController.navigate("now_playing") },
-                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp1),
-                        )
-                    }
+                    MiniPlayerBar()
                     MellowBottomNavBar(
-                        selectedRoute = if (baseRoute in tabRoutes) baseRoute else "",
-                        onNavigate = { route ->
-                            if (baseRoute !in tabRoutes) {
-                                navController.popBackStack(route, inclusive = false)
-                            }
-                            navController.navigate(route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
+                        selectedRoute = selectedTabRoute,
+                        onNavigate = navigateToTab,
                     )
                 }
             }
         },
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.weight(1f),
     ) { innerPadding ->
         @OptIn(ExperimentalSharedTransitionApi::class)
         Box(
@@ -413,6 +451,16 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable(MellowNavDestination.Search.route) {
                     val searchVm: SearchViewModel = hiltViewModel()
                     val searchState by searchVm.uiState.collectAsState()
+                    val searchLibraryVm: LibraryViewModel = hiltViewModel()
+                    val searchLibraryState by searchLibraryVm.uiState.collectAsState()
+
+                    LaunchedEffect(serverId) {
+                        if (serverId.isNotEmpty()) searchLibraryVm.loadLibrary(serverId)
+                    }
+
+                    val searchGenres = remember(searchLibraryState.albums) {
+                        searchLibraryState.albums.flatMap { it.genres }.distinct().sorted()
+                    }
 
                     SearchScreen(
                         serverId = serverId,
@@ -431,6 +479,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             }
                         },
                         onSettingsClick = { navController.navigate("settings") },
+                        genres = searchGenres,
+                        onGenreClick = { genre ->
+                            navController.navigate("library?genre=${android.net.Uri.encode(genre)}")
+                        },
                     )
                 }
                 composable(MellowNavDestination.Favorites.route) {
@@ -935,7 +987,19 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             }
                 }
             }
+            if (isExpanded && !isFullScreen) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom)),
+                ) {
+                    MiniPlayerBar()
+                }
+            }
         }
+    }
+    }
+    }
     }
 
     if (contextMenuState != null) {
