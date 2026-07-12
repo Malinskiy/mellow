@@ -38,6 +38,18 @@ class LibraryRepositoryImpl @Inject constructor(
     companion object {
         private const val TAG = "LibraryRepository"
         private const val ROOM_BIND_LIMIT = 900
+
+        /**
+         * Jellyfin replaces `/` with `+` in MusicArtist display names (e.g. "AC/DC" → "AC+DC").
+         * Albums and tracks keep the original name from metadata ("AC/DC"), so exact matching
+         * on artist.name fails. This helper produces the alternate form so DAO queries can
+         * match either variant.
+         */
+        fun artistNameVariant(name: String): String {
+            val slashToPlus = name.replace("/", "+")
+            if (slashToPlus != name) return slashToPlus
+            return name.replace("+", "/")
+        }
     }
 
     override fun getAlbums(serverId: String): Flow<List<Album>> =
@@ -50,7 +62,7 @@ class LibraryRepositoryImpl @Inject constructor(
         trackDao.getTracksByAlbum(albumId).map { entities -> entities.map { it.toModel() } }
 
     override fun getArtistAlbums(artistName: String): Flow<List<Album>> =
-        albumDao.getAlbumsByArtistName(artistName).map { entities -> entities.map { it.toModel() } }
+        albumDao.getAlbumsByArtistName(artistName, artistNameVariant(artistName)).map { entities -> entities.map { it.toModel() } }
 
     override suspend fun getAlbum(albumId: String): Album? =
         albumDao.getAlbumById(albumId)?.toModel()
@@ -65,13 +77,13 @@ class LibraryRepositoryImpl @Inject constructor(
         artistDao.observeArtistById(artistId).map { it?.toModel() }
 
     override fun getArtistTracks(artistName: String): Flow<List<Track>> =
-        trackDao.getTracksByArtistName(artistName).map { entities -> entities.map { it.toModel() } }
+        trackDao.getTracksByArtistName(artistName, artistNameVariant(artistName)).map { entities -> entities.map { it.toModel() } }
 
     override suspend fun countArtistAlbums(artistName: String): Int =
-        albumDao.countAlbumsByArtistName(artistName)
+        albumDao.countAlbumsByArtistName(artistName, artistNameVariant(artistName))
 
     override suspend fun countArtistTracks(artistName: String): Int =
-        trackDao.countTracksByArtistName(artistName)
+        trackDao.countTracksByArtistName(artistName, artistNameVariant(artistName))
 
     override fun getRecentTracks(serverId: String): Flow<List<Track>> =
         trackDao.observeRecentTracks(serverId).map { entities -> entities.map { it.toModel() } }
