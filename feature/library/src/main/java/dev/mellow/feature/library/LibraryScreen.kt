@@ -56,9 +56,11 @@ import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
 import dev.mellow.core.common.jellyfinImageUrl
 
 data class LibraryPlaylistItem(val id: String, val name: String, val trackCount: Int, val imageId: String?)
@@ -303,8 +305,9 @@ private fun SortRow(
 
 @Composable
 private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+    val gridMinSize = if (LocalWindowWidthClass.current != WindowWidthClass.Compact) 220.dp else 160.dp
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 200.dp),
+        columns = GridCells.Adaptive(minSize = gridMinSize),
         contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp3, bottom = MellowSpacing.Sp3, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
         horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
         verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),

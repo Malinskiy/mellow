@@ -7,26 +7,43 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
@@ -36,9 +53,12 @@ import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
+import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
 
 data class ArtistTrack(val id: String, val title: String, val duration: String, val albumName: String, val imageUrl: String? = null)
 
@@ -68,6 +88,8 @@ fun ArtistDetailScreen(
     onShuffle: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
 ) {
+    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -77,45 +99,258 @@ fun ArtistDetailScreen(
             isLoading -> LoadingContent(message = "Loading artist…")
             error != null -> ErrorContent(message = error, onRetry = onRetry)
             else -> {
-                LazyColumn(
-                    contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    item {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
-                        ) {
-                            IconButton(onClick = onBack) {
-                                Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
-                            }
-                            IconButton(onClick = {}) {
-                                Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
-                            }
-                        }
-                    }
-
-                    item {
-                        ArtistHero(
-                            artistName = artistName,
-                            artistImageUrl = artistImageUrl,
-                            albumCount = albumCount,
-                            trackCount = totalTrackCount,
-                            isFavorite = isFavorite,
-                            onPlayAll = onPlayAll,
-                            onShuffle = onShuffle,
-                            onFavoriteClick = onFavoriteClick,
-                        )
-                    }
-
-                    if (topTracks.isNotEmpty()) {
+                if (isExpanded) {
+                    ArtistDetailExpanded(
+                        onBack = onBack,
+                        artistName = artistName,
+                        artistImageUrl = artistImageUrl,
+                        albumCount = albumCount,
+                        totalTrackCount = totalTrackCount,
+                        overview = overview,
+                        topTracks = topTracks,
+                        albums = albums,
+                        onAlbumClick = onAlbumClick,
+                        onTrackClick = onTrackClick,
+                        onTrackMenuClick = onTrackMenuClick,
+                        serverUrl = serverUrl,
+                        isFavorite = isFavorite,
+                        onPlayAll = onPlayAll,
+                        onShuffle = onShuffle,
+                        onFavoriteClick = onFavoriteClick,
+                    )
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
                         item {
-                            SectionHeader("Top Tracks", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
+                            ) {
+                                IconButton(onClick = onBack) {
+                                    Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
+                                }
+                                IconButton(onClick = {}) {
+                                    Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                                }
+                            }
                         }
 
+                        item {
+                            ArtistHero(
+                                artistName = artistName,
+                                artistImageUrl = artistImageUrl,
+                                albumCount = albumCount,
+                                trackCount = totalTrackCount,
+                                isFavorite = isFavorite,
+                                onPlayAll = onPlayAll,
+                                onShuffle = onShuffle,
+                                onFavoriteClick = onFavoriteClick,
+                            )
+                        }
+
+                        if (topTracks.isNotEmpty()) {
+                            item {
+                                SectionHeader("Top Tracks", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
+                            }
+
+                            itemsIndexed(topTracks, key = { _, t -> t.id }) { index, track ->
+                                TrackRow(
+                                    title = track.title,
+                                    subtitle = track.albumName,
+                                    duration = track.duration,
+                                    trackNumber = "${index + 1}",
+                                    imageUrl = track.imageUrl,
+                                    onClick = { onTrackClick(track.id) },
+                                    onMenuClick = { onTrackMenuClick(track.id) },
+                                    showDivider = index < topTracks.lastIndex,
+                                )
+                            }
+                        }
+
+                        if (albums.isNotEmpty()) {
+                            item {
+                                SectionHeader("Discography", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
+                            }
+
+                            item {
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+                                    horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                                ) {
+                                    items(albums, key = { it.id }) { album ->
+                                        AlbumCard(
+                                            title = album.name,
+                                            artist = album.year?.toString() ?: "",
+                                            imageUrl = if (serverUrl != null && album.imageId != null) {
+                                                jellyfinImageUrl(serverUrl, album.imageId)
+                                            } else null,
+                                            onClick = { onAlbumClick(album.id) },
+                                            modifier = Modifier.size(width = 150.dp, height = 200.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val ARTIST_TABS = listOf("Top Tracks", "Discography")
+
+@Composable
+private fun ArtistDetailExpanded(
+    onBack: () -> Unit,
+    artistName: String,
+    artistImageUrl: String?,
+    albumCount: Int,
+    totalTrackCount: Int,
+    overview: String?,
+    topTracks: List<ArtistTrack>,
+    albums: List<ArtistAlbum>,
+    onAlbumClick: (String) -> Unit,
+    onTrackClick: (String) -> Unit,
+    onTrackMenuClick: (String) -> Unit,
+    serverUrl: String?,
+    isFavorite: Boolean,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onFavoriteClick: () -> Unit,
+) {
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .width(380.dp)
+                .fillMaxHeight(),
+        ) {
+            if (artistImageUrl != null) {
+                AsyncImage(
+                    model = artistImageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    placeholder = ColorPainter(MellowTheme.colors.surface),
+                    error = ColorPainter(MellowTheme.colors.surface),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = 0.25f }
+                        .blur(70.dp),
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = MellowSpacing.Sp5, vertical = MellowSpacing.Sp6),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
+                    }
+                    IconButton(onClick = {}) {
+                        Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                    }
+                }
+                Spacer(Modifier.height(MellowSpacing.Sp6))
+                AsyncImage(
+                    model = artistImageUrl,
+                    contentDescription = "Artist image",
+                    contentScale = ContentScale.Crop,
+                    placeholder = ColorPainter(MellowTheme.colors.surface),
+                    error = ColorPainter(MellowTheme.colors.surface),
+                    modifier = Modifier
+                        .size(200.dp)
+                        .clip(CircleShape)
+                        .background(MellowTheme.colors.surface),
+                )
+                Spacer(Modifier.height(MellowSpacing.Sp5))
+                Text(
+                    artistName,
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MellowTheme.colors.foreground,
+                )
+                if (albumCount > 0 || totalTrackCount > 0) {
+                    val parts = mutableListOf<String>()
+                    if (albumCount > 0) parts.add("$albumCount albums")
+                    if (totalTrackCount > 0) parts.add("$totalTrackCount tracks")
+                    Text(
+                        parts.joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MellowTheme.colors.muted,
+                        modifier = Modifier.padding(top = MellowSpacing.Sp2),
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = MellowSpacing.Sp5),
+                ) {
+                    IconButton(onClick = onShuffle) {
+                        Icon(PhosphorIcons.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+                    }
+                    AnimatedPlayPauseButton(
+                        isPlaying = false,
+                        onToggle = onPlayAll,
+                        buttonSize = 52.dp,
+                    )
+                    AnimatedHeartIcon(
+                        isFavorite = isFavorite,
+                        onToggle = onFavoriteClick,
+                        iconSize = 22.dp,
+                    )
+                }
+                if (!overview.isNullOrBlank()) {
+                    Text(
+                        overview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MellowTheme.colors.muted,
+                        modifier = Modifier.padding(top = MellowSpacing.Sp4),
+                    )
+                }
+            }
+        }
+
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .width(1.dp)
+                .background(MellowTheme.colors.border)
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .windowInsetsPadding(WindowInsets.statusBars),
+        ) {
+            MellowTabBar(
+                tabs = ARTIST_TABS,
+                selectedIndex = selectedTab,
+                onTabSelected = { selectedTab = it },
+                modifier = Modifier.padding(top = MellowSpacing.Sp3),
+            )
+
+            when (selectedTab) {
+                0 -> {
+                    // Top Tracks
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
                         itemsIndexed(topTracks, key = { _, t -> t.id }) { index, track ->
                             TrackRow(
                                 title = track.title,
@@ -129,29 +364,30 @@ fun ArtistDetailScreen(
                             )
                         }
                     }
-
-                    if (albums.isNotEmpty()) {
-                        item {
-                            SectionHeader("Discography", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
-                        }
-
-                        item {
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
-                                horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-                            ) {
-                                items(albums, key = { it.id }) { album ->
-                                    AlbumCard(
-                                        title = album.name,
-                                        artist = album.year?.toString() ?: "",
-                                        imageUrl = if (serverUrl != null && album.imageId != null) {
-                                            jellyfinImageUrl(serverUrl, album.imageId)
-                                        } else null,
-                                        onClick = { onAlbumClick(album.id) },
-                                        modifier = Modifier.size(width = 150.dp, height = 200.dp),
-                                    )
-                                }
-                            }
+                }
+                1 -> {
+                    // Discography grid
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        contentPadding = PaddingValues(
+                            start = MellowSpacing.Sp4,
+                            end = MellowSpacing.Sp4,
+                            top = MellowSpacing.Sp4,
+                            bottom = MellowSpacing.Sp16,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                        verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        gridItems(albums, key = { it.id }) { album ->
+                            AlbumCard(
+                                title = album.name,
+                                artist = album.year?.toString() ?: "",
+                                imageUrl = if (serverUrl != null && album.imageId != null) {
+                                    jellyfinImageUrl(serverUrl, album.imageId)
+                                } else null,
+                                onClick = { onAlbumClick(album.id) },
+                            )
                         }
                     }
                 }

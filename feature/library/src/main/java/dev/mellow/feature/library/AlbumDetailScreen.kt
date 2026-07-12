@@ -149,34 +149,120 @@ fun AlbumDetailScreen(
                     )
                 }
                 Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxSize()
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .verticalScroll(rememberScrollState()),
+                        .windowInsetsPadding(WindowInsets.statusBars),
                 ) {
                     AlbumDetailTopBar(onBack)
-                    AlbumHero(
-                        albumId = albumId,
-                        sharedElementSource = sharedElementSource,
-                        albumName = albumName,
-                        artistName = artistName,
-                        imageUrl = albumImageUrl,
-                        year = year,
-                        trackCount = displayTrackCount,
-                        totalDuration = formatTotalDuration(tracks),
-                        isFavorite = isFavorite,
-                        onPlayAll = onPlayAll,
-                        onShuffle = onShuffle,
-                        onFavoriteClick = onFavoriteClick,
-                        downloadStatus = downloadStatus,
-                        downloadProgress = downloadProgress,
-                        downloadedCount = downloadedCount,
-                        totalDownloadCount = totalDownloadCount,
-                        downloadInfoText = downloadInfoText,
-                        onDownloadClick = onDownloadClick,
-                        onRemoveDownloadsClick = onRemoveDownloadsClick,
-                        showBackground = false,
+                    val sharedTransitionScope = LocalSharedTransitionScope.current
+                    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+                    val sharedElementKey = "album_art_${sharedElementSource}_$albumId"
+                    Box(
+                        modifier = Modifier
+                            .weight(3f, fill = false)
+                            .aspectRatio(1f)
+                            .then(
+                                if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                    with(sharedTransitionScope) {
+                                        Modifier.sharedElement(
+                                            rememberSharedContentState(key = sharedElementKey),
+                                            animatedVisibilityScope = animatedVisibilityScope,
+                                            clipInOverlayDuringTransition = OverlayClip(MellowShapes.AlbumArt),
+                                        )
+                                    }
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .clip(MellowShapes.AlbumArt)
+                            .background(MellowTheme.colors.surfaceElevated),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (albumImageUrl != null) {
+                            AsyncImage(
+                                model = albumImageUrl,
+                                contentDescription = "Album art",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Icon(
+                                PhosphorIcons.MusicNote,
+                                contentDescription = null,
+                                tint = MellowTheme.colors.muted,
+                                modifier = Modifier.size(48.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(MellowSpacing.Sp4))
+                    Text(
+                        albumName,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = (-0.02).em,
+                        ),
+                        color = MellowTheme.colors.foreground,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = MellowSpacing.Sp6),
                     )
+                    Text(
+                        artistName,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MellowTheme.colors.accentStrong,
+                        modifier = Modifier.padding(top = MellowSpacing.Sp1),
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                        modifier = Modifier.padding(top = MellowSpacing.Sp2),
+                    ) {
+                        if (year != null) {
+                            Text("$year", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                            Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                        }
+                        Text("$displayTrackCount tracks", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                        val totalDur = formatTotalDuration(tracks)
+                        if (totalDur.isNotEmpty()) {
+                            Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                            Text(totalDur, style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                        }
+                    }
+                    if (downloadInfoText != null) {
+                        Text(
+                            downloadInfoText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MellowTheme.colors.muted,
+                            modifier = Modifier.padding(top = MellowSpacing.Sp1),
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = MellowSpacing.Sp3),
+                    ) {
+                        IconButton(onClick = onShuffle) {
+                            Icon(PhosphorIcons.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
+                        }
+                        AnimatedPlayPauseButton(
+                            isPlaying = false,
+                            onToggle = onPlayAll,
+                            buttonSize = 52.dp,
+                        )
+                        AnimatedHeartIcon(
+                            isFavorite = isFavorite,
+                            onToggle = onFavoriteClick,
+                            iconSize = 22.dp,
+                        )
+                        AlbumDownloadButton(
+                            status = downloadStatus,
+                            downloadProgress = downloadProgress,
+                            downloadedCount = downloadedCount,
+                            totalDownloadCount = totalDownloadCount,
+                            onDownloadClick = onDownloadClick,
+                            onRemoveDownloadsClick = onRemoveDownloadsClick,
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
                 }
             }
             Box(

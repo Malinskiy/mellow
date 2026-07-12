@@ -244,7 +244,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val windowWidthClass = when {
-            maxWidth >= 840.dp -> WindowWidthClass.Expanded
+            maxWidth >= 840.dp && maxHeight >= 600.dp -> WindowWidthClass.Expanded
             maxWidth >= 600.dp -> WindowWidthClass.Medium
             else -> WindowWidthClass.Compact
         }
@@ -260,7 +260,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         }
 
     Scaffold(
-        contentWindowInsets = if (isExpanded && !isFullScreen) {
+        contentWindowInsets = if (isFullScreen || isExpanded) {
             WindowInsets(0)
         } else {
             WindowInsets.systemBars

@@ -49,10 +49,12 @@ import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
 import java.time.Duration
 
 private val TABS = listOf("Tracks", "Albums", "Artists")
@@ -74,6 +76,7 @@ fun FavoritesScreen(
     val viewModel: FavoritesViewModel = hiltViewModel()
     val state by viewModel.uiState.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
     LaunchedEffect(serverId) {
         viewModel.loadFavorites(serverId)
@@ -132,6 +135,29 @@ fun FavoritesScreen(
                 0 -> {
                     if (state.tracks.isEmpty()) {
                         EmptyContent("No favorite tracks yet")
+                    } else if (isExpanded) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
+                            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            items(state.tracks, key = { it.id }) { track ->
+                                TrackRow(
+                                    title = track.name,
+                                    subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
+                                    duration = formatFavDuration(track.duration),
+                                    imageUrl = if (serverUrl != null) {
+                                        val imgId = track.imageId ?: track.albumId
+                                        if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
+                                    } else null,
+                                    isFavorite = true,
+                                    onClick = { onTrackClick(track.id) },
+                                    onMenuClick = { onTrackMenuClick(track.id) },
+                                    showDivider = false,
+                                )
+                            }
+                        }
                     } else {
                         LazyColumn(
                             contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
@@ -159,8 +185,9 @@ fun FavoritesScreen(
                     if (state.albums.isEmpty()) {
                         EmptyContent("No favorite albums yet")
                     } else {
+                        val albumGridMinSize = if (isExpanded) 220.dp else 160.dp
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 200.dp),
+                            columns = GridCells.Adaptive(minSize = albumGridMinSize),
                             contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
                             horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                             verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),

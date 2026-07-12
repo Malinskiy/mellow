@@ -105,9 +105,10 @@ fun HomeScreen(
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) { contentPadding ->
+        val toolbarTopPadding = contentPadding.calculateTopPadding()
         LazyColumn(
             contentPadding = PaddingValues(
-                top = contentPadding.calculateTopPadding(),
+                top = (toolbarTopPadding - MellowSpacing.Sp5).coerceAtLeast(0.dp),
                 bottom = MellowSpacing.Sp8,
             ),
             modifier = Modifier.fillMaxSize(),
@@ -141,7 +142,7 @@ fun HomeScreen(
                             val rows = ceil(recentlyPlayed.size.toFloat() / columns).toInt()
                             val gridHeight = (60.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
                             LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 200.dp),
+                                columns = GridCells.Adaptive(minSize = 180.dp),
                                 horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 userScrollEnabled = false,
@@ -267,7 +268,7 @@ private fun HomeTopBar(
             .fillMaxWidth()
             .background(MellowTheme.colors.background)
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+            .padding(start = MellowSpacing.Sp4, end = MellowSpacing.Sp4, top = MellowSpacing.Sp3, bottom = MellowSpacing.Sp1),
     ) {
         Text(
             text = "Mellow",
@@ -300,7 +301,7 @@ private fun SectionHeader(title: String) {
         modifier = Modifier.padding(
             start = MellowSpacing.Sp4,
             end = MellowSpacing.Sp4,
-            top = MellowSpacing.Sp6,
+            top = MellowSpacing.Sp5,
             bottom = MellowSpacing.Sp3,
         ),
     )
@@ -312,6 +313,7 @@ private fun QuickPicksGrid(
     serverUrl: String?,
     onAlbumClick: (String) -> Unit,
 ) {
+    val gridMinSize = if (LocalWindowWidthClass.current != WindowWidthClass.Compact) 180.dp else 160.dp
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -322,7 +324,7 @@ private fun QuickPicksGrid(
         val rows = ceil(albums.size.toFloat() / columns).toInt()
         val gridHeight = (60.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 200.dp),
+            columns = GridCells.Adaptive(minSize = gridMinSize),
             horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
             verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
             userScrollEnabled = false,
