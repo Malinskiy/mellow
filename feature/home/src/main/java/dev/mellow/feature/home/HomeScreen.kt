@@ -141,7 +141,7 @@ fun HomeScreen(
                             val rows = ceil(recentlyPlayed.size.toFloat() / columns).toInt()
                             val gridHeight = (60.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
                             LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 130.dp),
+                                columns = GridCells.Adaptive(minSize = 200.dp),
                                 horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 userScrollEnabled = false,
@@ -187,7 +187,7 @@ fun HomeScreen(
                             val rows = ceil(recentlyAdded.size.toFloat() / columns).toInt()
                             val gridHeight = (170.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
                             LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 130.dp),
+                                columns = GridCells.Adaptive(minSize = 200.dp),
                                 horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                                 userScrollEnabled = false,
@@ -322,7 +322,7 @@ private fun QuickPicksGrid(
         val rows = ceil(albums.size.toFloat() / columns).toInt()
         val gridHeight = (60.dp * rows) + (MellowSpacing.Sp3 * (rows - 1).coerceAtLeast(0))
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 130.dp),
+            columns = GridCells.Adaptive(minSize = 200.dp),
             horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
             verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
             userScrollEnabled = false,

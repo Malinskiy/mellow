@@ -160,7 +160,7 @@ fun FavoritesScreen(
                         EmptyContent("No favorite albums yet")
                     } else {
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 130.dp),
+                            columns = GridCells.Adaptive(minSize = 200.dp),
                             contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
                             horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                             verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),

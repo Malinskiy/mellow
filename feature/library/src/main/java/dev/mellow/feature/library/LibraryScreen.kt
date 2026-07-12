@@ -304,7 +304,7 @@ private fun SortRow(
 @Composable
 private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 140.dp),
+        columns = GridCells.Adaptive(minSize = 200.dp),
         contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp3, bottom = MellowSpacing.Sp3, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
         horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
         verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
