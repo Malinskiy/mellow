@@ -49,32 +49,39 @@ fun AlbumCard(
                 .then(
                     if (sharedElementKey != null && sharedTransitionScope != null && animatedVisibilityScope != null) {
                         with(sharedTransitionScope) {
-                            Modifier.sharedElement(
+                                Modifier.sharedElement(
                                 rememberSharedContentState(key = sharedElementKey),
                                 animatedVisibilityScope = animatedVisibilityScope,
-                                clipInOverlayDuringTransition = OverlayClip(MellowShapes.Medium),
+                                clipInOverlayDuringTransition = OverlayClip(MellowShapes.AlbumArt),
                             )
                         }
                     } else {
                         Modifier
                     }
                 )
-                .clip(MellowShapes.Medium)
+                .clip(MellowShapes.AlbumArt)
                 .background(MellowTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                PhosphorIcons.MusicNote,
-                contentDescription = null,
-                tint = MellowTheme.colors.muted,
-                modifier = Modifier.size(32.dp),
-            )
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = "Album art",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (imageUrl != null) {
+                AsyncImage(
+                    model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(imageUrl)
+                        .memoryCacheKey(imageUrl)
+                        .placeholderMemoryCacheKey(coil3.memory.MemoryCache.Key(imageUrl))
+                        .build(),
+                    contentDescription = "Album art",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    PhosphorIcons.MusicNote,
+                    contentDescription = null,
+                    tint = MellowTheme.colors.muted,
+                    modifier = Modifier.size(32.dp),
+                )
+            }
         }
         Text(
             text = title,

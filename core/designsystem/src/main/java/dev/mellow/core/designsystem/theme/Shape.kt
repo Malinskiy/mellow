@@ -9,4 +9,7 @@ object MellowShapes {
     val Large = RoundedCornerShape(16.dp)
     val ExtraLarge = RoundedCornerShape(24.dp)
     val Full = RoundedCornerShape(50)
+
+    /** Proportional corners for album art — scales with image size during shared element transitions */
+    val AlbumArt = RoundedCornerShape(percent = 7)
 }

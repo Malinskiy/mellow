@@ -120,97 +120,123 @@ fun AlbumDetailScreen(
             .fillMaxSize()
             .background(MellowTheme.colors.background),
     ) {
-        when {
-            isLoading -> LoadingContent(message = "Loading album…")
-            error != null -> ErrorContent(message = error, onRetry = onRetry)
-            else -> {
-                LazyColumn(
-                    contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
-                ) {
-                    item { AlbumDetailTopBar(onBack) }
+        LazyColumn(
+            contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
+        ) {
+            item { AlbumDetailTopBar(onBack) }
+            item {
+                AlbumHero(
+                    albumId = albumId,
+                    sharedElementSource = sharedElementSource,
+                    albumName = albumName,
+                    artistName = artistName,
+                    imageUrl = albumImageUrl,
+                    year = year,
+                    trackCount = displayTrackCount,
+                    totalDuration = formatTotalDuration(tracks),
+                    isFavorite = isFavorite,
+                    onPlayAll = onPlayAll,
+                    onShuffle = onShuffle,
+                    onFavoriteClick = onFavoriteClick,
+                    downloadStatus = downloadStatus,
+                    downloadProgress = downloadProgress,
+                    downloadedCount = downloadedCount,
+                    totalDownloadCount = totalDownloadCount,
+                    downloadInfoText = downloadInfoText,
+                    onDownloadClick = onDownloadClick,
+                    onRemoveDownloadsClick = onRemoveDownloadsClick,
+                )
+            }
+            when {
+                isLoading -> {
                     item {
-                        AlbumHero(
-                            albumId = albumId,
-                            sharedElementSource = sharedElementSource,
-                            albumName = albumName,
-                            artistName = artistName,
-                            imageUrl = albumImageUrl,
-                            year = year,
-                            trackCount = displayTrackCount,
-                            totalDuration = formatTotalDuration(tracks),
-                            isFavorite = isFavorite,
-                            onPlayAll = onPlayAll,
-                            onShuffle = onShuffle,
-                            onFavoriteClick = onFavoriteClick,
-                            downloadStatus = downloadStatus,
-                            downloadProgress = downloadProgress,
-                            downloadedCount = downloadedCount,
-                            totalDownloadCount = totalDownloadCount,
-                            downloadInfoText = downloadInfoText,
-                            onDownloadClick = onDownloadClick,
-                            onRemoveDownloadsClick = onRemoveDownloadsClick,
-                        )
-                    }
-                    if (tracksLoading) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = MellowSpacing.Sp8),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(
-                                        color = MellowTheme.colors.foreground,
-                                        strokeWidth = 2.dp,
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                    Spacer(Modifier.height(MellowSpacing.Sp3))
-                                    Text(
-                                        "Loading tracks…",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MellowTheme.colors.muted,
-                                    )
-                                }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = MellowSpacing.Sp8),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(
+                                    color = MellowTheme.colors.foreground,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(Modifier.height(MellowSpacing.Sp3))
+                                Text(
+                                    "Loading album…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MellowTheme.colors.muted,
+                                )
                             }
                         }
-                    } else {
-                        itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
-                            val isNotDownloadedOffline = isOffline &&
-                                showDownloadIndicators &&
-                                track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED
-                            TrackRow(
-                                title = track.title,
-                                subtitle = "",
-                                duration = track.duration,
-                                trackNumber = if (track.isPlaying) null else "${track.trackNumber ?: (index + 1)}",
-                                isPlaying = track.isPlaying,
-                                isFavorite = track.isFavorite,
-                                onFavoriteClick = { onTrackFavoriteClick(track.id) },
-                                onMenuClick = { onTrackMenuClick(track.id) },
-                                onClick = {
-                                    if (!isNotDownloadedOffline) onTrackClick(track.id)
-                                },
-                                showDivider = index < tracks.lastIndex,
-                                trailingContent = if (showDownloadIndicators) {
-                                    {
-                                        AnimatedSongDownloadIcon(
-                                            state = when (track.downloadIndicator) {
-                                                TrackDownloadIndicator.DOWNLOADED -> DownloadIconState.Done
-                                                TrackDownloadIndicator.DOWNLOADING -> DownloadIconState.Downloading
-                                                else -> DownloadIconState.Idle
-                                            },
-                                            progress = if (track.downloadIndicator == TrackDownloadIndicator.DOWNLOADING) 0.5f else 0f,
-                                            size = 28.dp,
-                                        )
-                                    }
-                                } else null,
-                                modifier = Modifier
-                                    .graphicsLayer {
-                                        alpha = if (isNotDownloadedOffline) 0.5f else 1f
-                                    },
-                            )
+                    }
+                }
+                error != null -> {
+                    item {
+                        ErrorContent(message = error, onRetry = onRetry)
+                    }
+                }
+                tracksLoading -> {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = MellowSpacing.Sp8),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(
+                                    color = MellowTheme.colors.foreground,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(Modifier.height(MellowSpacing.Sp3))
+                                Text(
+                                    "Loading tracks…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MellowTheme.colors.muted,
+                                )
+                            }
                         }
+                    }
+                }
+                else -> {
+                    itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
+                        val isNotDownloadedOffline = isOffline &&
+                            showDownloadIndicators &&
+                            track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED
+                        TrackRow(
+                            title = track.title,
+                            subtitle = "",
+                            duration = track.duration,
+                            trackNumber = if (track.isPlaying) null else "${track.trackNumber ?: (index + 1)}",
+                            isPlaying = track.isPlaying,
+                            isFavorite = track.isFavorite,
+                            onFavoriteClick = { onTrackFavoriteClick(track.id) },
+                            onMenuClick = { onTrackMenuClick(track.id) },
+                            onClick = {
+                                if (!isNotDownloadedOffline) onTrackClick(track.id)
+                            },
+                            showDivider = index < tracks.lastIndex,
+                            trailingContent = if (showDownloadIndicators) {
+                                {
+                                    AnimatedSongDownloadIcon(
+                                        state = when (track.downloadIndicator) {
+                                            TrackDownloadIndicator.DOWNLOADED -> DownloadIconState.Done
+                                            TrackDownloadIndicator.DOWNLOADING -> DownloadIconState.Downloading
+                                            else -> DownloadIconState.Idle
+                                        },
+                                        progress = if (track.downloadIndicator == TrackDownloadIndicator.DOWNLOADING) 0.5f else 0f,
+                                        size = 28.dp,
+                                    )
+                                }
+                            } else null,
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    alpha = if (isNotDownloadedOffline) 0.5f else 1f
+                                },
+                        )
                     }
                 }
             }
@@ -308,29 +334,36 @@ private fun AlbumHero(
                                 Modifier.sharedElement(
                                     rememberSharedContentState(key = sharedElementKey),
                                     animatedVisibilityScope = animatedVisibilityScope,
-                                    clipInOverlayDuringTransition = OverlayClip(MellowShapes.Large),
+                                    clipInOverlayDuringTransition = OverlayClip(MellowShapes.AlbumArt),
                                 )
                             }
                         } else {
                             Modifier
                         }
                     )
-                    .clip(MellowShapes.Large)
+                    .clip(MellowShapes.AlbumArt)
                     .background(MellowTheme.colors.surfaceElevated),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    PhosphorIcons.MusicNote,
-                    contentDescription = null,
-                    tint = MellowTheme.colors.muted,
-                    modifier = Modifier.size(48.dp),
-                )
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = "Album art",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                if (imageUrl != null) {
+                    AsyncImage(
+                        model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            .data(imageUrl)
+                            .memoryCacheKey(imageUrl)
+                            .placeholderMemoryCacheKey(coil3.memory.MemoryCache.Key(imageUrl))
+                            .build(),
+                        contentDescription = "Album art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        PhosphorIcons.MusicNote,
+                        contentDescription = null,
+                        tint = MellowTheme.colors.muted,
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
             }
 
             Spacer(Modifier.height(MellowSpacing.Sp5))

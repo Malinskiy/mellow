@@ -292,29 +292,36 @@ private fun CompactAlbumCard(
                             Modifier.sharedElement(
                                 rememberSharedContentState(key = sharedElementKey),
                                 animatedVisibilityScope = animatedVisibilityScope,
-                                clipInOverlayDuringTransition = OverlayClip(MellowShapes.Small),
+                                clipInOverlayDuringTransition = OverlayClip(MellowShapes.AlbumArt),
                             )
                         }
                     } else {
                         Modifier
                     }
                 )
-                .clip(MellowShapes.Small)
+                .clip(MellowShapes.AlbumArt)
                 .background(MellowTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,
         ) {
-            androidx.compose.material3.Icon(
-                dev.mellow.core.designsystem.icon.PhosphorIcons.MusicNote,
-                contentDescription = null,
-                tint = MellowTheme.colors.muted,
-                modifier = Modifier.size(24.dp),
-            )
-            coil3.compose.AsyncImage(
-                model = imageUrl,
-                contentDescription = "Album art",
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (imageUrl != null) {
+                coil3.compose.AsyncImage(
+                    model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(imageUrl)
+                        .memoryCacheKey(imageUrl)
+                        .placeholderMemoryCacheKey(coil3.memory.MemoryCache.Key(imageUrl))
+                        .build(),
+                    contentDescription = "Album art",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                androidx.compose.material3.Icon(
+                    dev.mellow.core.designsystem.icon.PhosphorIcons.MusicNote,
+                    contentDescription = null,
+                    tint = MellowTheme.colors.muted,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
         }
         Column(
             modifier = Modifier

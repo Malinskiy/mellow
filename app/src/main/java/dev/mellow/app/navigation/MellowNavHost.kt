@@ -253,10 +253,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     NavHost(
                         navController = navController,
                         startDestination = MellowNavDestination.Home.route,
-                        enterTransition = { fadeIn(tween(250)) },
-                        exitTransition = { fadeOut(tween(250)) },
-                        popEnterTransition = { fadeIn(tween(250)) },
-                        popExitTransition = { fadeOut(tween(250)) },
+                enterTransition = { fadeIn(tween(150)) },
+                exitTransition = { fadeOut(tween(150)) },
+                popEnterTransition = { fadeIn(tween(150)) },
+                popExitTransition = { fadeOut(tween(150)) },
                     ) {
                 composable(MellowNavDestination.Home.route) {
                     CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
@@ -467,10 +467,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 }
                 composable(
                     "settings",
-                    enterTransition = { slideIntoContainer(SlideDirection.Start, tween(300)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(250)) },
-                    popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(300)) },
+                    enterTransition = { slideIntoContainer(SlideDirection.Start, tween(200)) },
+                    exitTransition = { fadeOut(tween(150)) },
+                    popEnterTransition = { fadeIn(tween(150)) },
+                    popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(200)) },
                 ) {
                     val settingsVm: SettingsViewModel = hiltViewModel()
                     val downloadQuality by settingsVm.downloadQuality.collectAsState()
@@ -570,8 +570,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         sharedElementSource = routeSource,
                         albumName = albumState.album?.name ?: "",
                         artistName = albumState.album?.artistName ?: "",
-                        albumImageUrl = if (serverUrl != null && albumState.album?.imageId != null) {
-                            jellyfinImageUrl(serverUrl!!, albumState.album!!.imageId!!)
+                        albumImageUrl = if (serverUrl != null) {
+                            val imgId = albumState.album?.imageId ?: routeAlbumId
+                            jellyfinImageUrl(serverUrl!!, imgId)
                         } else null,
                         year = albumState.album?.year,
                         expectedTrackCount = albumState.album?.trackCount ?: 0,
