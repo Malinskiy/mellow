@@ -268,20 +268,21 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         }
         val isExpanded = windowWidthClass != WindowWidthClass.Compact
         val isTabletLayout = windowWidthClass == WindowWidthClass.Expanded
+        val isTabletPortrait = isTabletLayout && maxHeight > maxWidth
         val hasTrack = playbackState.currentTrack != null
-        val showSheet = !isTabletLayout && hasTrack
-        val sheetBottomNavPx = if (windowWidthClass == WindowWidthClass.Compact) {
+        val showSheet = (!isTabletLayout || isTabletPortrait) && hasTrack
+        val sheetBottomNavPx = if (windowWidthClass == WindowWidthClass.Compact || isTabletPortrait) {
             with(density) { MellowSpacing.BottomNavHeight.toPx() }
         } else 0f
 
-    val showExpandedMiniPlayer = isExpanded && !isFullScreen && hasTrack
+    val showExpandedMiniPlayer = isExpanded && !isFullScreen && hasTrack && !isTabletPortrait
     val miniPlayerPadding = if (showExpandedMiniPlayer) MellowSpacing.MiniPlayerHeight + MellowSpacing.Sp2 else 0.dp
     CompositionLocalProvider(
         LocalWindowWidthClass provides windowWidthClass,
         LocalMiniPlayerPadding provides miniPlayerPadding,
     ) {
     Row(modifier = Modifier.fillMaxSize()) {
-        if (isExpanded && !isFullScreen) {
+        if (isExpanded && !isFullScreen && !isTabletPortrait) {
             MellowNavigationRail(
                 selectedRoute = selectedTabRoute,
                 onNavigate = navigateToTab,
@@ -290,14 +291,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
     Box(modifier = Modifier.weight(1f)) {
     Scaffold(
-        contentWindowInsets = if (isFullScreen || isExpanded) {
+        contentWindowInsets = if (isFullScreen || (isExpanded && !isTabletPortrait)) {
             WindowInsets(0)
         } else {
             WindowInsets.systemBars
         },
         containerColor = MellowTheme.colors.background,
         bottomBar = {
-            if (!isFullScreen && !isExpanded) {
+            if (!isFullScreen && (!isExpanded || isTabletPortrait)) {
                 Column {
                     if (hasTrack) {
                         MiniPlayerBar(
@@ -853,7 +854,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable("now_playing") {
-                    if (!isTabletLayout) {
+                    if (!isTabletLayout || isTabletPortrait) {
                         LaunchedEffect(Unit) {
                             sheetState.expand()
                             navController.popBackStack()
