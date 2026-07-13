@@ -193,7 +193,7 @@ fun PlayerScreen(
                             model = albumImageUrl,
                             contentDescription = "Album art",
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier
+                            modifier = artModifier
                                 .fillMaxHeight(0.75f)
                                 .aspectRatio(1f)
                                 .clip(MellowShapes.Large)

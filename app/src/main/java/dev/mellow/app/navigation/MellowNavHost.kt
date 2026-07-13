@@ -270,7 +270,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         val isTabletLayout = windowWidthClass == WindowWidthClass.Expanded
         val isTabletPortrait = isTabletLayout && maxHeight > maxWidth
         val hasTrack = playbackState.currentTrack != null
-        val showSheet = (!isTabletLayout || isTabletPortrait) && hasTrack
+        val showSheet = hasTrack
         val sheetBottomNavPx = if (windowWidthClass == WindowWidthClass.Compact || isTabletPortrait) {
             with(density) { MellowSpacing.BottomNavHeight.toPx() }
         } else 0f
@@ -854,70 +854,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable("now_playing") {
-                    if (!isTabletLayout || isTabletPortrait) {
-                        LaunchedEffect(Unit) {
-                            sheetState.expand()
-                            navController.popBackStack()
-                        }
-                    } else {
-                        val pState = playbackState
-                        val track = pState.currentTrack
-
-                        val isDownloaded by remember(track?.id) {
-                            if (track != null) mainViewModel.isTrackDownloaded(track.id)
-                            else kotlinx.coroutines.flow.flowOf(false)
-                        }.collectAsState(initial = false)
-
-                        val isFavorite by remember(track?.id) {
-                            if (track != null) mainViewModel.observeTrackFavorite(track.id)
-                            else kotlinx.coroutines.flow.flowOf(false)
-                        }.collectAsState(initial = track?.isFavorite ?: false)
-
-                        PlayerScreen(
-                            trackName = track?.name ?: "",
-                            artistName = track?.artistName ?: "",
-                            albumName = track?.albumName ?: "",
-                            albumImageUrl = if (serverUrl != null) {
-                                val imgId = track?.imageId ?: track?.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
-                            } else null,
-                            isPlaying = pState.isPlaying,
-                            progress = if (positionState.durationMs > 0) {
-                                positionState.positionMs.toFloat() / positionState.durationMs
-                            } else 0f,
-                            positionMs = positionState.positionMs,
-                            durationMs = positionState.durationMs,
-                            isFavorite = isFavorite,
-                            isDownloaded = isDownloaded,
-                            error = pState.error,
-                            onCollapse = { navController.popBackStack() },
-                            onQueueClick = { navController.navigate("queue") },
-                            onLyricsClick = { navController.navigate("lyrics") },
-                            onPlayPauseClick = { mainViewModel.player.playPause() },
-                            onSkipNextClick = { mainViewModel.player.skipNext() },
-                            onSkipPreviousClick = { mainViewModel.player.skipPrevious() },
-                            onSeekTo = { ms -> mainViewModel.player.seekTo(ms) },
-                            shuffleEnabled = pState.shuffleEnabled,
-                            repeatMode = pState.repeatMode,
-                            onShuffleClick = { mainViewModel.player.toggleShuffle() },
-                            onRepeatClick = { mainViewModel.player.cycleRepeatMode() },
-                            onFavoriteClick = {
-                                if (track != null) {
-                                    mainViewModel.toggleFavorite(track.id, isFavorite)
-                                }
-                            },
-                            onRetryClick = {
-                                val tracks = pState.queue
-                                if (tracks.isNotEmpty()) {
-                                    scope.launch { mainViewModel.player.playTracks(tracks, pState.currentIndex) }
-                                }
-                            },
-                            onPlayDownloadedClick = {
-                                navController.popBackStack()
-                                navController.navigate(MellowNavDestination.Library.route)
-                            },
-                            codec = track?.codec,
-                        )
+                    LaunchedEffect(Unit) {
+                        sheetState.expand()
+                        navController.popBackStack()
                     }
                 }
                 composable("queue") {
