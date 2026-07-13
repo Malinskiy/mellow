@@ -252,8 +252,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     else navController.navigate("now_playing")
                 },
                 modifier = modifier
-                    .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp1)
-                    .anchoredDraggable(sheetState.anchoredState, androidx.compose.foundation.gestures.Orientation.Vertical),
+                    .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp1),
                 artModifier = Modifier
                     .trackArtPosition(sharedArtPositions, isMini = true)
                     .graphicsLayer { alpha = if (isTransitioning) 0f else 1f },
@@ -301,7 +300,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             if (!isFullScreen && !isExpanded) {
                 Column {
                     if (hasTrack) {
-                        MiniPlayerBar()
+                        MiniPlayerBar(
+                            modifier = Modifier.anchoredDraggable(
+                                sheetState.anchoredState,
+                                androidx.compose.foundation.gestures.Orientation.Vertical,
+                            ),
+                        )
                     }
                     MellowBottomNavBar(
                         selectedRoute = selectedTabRoute,
@@ -1024,7 +1028,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 MiniPlayerBar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .anchoredDraggable(sheetState.anchoredState, androidx.compose.foundation.gestures.Orientation.Vertical),
+                        .then(
+                            if (showSheet) Modifier.anchoredDraggable(
+                                sheetState.anchoredState,
+                                androidx.compose.foundation.gestures.Orientation.Vertical,
+                            ) else Modifier,
+                        ),
                 )
             }
         }
