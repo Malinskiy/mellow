@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.AlbumCard
+import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -365,22 +366,22 @@ private fun ArtistDetailExpanded(
 
             when (selectedTab) {
                 0 -> {
-                    LazyColumn(
+                    AdaptiveTrackGrid(
+                        items = topTracks,
+                        key = { it.id },
                         contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + LocalMiniPlayerPadding.current),
                         modifier = Modifier.fillMaxSize(),
-                    ) {
-                        itemsIndexed(topTracks, key = { _, t -> t.id }) { index, track ->
-                            TrackRow(
-                                title = track.title,
-                                subtitle = track.albumName,
-                                duration = track.duration,
-                                trackNumber = "${index + 1}",
-                                imageUrl = track.imageUrl,
-                                onClick = { onTrackClick(track.id) },
-                                onMenuClick = { onTrackMenuClick(track.id) },
-                                showDivider = index < topTracks.lastIndex,
-                            )
-                        }
+                    ) { index, track ->
+                        TrackRow(
+                            title = track.title,
+                            subtitle = track.albumName,
+                            duration = track.duration,
+                            trackNumber = "${index + 1}",
+                            imageUrl = track.imageUrl,
+                            onClick = { onTrackClick(track.id) },
+                            onMenuClick = { onTrackMenuClick(track.id) },
+                            showDivider = false,
+                        )
                     }
                 }
                 1 -> {

@@ -590,43 +590,31 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     val albumState by albumVm.uiState.collectAsState()
                     val downloadState by albumVm.albumDownloadState.collectAsState()
                     val trackDlStates by albumVm.trackDownloadStates.collectAsState()
+                    val liveProgress by albumVm.liveProgress.collectAsState()
                     val isOffline = connectionState is ConnectionState.Offline
 
                     val showDlIndicators = downloadState.overallStatus != AlbumDownloadState.Status.NONE
 
-                    val downloadInfoText = if (downloadState.downloadedTracks > 0) {
-                        val downloadedTrackIds = trackDlStates
-                            .filter { (_, state) -> state is DownloadState.Completed }
-                            .keys
-                        val downloadedSeconds = albumState.tracks
-                            .filter { it.id in downloadedTrackIds }
-                            .sumOf { it.duration.seconds }
-                        val durStr = formatTrackDuration(Duration.ofSeconds(downloadedSeconds))
-                        "${downloadState.downloadedTracks} of ${downloadState.totalTracks} downloaded \u00B7 $durStr offline"
-                    } else {
-                        null
-                    }
 
-                    val mappedTracks = remember(albumState.tracks, trackDlStates, isOffline) {
-                        albumState.tracks.map { track ->
-                            val dlState = trackDlStates[track.id]
-                            val indicator = when {
-                                !showDlIndicators -> TrackDownloadIndicator.NONE
-                                dlState is DownloadState.Completed -> TrackDownloadIndicator.DOWNLOADED
-                                dlState is DownloadState.Downloading -> TrackDownloadIndicator.DOWNLOADING
-                                dlState is DownloadState.Queued -> TrackDownloadIndicator.DOWNLOADING
-                                else -> TrackDownloadIndicator.NOT_DOWNLOADED
-                            }
-                            AlbumDetailTrack(
-                                id = track.id,
-                                title = track.name,
-                                artistName = track.artistName ?: "",
-                                duration = formatTrackDuration(track.duration),
-                                trackNumber = track.trackNumber,
-                                isFavorite = track.isFavorite,
-                                downloadIndicator = indicator,
-                            )
+                    val mappedTracks = albumState.tracks.map { track ->
+                        val dlState = trackDlStates[track.id]
+                        val indicator = when {
+                            !showDlIndicators -> TrackDownloadIndicator.NONE
+                            dlState is DownloadState.Completed -> TrackDownloadIndicator.DOWNLOADED
+                            dlState is DownloadState.Downloading -> TrackDownloadIndicator.DOWNLOADING
+                            dlState is DownloadState.Queued -> TrackDownloadIndicator.DOWNLOADING
+                            else -> TrackDownloadIndicator.NOT_DOWNLOADED
                         }
+                        AlbumDetailTrack(
+                            id = track.id,
+                            title = track.name,
+                            artistName = track.artistName ?: "",
+                            duration = formatTrackDuration(track.duration),
+                            trackNumber = track.trackNumber,
+                            isFavorite = track.isFavorite,
+                            downloadIndicator = indicator,
+                                downloadProgress = liveProgress[track.id] ?: (dlState as? DownloadState.Downloading)?.progress ?: 0f,
+                        )
                     }
 
                     AlbumDetailScreen(
@@ -652,7 +640,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         } else 0f,
                         downloadedCount = downloadState.downloadedTracks,
                         totalDownloadCount = downloadState.totalTracks,
-                        downloadInfoText = downloadInfoText,
+
                         isOffline = isOffline,
                         onRetry = { albumVm.retry() },
                         onDownloadClick = { albumVm.downloadAlbum() },

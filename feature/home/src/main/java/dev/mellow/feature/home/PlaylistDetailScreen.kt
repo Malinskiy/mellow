@@ -12,8 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -131,20 +130,20 @@ fun PlaylistDetailScreen(
             }
             tracks.isEmpty() -> EmptyContent("No tracks in this playlist")
             else -> {
-                LazyColumn(
+                AdaptiveTrackGrid(
+                    items = tracks,
+                    key = { it.id },
                     contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
-                ) {
-                    itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
-                        TrackRow(
-                            title = track.title,
-                            subtitle = track.artistName,
-                            duration = track.duration,
-                            imageUrl = track.imageUrl,
-                            onClick = { onTrackClick(track.id) },
-                            onMenuClick = { onTrackMenuClick(track.id) },
-                            showDivider = index < tracks.lastIndex,
-                        )
-                    }
+                ) { _, track ->
+                    TrackRow(
+                        title = track.title,
+                        subtitle = track.artistName,
+                        duration = track.duration,
+                        imageUrl = track.imageUrl,
+                        onClick = { onTrackClick(track.id) },
+                        onMenuClick = { onTrackMenuClick(track.id) },
+                        showDivider = false,
+                    )
                 }
             }
         }

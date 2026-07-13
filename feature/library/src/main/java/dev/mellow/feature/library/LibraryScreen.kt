@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
 import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
@@ -401,23 +402,24 @@ private fun TracksPanel(
     onTrackMenuClick: (String) -> Unit,
     topPadding: Dp = 0.dp,
 ) {
-    LazyColumn(
-        contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
-    ) {
-        items(tracks, key = { it.id }) { track ->
-            TrackRow(
-                title = track.title,
-                subtitle = "${track.artist} · ${track.album}",
-                duration = track.duration,
-                imageUrl = if (serverUrl != null) {
-                    val imgId = track.imageId ?: track.albumId
-                    if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
-                } else null,
-                onClick = { onTrackClick(track.id) },
-                onMenuClick = { onTrackMenuClick(track.id) },
-                showDivider = true,
-            )
-        }
+    AdaptiveTrackGrid(
+        items = tracks,
+        key = { it.id },
+        contentPadding = PaddingValues(top = topPadding),
+        modifier = Modifier.fillMaxSize(),
+    ) { _, track ->
+        TrackRow(
+            title = track.title,
+            subtitle = "${track.artist} · ${track.album}",
+            duration = track.duration,
+            imageUrl = if (serverUrl != null) {
+                val imgId = track.imageId ?: track.albumId
+                if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
+            } else null,
+            onClick = { onTrackClick(track.id) },
+            onMenuClick = { onTrackMenuClick(track.id) },
+            showDivider = false,
+        )
     }
 }
 

@@ -64,16 +64,22 @@ class HomeViewModel @Inject constructor(
                 emptyList()
             }
 
+            val recentlyPlayedIds = recentlyPlayed.map { it.id }.toSet()
             val quickPickPool = cachedQuickPicks ?: run {
-                val picks = if (mostPlayedAlbums.isNotEmpty() || recentlyPlayedAlbums.isNotEmpty()) {
-                    val combined = mostPlayedAlbums +
-                        recentlyPlayedAlbums.filterNot { it.id in mostPlayedIds }
-                    combined.shuffled(Random(shuffleSeed)).take(12).map { it.toHomeAlbumItem() }
-                } else if (favoriteAlbums.isNotEmpty()) {
-                    favoriteAlbums.shuffled(Random(shuffleSeed)).take(12).map { it.toHomeAlbumItem() }
-                } else {
-                    emptyList()
+                val seenIds = mutableSetOf<String>()
+                val pool = mutableListOf<Album>()
+                fun addUnique(source: List<Album>) {
+                    source.forEach { if (seenIds.add(it.id)) pool.add(it) }
                 }
+                addUnique(mostPlayedAlbums)
+                addUnique(recentlyPlayedAlbums)
+                addUnique(favoriteAlbums)
+                addUnique(albums.sortedByDescending { it.dateAdded })
+                val picks = pool
+                    .filterNot { it.id in recentlyPlayedIds }
+                    .shuffled(Random(shuffleSeed))
+                    .take(12)
+                    .map { it.toHomeAlbumItem() }
                 cachedQuickPicks = picks
                 picks
             }

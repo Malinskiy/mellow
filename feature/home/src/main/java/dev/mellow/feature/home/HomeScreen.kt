@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
@@ -228,22 +229,25 @@ fun HomeScreen(
                 item {
                     SectionHeader("Your Favorites")
                 }
-                itemsIndexed(
-                    favoriteTracks.take(5),
-                    key = { _, track -> "fav_${track.id}" },
-                ) { index, track ->
-                    TrackRow(
-                        title = track.title,
-                        subtitle = "${track.artist} · ${track.album}",
-                        duration = track.duration,
-                        imageUrl = if (serverUrl != null) {
-                            val imgId = track.imageId ?: track.albumId
-                            if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
-                        } else null,
-                        onClick = { onTrackClick(track.id) },
-                        onMenuClick = { onTrackMenuClick(track.id) },
-                        showDivider = index < favoriteTracks.take(5).lastIndex,
-                    )
+                item {
+                    AdaptiveTrackGrid(
+                        items = favoriteTracks.take(5),
+                        key = { it.id },
+                        nested = true,
+                    ) { _, track ->
+                        TrackRow(
+                            title = track.title,
+                            subtitle = "${track.artist} · ${track.album}",
+                            duration = track.duration,
+                            imageUrl = if (serverUrl != null) {
+                                val imgId = track.imageId ?: track.albumId
+                                if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
+                            } else null,
+                            onClick = { onTrackClick(track.id) },
+                            onMenuClick = { onTrackMenuClick(track.id) },
+                            showDivider = false,
+                        )
+                    }
                 }
             }
 

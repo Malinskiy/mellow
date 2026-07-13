@@ -18,7 +18,13 @@ import dev.mellow.core.database.entity.DownloadEntity
 import dev.mellow.core.player.cache.MellowDataSourceFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 import javax.inject.Inject
@@ -32,6 +38,27 @@ class MellowDownloadManager @Inject constructor(
 ) : DownloadExecutor {
     private val executor = Executors.newFixedThreadPool(DOWNLOAD_THREAD_COUNT)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val _downloadProgress = MutableStateFlow<Map<String, Float>>(emptyMap())
+    override val downloadProgress: StateFlow<Map<String, Float>> = _downloadProgress.asStateFlow()
+    private var progressJob: Job? = null
+
+    private fun ensureProgressPublishing() {
+        if (progressJob?.isActive == true) return
+        progressJob = scope.launch {
+            while (true) {
+                val active = downloadManager.currentDownloads
+                if (active.isEmpty()) {
+                    _downloadProgress.update { emptyMap() }
+                    break
+                }
+                _downloadProgress.update {
+                    active.associate { dl -> dl.request.id to (dl.percentDownloaded / 100f) }
+                }
+                delay(PROGRESS_INTERVAL_MS)
+            }
+        }
+    }
 
     val downloadManager: DownloadManager by lazy {
         val databaseProvider = StandaloneDatabaseProvider(context)
@@ -52,6 +79,12 @@ class MellowDownloadManager @Inject constructor(
             download: Download,
             finalException: Exception?,
         ) {
+            when (download.state) {
+                Download.STATE_DOWNLOADING -> ensureProgressPublishing()
+                Download.STATE_COMPLETED, Download.STATE_FAILED, Download.STATE_REMOVING -> {
+                    _downloadProgress.update { it - download.request.id }
+                }
+            }
             scope.launch {
                 syncDownloadState(download)
             }
@@ -71,7 +104,7 @@ class MellowDownloadManager @Inject constructor(
         val isFullyDownloaded = download.percentDownloaded >= 100f ||
             (download.contentLength > 0 && download.bytesDownloaded >= download.contentLength)
 
-        val status = when {
+        val newStatus = when {
             download.state == Download.STATE_COMPLETED || isFullyDownloaded -> DownloadEntity.STATUS_COMPLETED
             download.state == Download.STATE_QUEUED -> DownloadEntity.STATUS_QUEUED
             download.state == Download.STATE_DOWNLOADING -> DownloadEntity.STATUS_DOWNLOADING
@@ -80,7 +113,11 @@ class MellowDownloadManager @Inject constructor(
             else -> entity.status
         }
 
-        val completedAt = if (status == DownloadEntity.STATUS_COMPLETED) {
+        if (newStatus == entity.status && newStatus == DownloadEntity.STATUS_DOWNLOADING) {
+            return
+        }
+
+        val completedAt = if (newStatus == DownloadEntity.STATUS_COMPLETED) {
             System.currentTimeMillis()
         } else {
             entity.completedAt
@@ -88,12 +125,12 @@ class MellowDownloadManager @Inject constructor(
 
         downloadDao.upsert(
             entity.copy(
-                status = status,
+                status = newStatus,
                 progress = download.percentDownloaded / 100f,
                 bytesDownloaded = download.bytesDownloaded,
                 totalBytes = if (download.contentLength > 0) download.contentLength else entity.totalBytes,
                 completedAt = completedAt,
-                errorMessage = if (status == DownloadEntity.STATUS_FAILED) "Download failed" else null,
+                errorMessage = if (newStatus == DownloadEntity.STATUS_FAILED) "Download failed" else null,
                 lastSynced = System.currentTimeMillis(),
             ),
         )
@@ -134,5 +171,6 @@ class MellowDownloadManager @Inject constructor(
     companion object {
         private const val DOWNLOAD_THREAD_COUNT = 4
         private const val MAX_PARALLEL_DOWNLOADS = 3
+        private const val PROGRESS_INTERVAL_MS = 500L
     }
 }

@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -52,6 +55,7 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
+import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.AnimatedAlbumDownloadIndicator
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -88,6 +92,7 @@ data class AlbumDetailTrack(
     val isFavorite: Boolean = false,
     val isPlaying: Boolean = false,
     val downloadIndicator: TrackDownloadIndicator = TrackDownloadIndicator.NONE,
+    val downloadProgress: Float = 0f,
 )
 
 @Composable
@@ -377,11 +382,12 @@ fun AlbumDetailScreen(
                         }
                     }
                     else -> {
-                        LazyColumn(
+                        AdaptiveTrackGrid(
+                            items = tracks,
+                            key = { it.id },
                             contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
                             modifier = Modifier.weight(1f),
-                        ) {
-                            itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
+                        ) { index, track ->
                                 val isNotDownloadedOffline = isOffline &&
                                     showDownloadIndicators &&
                                     track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED
@@ -397,7 +403,7 @@ fun AlbumDetailScreen(
                                     onClick = {
                                         if (!isNotDownloadedOffline) onTrackClick(track.id)
                                     },
-                                    showDivider = index < tracks.lastIndex,
+                                    showDivider = false,
                                     trailingContent = if (showDownloadIndicators) {
                                         {
                                             AnimatedSongDownloadIcon(
@@ -406,7 +412,7 @@ fun AlbumDetailScreen(
                                                     TrackDownloadIndicator.DOWNLOADING -> DownloadIconState.Downloading
                                                     else -> DownloadIconState.Idle
                                                 },
-                                                progress = if (track.downloadIndicator == TrackDownloadIndicator.DOWNLOADING) 0.5f else 0f,
+                                                progress = track.downloadProgress,
                                                 size = 28.dp,
                                             )
                                         }
@@ -416,7 +422,6 @@ fun AlbumDetailScreen(
                                             alpha = if (isNotDownloadedOffline) 0.5f else 1f
                                         },
                                 )
-                            }
                         }
                     }
                 }
@@ -535,7 +540,7 @@ fun AlbumDetailScreen(
                                                 TrackDownloadIndicator.DOWNLOADING -> DownloadIconState.Downloading
                                                 else -> DownloadIconState.Idle
                                             },
-                                            progress = if (track.downloadIndicator == TrackDownloadIndicator.DOWNLOADING) 0.5f else 0f,
+                                            progress = track.downloadProgress,
                                             size = 28.dp,
                                         )
                                     }

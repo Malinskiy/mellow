@@ -1,7 +1,13 @@
 package dev.mellow.core.designsystem.component
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -58,8 +64,8 @@ fun AnimatedSongDownloadIcon(
                 launch { checkScale.snapTo(0f) }
             }
             DownloadIconState.Downloading -> {
-                launch { cloudAlpha.animateTo(0.35f, tween(300)) }
-                launch { cloudScale.animateTo(0.85f, tween(300)) }
+                launch { cloudAlpha.animateTo(0f, tween(200)) }
+                launch { cloudScale.animateTo(0.5f, tween(200)) }
                 launch { ringAlpha.animateTo(1f, tween(300)) }
                 launch { checkAlpha.animateTo(0f, tween(100)) }
             }
@@ -79,6 +85,22 @@ fun AnimatedSongDownloadIcon(
     val mutedColor = MellowTheme.colors.muted
     val trackColor = MellowPalette.Stone800.copy(alpha = 0.2f)
     val progressColor = MellowPalette.Stone300
+    val smoothProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "song-dl-progress",
+    )
+    val infiniteTransition = rememberInfiniteTransition(label = "song-dl-pulse")
+    val pulseRaw by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "song-dl-pulse-alpha",
+    )
+    val pulseAlpha = if (state == DownloadIconState.Downloading) pulseRaw else 1f
 
     Box(contentAlignment = Alignment.Center, modifier = modifier.size(size)) {
         Icon(
@@ -104,9 +126,9 @@ fun AnimatedSongDownloadIcon(
             val sw = 2.5f * (w / 32f)
             drawCircle(trackColor, radius = r, style = Stroke(sw))
             drawArc(
-                progressColor,
+                progressColor.copy(alpha = pulseAlpha),
                 startAngle = -90f,
-                sweepAngle = 360f * progress,
+                sweepAngle = 360f * smoothProgress,
                 useCenter = false,
                 topLeft = Offset(w / 2f - r, h / 2f - r),
                 size = Size(r * 2f, r * 2f),
@@ -114,7 +136,7 @@ fun AnimatedSongDownloadIcon(
             )
         }
         Icon(
-            PhosphorIcons.Check,
+            PhosphorIcons.CheckCircleFill,
             "Done",
             tint = DoneGreen,
             modifier = Modifier
@@ -147,7 +169,7 @@ fun AnimatedAlbumDownloadIndicator(
         label = "counter-alpha",
     )
     val ringAlpha by animateFloatAsState(
-        targetValue = if (state != DownloadIconState.Idle) 1f else 0f,
+        targetValue = if (state == DownloadIconState.Downloading) 1f else 0f,
         animationSpec = tween(250),
         label = "ring-alpha",
     )
@@ -172,6 +194,22 @@ fun AnimatedAlbumDownloadIndicator(
         DownloadIconState.Done -> DoneGreen
         else -> MellowPalette.Stone300
     }
+    val smoothProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "album-dl-progress",
+    )
+    val albumInfiniteTransition = rememberInfiniteTransition(label = "album-dl-pulse")
+    val albumPulseRaw by albumInfiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "album-dl-pulse-alpha",
+    )
+    val albumPulseAlpha = if (state == DownloadIconState.Downloading) albumPulseRaw else 1f
 
     Box(contentAlignment = Alignment.Center, modifier = modifier) {
         Canvas(
@@ -183,9 +221,9 @@ fun AnimatedAlbumDownloadIndicator(
             val ringR = w * 0.42f
             val ringSw = w * 0.06f
             drawCircle(ringTrackColor, radius = ringR, style = Stroke(ringSw))
-            val sweep = if (state == DownloadIconState.Done) 360f else 360f * progress
+            val sweep = if (state == DownloadIconState.Done) 360f else 360f * smoothProgress
             drawArc(
-                ringFillColor,
+                ringFillColor.copy(alpha = albumPulseAlpha),
                 startAngle = -90f,
                 sweepAngle = sweep,
                 useCenter = false,
@@ -209,7 +247,7 @@ fun AnimatedAlbumDownloadIndicator(
             modifier = Modifier.graphicsLayer { alpha = counterAlpha },
         )
         Icon(
-            PhosphorIcons.Check,
+            PhosphorIcons.CheckCircleFill,
             "Done",
             tint = DoneGreen,
             modifier = Modifier

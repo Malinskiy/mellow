@@ -48,6 +48,7 @@ import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
+import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
@@ -135,49 +136,26 @@ fun FavoritesScreen(
                 0 -> {
                     if (state.tracks.isEmpty()) {
                         EmptyContent("No favorite tracks yet")
-                    } else if (isExpanded) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
-                            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            items(state.tracks, key = { it.id }) { track ->
-                                TrackRow(
-                                    title = track.name,
-                                    subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
-                                    duration = formatFavDuration(track.duration),
-                                    imageUrl = if (serverUrl != null) {
-                                        val imgId = track.imageId ?: track.albumId
-                                        if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
-                                    } else null,
-                                    isFavorite = true,
-                                    onClick = { onTrackClick(track.id) },
-                                    onMenuClick = { onTrackMenuClick(track.id) },
-                                    showDivider = false,
-                                )
-                            }
-                        }
                     } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
+                        AdaptiveTrackGrid(
+                            items = state.tracks,
+                            key = { it.id },
+                            contentPadding = PaddingValues(top = topPadding),
                             modifier = Modifier.fillMaxSize(),
-                        ) {
-                            itemsIndexed(state.tracks, key = { _, t -> t.id }) { index, track ->
-                                TrackRow(
-                                    title = track.name,
-                                    subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
-                                    duration = formatFavDuration(track.duration),
-                                    imageUrl = if (serverUrl != null) {
-                                        val imgId = track.imageId ?: track.albumId
-                                        if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
-                                    } else null,
-                                    isFavorite = true,
-                                    onClick = { onTrackClick(track.id) },
-                                    onMenuClick = { onTrackMenuClick(track.id) },
-                                    showDivider = index < state.tracks.lastIndex,
-                                )
-                            }
+                        ) { _, track ->
+                            TrackRow(
+                                title = track.name,
+                                subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
+                                duration = formatFavDuration(track.duration),
+                                imageUrl = if (serverUrl != null) {
+                                    val imgId = track.imageId ?: track.albumId
+                                    if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
+                                } else null,
+                                isFavorite = true,
+                                onClick = { onTrackClick(track.id) },
+                                onMenuClick = { onTrackMenuClick(track.id) },
+                                showDivider = false,
+                            )
                         }
                     }
                 }

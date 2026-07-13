@@ -59,6 +59,8 @@ class AlbumDetailViewModel @Inject constructor(
                 AlbumDownloadState(albumId, 0, 0, 0L, 0L, AlbumDownloadState.Status.NONE),
             )
 
+    val liveProgress: StateFlow<Map<String, Float>> = downloadRepository.liveProgress
+
     val trackDownloadStates: StateFlow<Map<String, DownloadState?>> = _uiState
         .map { state -> state.tracks.map { it.id } }
         .distinctUntilChanged()

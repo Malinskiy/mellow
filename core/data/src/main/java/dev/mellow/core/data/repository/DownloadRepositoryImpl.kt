@@ -8,6 +8,7 @@ import dev.mellow.core.model.AlbumDownloadState
 import dev.mellow.core.model.DownloadState
 import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,6 +19,8 @@ class DownloadRepositoryImpl @Inject constructor(
     private val serverDao: ServerDao,
     private val downloadExecutor: DownloadExecutor,
 ) : DownloadRepository {
+
+    override val liveProgress: StateFlow<Map<String, Float>> = downloadExecutor.downloadProgress
 
     override fun observeDownload(trackId: String): Flow<DownloadState?> =
         downloadDao.observeDownload(trackId).map { it?.toDomainModel() }
