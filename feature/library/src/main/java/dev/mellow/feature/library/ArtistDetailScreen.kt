@@ -52,12 +52,14 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.designsystem.component.AlbumCard
+import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -240,8 +242,6 @@ private fun ArtistDetailExpanded(
                     model = artistImageUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    placeholder = ColorPainter(MellowTheme.colors.surface),
-                    error = ColorPainter(MellowTheme.colors.surface),
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer { alpha = 0.25f }
@@ -271,14 +271,21 @@ private fun ArtistDetailExpanded(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(
+                            if (LocalWindowWidthClass.current == WindowWidthClass.Medium) {
+                                Modifier.padding(bottom = LocalMiniPlayerPadding.current)
+                            } else {
+                                Modifier
+                            }
+                        ),
                 ) {
-                    AsyncImage(
+                    MellowImage(
                         model = artistImageUrl,
                         contentDescription = "Artist image",
-                        contentScale = ContentScale.Crop,
-                        placeholder = ColorPainter(MellowTheme.colors.surface),
-                        error = ColorPainter(MellowTheme.colors.surface),
+                        fallbackIcon = PhosphorIcons.User,
+                        fallbackIconSize = 48.dp,
                         modifier = Modifier
                             .weight(1f, fill = false)
                             .padding(horizontal = MellowSpacing.Sp12)
@@ -359,7 +366,7 @@ private fun ArtistDetailExpanded(
             when (selectedTab) {
                 0 -> {
                     LazyColumn(
-                        contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
+                        contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + LocalMiniPlayerPadding.current),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         itemsIndexed(topTracks, key = { _, t -> t.id }) { index, track ->
@@ -383,7 +390,7 @@ private fun ArtistDetailExpanded(
                         contentPadding = PaddingValues(
                             start = MellowSpacing.Sp4,
                             end = MellowSpacing.Sp4,
-                            bottom = MellowSpacing.Sp16,
+                            bottom = MellowSpacing.Sp16 + LocalMiniPlayerPadding.current,
                         ),
                         horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                         verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
@@ -423,12 +430,11 @@ private fun ArtistHero(
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp4),
     ) {
-        AsyncImage(
+        MellowImage(
             model = artistImageUrl,
             contentDescription = "Artist image",
-            contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(MellowTheme.colors.surface),
-            error = ColorPainter(MellowTheme.colors.surface),
+            fallbackIcon = PhosphorIcons.User,
+            fallbackIconSize = 48.dp,
             modifier = Modifier
                 .size(160.dp)
                 .clip(CircleShape)

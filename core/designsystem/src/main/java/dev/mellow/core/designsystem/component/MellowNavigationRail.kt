@@ -36,12 +36,12 @@ fun MellowNavigationRail(
     Box(modifier = modifier) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
             modifier = Modifier
                 .fillMaxHeight()
                 .width(80.dp)
                 .background(MellowTheme.colors.surface)
-                .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(top = MellowSpacing.Sp3),
+                .windowInsetsPadding(WindowInsets.systemBars),
         ) {
             MellowNavDestination.entries.forEach { dest ->
                 val isSelected = dest.route == selectedRoute
@@ -79,8 +79,6 @@ fun MellowNavigationRail(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-
-            Spacer(Modifier.weight(1f))
         }
 
         Box(

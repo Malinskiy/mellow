@@ -105,8 +105,6 @@ fun PlayerScreen(
                 model = albumImageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(MellowTheme.colors.surface),
-                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(120.dp)
@@ -151,8 +149,6 @@ fun PlayerScreen(
                                 model = albumImageUrl,
                                 contentDescription = "Album art",
                                 contentScale = ContentScale.Crop,
-                                placeholder = ColorPainter(MellowTheme.colors.surface),
-                                error = ColorPainter(MellowTheme.colors.surface),
                                 modifier = Modifier
                                     .fillMaxHeight()
                                     .aspectRatio(1f)
@@ -195,8 +191,6 @@ fun PlayerScreen(
                             model = albumImageUrl,
                             contentDescription = "Album art",
                             contentScale = ContentScale.Crop,
-                            placeholder = ColorPainter(MellowTheme.colors.surface),
-                            error = ColorPainter(MellowTheme.colors.surface),
                             modifier = Modifier
                                 .fillMaxHeight(0.75f)
                                 .aspectRatio(1f)
@@ -395,8 +389,6 @@ private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, modifier: Mod
             model = albumImageUrl,
             contentDescription = "Album art",
             contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(MellowTheme.colors.surface),
-            error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .width(artSize)
                 .aspectRatio(1f)

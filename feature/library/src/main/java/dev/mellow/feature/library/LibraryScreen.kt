@@ -345,8 +345,6 @@ private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbum
                     } else null,
                     contentDescription = album.name,
                     contentScale = ContentScale.Crop,
-                    placeholder = ColorPainter(MellowTheme.colors.surface),
-                    error = ColorPainter(MellowTheme.colors.surface),
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(MellowSpacing.Sp2))
@@ -467,8 +465,6 @@ private fun PlaylistsPanel(
                     } else null,
                     contentDescription = playlist.name,
                     contentScale = ContentScale.Crop,
-                    placeholder = ColorPainter(MellowTheme.colors.surface),
-                    error = ColorPainter(MellowTheme.colors.surface),
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(MellowSpacing.Sp2))

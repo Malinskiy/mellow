@@ -54,6 +54,7 @@ import androidx.navigation.navArgument
 import dev.mellow.app.AuthState
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
+import dev.mellow.core.data.repository.LibraryRepositoryImpl
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.MellowBottomNavBar
@@ -63,6 +64,7 @@ import dev.mellow.core.designsystem.component.MellowNavDestination
 import dev.mellow.core.designsystem.component.MiniPlayer
 import dev.mellow.core.designsystem.component.TrackContextMenu
 import dev.mellow.core.designsystem.component.TrackMenuData
+import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -231,6 +233,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
                 } else null,
                 isPlaying = playbackState.isPlaying,
+                isBuffering = playbackState.isBuffering,
                 progress = if (positionState.durationMs > 0) {
                     positionState.positionMs.toFloat() / positionState.durationMs
                 } else 0f,
@@ -250,7 +253,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         }
         val isExpanded = windowWidthClass != WindowWidthClass.Compact
 
-    CompositionLocalProvider(LocalWindowWidthClass provides windowWidthClass) {
+    val showExpandedMiniPlayer = isExpanded && !isFullScreen && playbackState.currentTrack != null
+    val miniPlayerPadding = if (showExpandedMiniPlayer) MellowSpacing.MiniPlayerHeight + MellowSpacing.Sp2 else 0.dp
+    CompositionLocalProvider(
+        LocalWindowWidthClass provides windowWidthClass,
+        LocalMiniPlayerPadding provides miniPlayerPadding,
+    ) {
     Row(modifier = Modifier.fillMaxSize()) {
         if (isExpanded && !isFullScreen) {
             MellowNavigationRail(
@@ -381,7 +389,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             "Name (Z-A)" -> state.artists.sortedByDescending { it.name.lowercase() }
                             else -> state.artists
                         }
-                        sorted.map { ArtistItem(it.id, it.name, albumCountByArtist[it.name] ?: 0, it.imageId) }
+                        sorted.map { artist ->
+                            val count = albumCountByArtist[artist.name]
+                                ?: albumCountByArtist[LibraryRepositoryImpl.artistNameVariant(artist.name)]
+                                ?: 0
+                            ArtistItem(artist.id, artist.name, count, artist.imageId)
+                        }
                     }
                     val tracks = remember(state.tracks, currentSort) {
                         val sorted = when (currentSort) {
@@ -987,14 +1000,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             }
                 }
             }
-            if (isExpanded && !isFullScreen) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom)),
-                ) {
-                    MiniPlayerBar()
-                }
+            if (showExpandedMiniPlayer) {
+                MiniPlayerBar(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
         }
     }

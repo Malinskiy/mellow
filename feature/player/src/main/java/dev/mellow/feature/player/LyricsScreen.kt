@@ -106,8 +106,6 @@ fun LyricsScreen(
                 model = albumImageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(MellowTheme.colors.surface),
-                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(120.dp)
@@ -244,8 +242,6 @@ private fun LyricsTopBar(
                 model = albumImageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(MellowTheme.colors.surface),
-                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .size(36.dp)
                     .clip(MellowShapes.Small)

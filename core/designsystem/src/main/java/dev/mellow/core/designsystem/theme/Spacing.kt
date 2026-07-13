@@ -1,7 +1,10 @@
 package dev.mellow.core.designsystem.theme
 
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+
+val LocalMiniPlayerPadding = staticCompositionLocalOf { 0.dp }
 
 object MellowSpacing {
     val Sp1: Dp = 4.dp

@@ -61,6 +61,9 @@ import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 
 import dev.mellow.core.designsystem.component.TrackRow
+import androidx.compose.ui.text.style.TextOverflow
+import dev.mellow.core.designsystem.component.MellowImage
+import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -140,8 +143,6 @@ fun AlbumDetailScreen(
                         model = albumImageUrl,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        placeholder = ColorPainter(MellowTheme.colors.surface),
-                        error = ColorPainter(MellowTheme.colors.surface),
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer { alpha = 0.35f }
@@ -149,102 +150,128 @@ fun AlbumDetailScreen(
                     )
                 }
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.statusBars),
                 ) {
+                    val isMedium = LocalWindowWidthClass.current == WindowWidthClass.Medium
+                    val sharedTransitionScope = LocalSharedTransitionScope.current
+                    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
+                    val sharedElementKey = "album_art_${sharedElementSource}_$albumId"
+                    val artModifier = Modifier
+                        .then(
+                            if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                with(sharedTransitionScope) {
+                                    Modifier.sharedElement(
+                                        rememberSharedContentState(key = sharedElementKey),
+                                        animatedVisibilityScope = animatedVisibilityScope,
+                                        clipInOverlayDuringTransition = OverlayClip(MellowShapes.AlbumArt),
+                                    )
+                                }
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .clip(MellowShapes.AlbumArt)
+                        .background(MellowTheme.colors.surfaceElevated)
+
                     AlbumDetailTopBar(onBack)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                    val sharedTransitionScope = LocalSharedTransitionScope.current
-                    val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
-                    val sharedElementKey = "album_art_${sharedElementSource}_$albumId"
-                    Box(
                         modifier = Modifier
-                            .weight(1f, fill = false)
-                            .padding(horizontal = MellowSpacing.Sp12)
-                            .aspectRatio(1f)
+                            .fillMaxSize()
                             .then(
-                                if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-                                    with(sharedTransitionScope) {
-                                        Modifier.sharedElement(
-                                            rememberSharedContentState(key = sharedElementKey),
-                                            animatedVisibilityScope = animatedVisibilityScope,
-                                            clipInOverlayDuringTransition = OverlayClip(MellowShapes.AlbumArt),
-                                        )
-                                    }
-                                } else {
-                                    Modifier
-                                }
-                            )
-                            .clip(MellowShapes.AlbumArt)
-                            .background(MellowTheme.colors.surfaceElevated),
-                        contentAlignment = Alignment.Center,
+                                if (isMedium) Modifier.padding(
+                                    bottom = LocalMiniPlayerPadding.current,
+                                    start = MellowSpacing.Sp4,
+                                    end = MellowSpacing.Sp4,
+                                ) else Modifier
+                            ),
                     ) {
-                        if (albumImageUrl != null) {
-                            AsyncImage(
+                    if (isMedium) {
+                        MellowImage(
+                            model = albumImageUrl,
+                            contentDescription = "Album art",
+                            fallbackIconSize = 48.dp,
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .padding(horizontal = MellowSpacing.Sp6)
+                                .then(artModifier)
+                                .aspectRatio(1f),
+                        )
+                        Spacer(Modifier.height(MellowSpacing.Sp3))
+                        Text(
+                            albumName,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = (-0.02).em,
+                            ),
+                            color = MellowTheme.colors.foreground,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp4),
+                        )
+                        Text(
+                            artistName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MellowTheme.colors.accentStrong,
+                            modifier = Modifier.padding(top = MellowSpacing.Sp1),
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .padding(horizontal = MellowSpacing.Sp12)
+                                .then(artModifier)
+                                .aspectRatio(1f),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            MellowImage(
                                 model = albumImageUrl,
                                 contentDescription = "Album art",
-                                contentScale = ContentScale.Crop,
+                                fallbackIconSize = 48.dp,
                                 modifier = Modifier.fillMaxSize(),
                             )
-                        } else {
-                            Icon(
-                                PhosphorIcons.MusicNote,
-                                contentDescription = null,
-                                tint = MellowTheme.colors.muted,
-                                modifier = Modifier.size(48.dp),
-                            )
+                        }
+                        Spacer(Modifier.height(MellowSpacing.Sp4))
+                        Text(
+                            albumName,
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = (-0.02).em,
+                            ),
+                            color = MellowTheme.colors.foreground,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = MellowSpacing.Sp6),
+                        )
+                        Text(
+                            artistName,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MellowTheme.colors.accentStrong,
+                            modifier = Modifier.padding(top = MellowSpacing.Sp1),
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                            modifier = Modifier.padding(top = MellowSpacing.Sp2),
+                        ) {
+                            if (year != null) {
+                                Text("$year", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                                Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                            }
+                            Text("$displayTrackCount tracks", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                            val totalDur = formatTotalDuration(tracks)
+                            if (totalDur.isNotEmpty()) {
+                                Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                                Text(totalDur, style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+                            }
                         }
                     }
                     Spacer(Modifier.height(MellowSpacing.Sp4))
-                    Text(
-                        albumName,
-                        style = MaterialTheme.typography.headlineSmall.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = (-0.02).em,
-                        ),
-                        color = MellowTheme.colors.foreground,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = MellowSpacing.Sp6),
-                    )
-                    Text(
-                        artistName,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MellowTheme.colors.accentStrong,
-                        modifier = Modifier.padding(top = MellowSpacing.Sp1),
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-                        modifier = Modifier.padding(top = MellowSpacing.Sp2),
-                    ) {
-                        if (year != null) {
-                            Text("$year", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                            Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                        }
-                        Text("$displayTrackCount tracks", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                        val totalDur = formatTotalDuration(tracks)
-                        if (totalDur.isNotEmpty()) {
-                            Text("·", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                            Text(totalDur, style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
-                        }
-                    }
-                    if (downloadInfoText != null) {
-                        Text(
-                            downloadInfoText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MellowTheme.colors.muted,
-                            modifier = Modifier.padding(top = MellowSpacing.Sp1),
-                        )
-                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(vertical = MellowSpacing.Sp3),
                     ) {
                         IconButton(onClick = onShuffle) {
                             Icon(PhosphorIcons.Shuffle, "Shuffle", tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
@@ -582,8 +609,6 @@ private fun AlbumHero(
                     model = imageUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    placeholder = ColorPainter(MellowTheme.colors.surface),
-                    error = ColorPainter(MellowTheme.colors.surface),
                     modifier = Modifier
                         .matchParentSize()
                         .graphicsLayer { alpha = 0.35f }

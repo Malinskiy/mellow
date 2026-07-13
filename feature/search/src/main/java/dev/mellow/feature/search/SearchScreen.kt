@@ -316,8 +316,6 @@ private fun TopResultRow(result: SearchResult, serverUrl: String, onClick: () ->
             model = imageUrl as? String,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(MellowTheme.colors.surface),
-            error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .size(48.dp)
                 .clip(if (isRound as Boolean) CircleShape else MellowShapes.Small)
@@ -361,8 +359,6 @@ private fun ResultRow(
             model = imageUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(MellowTheme.colors.surface),
-            error = ColorPainter(MellowTheme.colors.surface),
             modifier = Modifier
                 .size(48.dp)
                 .clip(if (isRound) CircleShape else MellowShapes.Small)

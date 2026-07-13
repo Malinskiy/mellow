@@ -132,8 +132,6 @@ private fun PlaylistRow(
                 model = imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(MellowTheme.colors.surface),
-                error = ColorPainter(MellowTheme.colors.surface),
                 modifier = Modifier
                     .size(48.dp)
                     .clip(MellowShapes.Small)

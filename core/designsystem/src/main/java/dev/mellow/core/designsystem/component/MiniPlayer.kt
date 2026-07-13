@@ -1,5 +1,10 @@
 package dev.mellow.core.designsystem.component
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,8 +22,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
@@ -35,6 +42,7 @@ fun MiniPlayer(
     artist: String,
     imageUrl: String?,
     isPlaying: Boolean,
+    isBuffering: Boolean = false,
     progress: Float,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
@@ -58,26 +66,15 @@ fun MiniPlayer(
                 .fillMaxWidth()
                 .padding(horizontal = MellowSpacing.Sp3),
         ) {
-            Box(
+            MellowImage(
+                model = imageUrl,
+                contentDescription = null,
+                fallbackIconSize = 20.dp,
                 modifier = Modifier
                     .size(44.dp)
                     .clip(MellowShapes.Small)
                     .background(MellowTheme.colors.surfaceElevated),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    PhosphorIcons.MusicNote,
-                    contentDescription = null,
-                    tint = MellowTheme.colors.muted,
-                    modifier = Modifier.size(20.dp),
-                )
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            )
 
             Column(
                 modifier = Modifier
@@ -119,19 +116,38 @@ fun MiniPlayer(
 
         Box(
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .fillMaxWidth()
                 .padding(horizontal = MellowSpacing.Sp3)
                 .height(2.dp)
                 .clip(MellowShapes.Full)
                 .background(MellowTheme.colors.border),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress.coerceIn(0f, 1f))
-                    .height(2.dp)
-                    .background(MellowTheme.colors.accent),
-            )
+            if (isBuffering) {
+                val infiniteTransition = rememberInfiniteTransition(label = "buffer")
+                val offset by infiniteTransition.animateFloat(
+                    initialValue = -0.3f,
+                    targetValue = 1.3f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1200, easing = FastOutSlowInEasing),
+                    ),
+                    label = "bufferOffset",
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.3f)
+                        .height(2.dp)
+                        .graphicsLayer { translationX = size.width * offset / 0.3f }
+                        .background(MellowTheme.colors.accent),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                        .height(2.dp)
+                        .background(MellowTheme.colors.accent),
+                )
+            }
         }
     }
 }

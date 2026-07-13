@@ -35,6 +35,7 @@ import javax.inject.Singleton
 
 data class PlaybackState(
     val isPlaying: Boolean = false,
+    val isBuffering: Boolean = false,
     val currentTrack: Track? = null,
     val currentIndex: Int = 0,
     val positionMs: Long = 0L,
@@ -312,11 +313,15 @@ class MellowPlayer @Inject constructor(
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
+                Player.STATE_BUFFERING -> {
+                    _state.value = _state.value.copy(isBuffering = true)
+                }
                 Player.STATE_READY -> {
                     controller?.let { c ->
                         val dur = c.duration.coerceAtLeast(0L)
                         val pos = c.currentPosition
                         _state.value = _state.value.copy(
+                            isBuffering = false,
                             durationMs = dur,
                             positionMs = pos,
                         )

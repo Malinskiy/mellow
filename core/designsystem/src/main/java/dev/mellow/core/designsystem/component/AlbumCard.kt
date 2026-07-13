@@ -63,25 +63,11 @@ fun AlbumCard(
                 .background(MellowTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,
         ) {
-            if (imageUrl != null) {
-                AsyncImage(
-                    model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                        .data(imageUrl)
-                        .memoryCacheKey(imageUrl)
-                        .placeholderMemoryCacheKey(coil3.memory.MemoryCache.Key(imageUrl))
-                        .build(),
-                    contentDescription = "Album art",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    PhosphorIcons.MusicNote,
-                    contentDescription = null,
-                    tint = MellowTheme.colors.muted,
-                    modifier = Modifier.size(32.dp),
-                )
-            }
+            MellowImage(
+                model = imageUrl,
+                contentDescription = "Album art",
+                modifier = Modifier.fillMaxSize(),
+            )
         }
         Text(
             text = title,
