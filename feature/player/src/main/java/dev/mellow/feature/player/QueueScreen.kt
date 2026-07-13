@@ -56,6 +56,7 @@ data class QueueTrack(
 fun QueueScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    embedded: Boolean = false,
     nowPlaying: QueueTrack? = null,
     upNext: List<QueueTrack> = emptyList(),
     currentAlbumName: String = "",
@@ -71,8 +72,12 @@ fun QueueScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MellowTheme.colors.background)
-            .windowInsetsPadding(WindowInsets.systemBars),
+            .then(
+                if (embedded) Modifier
+                else Modifier
+                    .background(MellowTheme.colors.background)
+                    .windowInsetsPadding(WindowInsets.systemBars),
+            ),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

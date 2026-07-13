@@ -66,6 +66,7 @@ data class LyricsLine(
 @Composable
 fun LyricsScreen(
     modifier: Modifier = Modifier,
+    embedded: Boolean = false,
     trackName: String = "",
     artistName: String = "",
     albumImageUrl: String? = null,
@@ -99,9 +100,9 @@ fun LyricsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MellowTheme.colors.background),
+            .then(if (embedded) Modifier else Modifier.background(MellowTheme.colors.background)),
     ) {
-        if (albumImageUrl != null) {
+        if (!embedded && albumImageUrl != null) {
             AsyncImage(
                 model = albumImageUrl,
                 contentDescription = null,
@@ -127,7 +128,7 @@ fun LyricsScreen(
 
         Column(modifier = Modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.systemBars),
+            .then(if (embedded) Modifier else Modifier.windowInsetsPadding(WindowInsets.systemBars)),
         ) {
             LyricsTopBar(
                 trackName = trackName,

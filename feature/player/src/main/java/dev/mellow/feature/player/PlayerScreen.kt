@@ -66,6 +66,8 @@ import dev.mellow.core.designsystem.theme.WindowWidthClass
 @Composable
 fun PlayerScreen(
     modifier: Modifier = Modifier,
+    embedded: Boolean = false,
+    artModifier: Modifier = Modifier,
     trackName: String = "",
     artistName: String = "",
     albumName: String = "",
@@ -98,9 +100,9 @@ fun PlayerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MellowTheme.colors.background),
+            .then(if (embedded) Modifier else Modifier.background(MellowTheme.colors.background)),
     ) {
-        if (albumImageUrl != null) {
+        if (!embedded && albumImageUrl != null) {
             AsyncImage(
                 model = albumImageUrl,
                 contentDescription = null,
@@ -126,7 +128,7 @@ fun PlayerScreen(
 
         Box(modifier = Modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.systemBars),
+            .then(if (embedded) Modifier else Modifier.windowInsetsPadding(WindowInsets.systemBars)),
         ) {
         when (windowWidthClass) {
             WindowWidthClass.Expanded -> {
@@ -156,9 +158,9 @@ fun PlayerScreen(
                                     .background(MellowTheme.colors.surface),
                             )
                         }
-                        TrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
-                        ProgressBar(progress, positionMs, durationMs, onSeekTo)
-                        PlaybackControls(
+                        PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                        PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
+                        PlayerPlaybackControls(
                             isPlaying = isPlaying,
                             onPlayPauseClick = onPlayPauseClick,
                             onSkipPreviousClick = onSkipPreviousClick,
@@ -168,7 +170,7 @@ fun PlayerScreen(
                             onShuffleClick = onShuffleClick,
                             onRepeatClick = onRepeatClick,
                         )
-                        BottomActions(codec = codec, onLyricsClick = onLyricsClick, reducedBottomPadding = true)
+                        PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick, reducedBottomPadding = true)
                         Spacer(Modifier.weight(1f))
                     }
                     QueuePanel()
@@ -222,9 +224,9 @@ fun PlayerScreen(
                                 )
                             }
                         }
-                        TrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
-                        ProgressBar(progress, positionMs, durationMs, onSeekTo, compactVerticalPadding = true)
-                        PlaybackControls(
+                        PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                        PlayerProgressBar(progress, positionMs, durationMs, onSeekTo, compactVerticalPadding = true)
+                        PlayerPlaybackControls(
                             isPlaying = isPlaying,
                             onPlayPauseClick = onPlayPauseClick,
                             onSkipPreviousClick = onSkipPreviousClick,
@@ -235,7 +237,7 @@ fun PlayerScreen(
                             onRepeatClick = onRepeatClick,
                             compactVerticalPadding = true,
                         )
-                        BottomActions(codec = codec, onLyricsClick = onLyricsClick, compactVerticalPadding = true)
+                        PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick, compactVerticalPadding = true)
                     }
                 }
             }
@@ -244,10 +246,10 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     NowPlayingTopBar(albumName, onCollapse, onQueueClick)
-                    AlbumArt(albumImageUrl, modifier = Modifier.weight(1f))
-                    TrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
-                    ProgressBar(progress, positionMs, durationMs, onSeekTo)
-                    PlaybackControls(
+                    AlbumArt(albumImageUrl, artModifier = artModifier, modifier = Modifier.weight(1f))
+                    PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                    PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
+                    PlayerPlaybackControls(
                         isPlaying = isPlaying,
                         onPlayPauseClick = onPlayPauseClick,
                         onSkipPreviousClick = onSkipPreviousClick,
@@ -257,7 +259,7 @@ fun PlayerScreen(
                         onShuffleClick = onShuffleClick,
                         onRepeatClick = onRepeatClick,
                     )
-                    BottomActions(codec = codec, onLyricsClick = onLyricsClick)
+                    PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick)
                 }
             }
         }
@@ -342,7 +344,7 @@ private fun PlaybackErrorOverlay(
 }
 
 @Composable
-private fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: () -> Unit) {
+fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -378,7 +380,7 @@ private fun NowPlayingCollapseButton(onCollapse: () -> Unit) {
 }
 
 @Composable
-private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, modifier: Modifier = Modifier) {
+private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, artModifier: Modifier = Modifier, modifier: Modifier = Modifier) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -389,7 +391,7 @@ private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, modifier: Mod
             model = albumImageUrl,
             contentDescription = "Album art",
             contentScale = ContentScale.Crop,
-            modifier = Modifier
+            modifier = artModifier
                 .width(artSize)
                 .aspectRatio(1f)
                 .clip(MellowShapes.Large)
@@ -399,7 +401,7 @@ private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, modifier: Mod
 }
 
 @Composable
-private fun TrackInfo(
+fun PlayerTrackInfo(
     trackName: String,
     artistName: String,
     isFavorite: Boolean,
@@ -447,7 +449,7 @@ private fun TrackInfo(
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun ProgressBar(progress: Float, positionMs: Long, durationMs: Long, onSeekTo: (Long) -> Unit, compactVerticalPadding: Boolean = false) {
+fun PlayerProgressBar(progress: Float, positionMs: Long, durationMs: Long, onSeekTo: (Long) -> Unit, compactVerticalPadding: Boolean = false) {
     var isSeeking by remember { mutableStateOf(false) }
     var seekProgress by remember { mutableFloatStateOf(0f) }
     val displayProgress = if (isSeeking) seekProgress else progress
@@ -512,7 +514,7 @@ private fun ProgressBar(progress: Float, positionMs: Long, durationMs: Long, onS
 }
 
 @Composable
-private fun PlaybackControls(
+fun PlayerPlaybackControls(
     isPlaying: Boolean,
     onPlayPauseClick: () -> Unit,
     onSkipPreviousClick: () -> Unit,
@@ -565,7 +567,7 @@ private fun PlaybackControls(
 }
 
 @Composable
-private fun BottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}, reducedBottomPadding: Boolean = false, compactVerticalPadding: Boolean = false) {
+fun PlayerBottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}, reducedBottomPadding: Boolean = false, compactVerticalPadding: Boolean = false) {
     val qualityLabel = when (codec?.lowercase()) {
         "flac", "alac", "wav", "pcm" -> "Lossless"
         "aac", "mp3", "opus", "vorbis", "ogg" -> "Lossy"
@@ -691,7 +693,7 @@ private fun QueuePanel() {
     }
 }
 
-private fun formatMs(ms: Long): String {
+fun formatMs(ms: Long): String {
     val totalSeconds = ms / 1000
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60

@@ -25,7 +25,11 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
@@ -174,6 +178,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val isCleaningUp by mainViewModel.isCleaningUp.collectAsState()
     val serverUrl by mainViewModel.serverUrl.collectAsState()
     val connectionState by mainViewModel.connectionState.collectAsState()
+    val sheetState = rememberExpandableSheetState()
+    val sharedArtPositions = remember { SharedArtPositions() }
+    val density = androidx.compose.ui.platform.LocalDensity.current
 
     var contextMenuState by remember { mutableStateOf<ContextMenuState?>(null) }
     var trackInfoTrack by remember { mutableStateOf<Track?>(null) }
@@ -225,6 +232,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     fun MiniPlayerBar(modifier: Modifier = Modifier) {
         if (playbackState.currentTrack != null) {
             val track = playbackState.currentTrack!!
+            val isTransitioning = sheetState.dragFraction > 0f && sheetState.dragFraction < 1f
             MiniPlayer(
                 title = track.name,
                 artist = track.artistName ?: "",
@@ -239,8 +247,16 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 } else 0f,
                 onPlayPauseClick = { mainViewModel.player.playPause() },
                 onNextClick = { mainViewModel.player.skipNext() },
-                onClick = { navController.navigate("now_playing") },
-                modifier = modifier.padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp1),
+                onClick = {
+                    if (sheetState.anchoredState.anchors.size > 0) sheetState.expand()
+                    else navController.navigate("now_playing")
+                },
+                modifier = modifier
+                    .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp1)
+                    .anchoredDraggable(sheetState.anchoredState, androidx.compose.foundation.gestures.Orientation.Vertical),
+                artModifier = Modifier
+                    .trackArtPosition(sharedArtPositions, isMini = true)
+                    .graphicsLayer { alpha = if (isTransitioning) 0f else 1f },
             )
         }
     }
@@ -252,8 +268,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             else -> WindowWidthClass.Compact
         }
         val isExpanded = windowWidthClass != WindowWidthClass.Compact
+        val isTabletLayout = windowWidthClass == WindowWidthClass.Expanded
+        val hasTrack = playbackState.currentTrack != null
+        val showSheet = !isTabletLayout && hasTrack
+        val sheetBottomNavPx = if (windowWidthClass == WindowWidthClass.Compact) {
+            with(density) { MellowSpacing.BottomNavHeight.toPx() }
+        } else 0f
 
-    val showExpandedMiniPlayer = isExpanded && !isFullScreen && playbackState.currentTrack != null
+    val showExpandedMiniPlayer = isExpanded && !isFullScreen && hasTrack
     val miniPlayerPadding = if (showExpandedMiniPlayer) MellowSpacing.MiniPlayerHeight + MellowSpacing.Sp2 else 0.dp
     CompositionLocalProvider(
         LocalWindowWidthClass provides windowWidthClass,
@@ -267,6 +289,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             )
         }
 
+    Box(modifier = Modifier.weight(1f)) {
     Scaffold(
         contentWindowInsets = if (isFullScreen || isExpanded) {
             WindowInsets(0)
@@ -277,7 +300,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         bottomBar = {
             if (!isFullScreen && !isExpanded) {
                 Column {
-                    MiniPlayerBar()
+                    if (hasTrack) {
+                        MiniPlayerBar()
+                    }
                     MellowBottomNavBar(
                         selectedRoute = selectedTabRoute,
                         onNavigate = navigateToTab,
@@ -285,7 +310,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 }
             }
         },
-        modifier = Modifier.weight(1f),
+        modifier = Modifier.fillMaxSize(),
     ) { innerPadding ->
         @OptIn(ExperimentalSharedTransitionApi::class)
         Box(
@@ -824,64 +849,71 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable("now_playing") {
-                    val pState = playbackState
-                    val track = pState.currentTrack
-
-                    val isDownloaded by remember(track?.id) {
-                        if (track != null) mainViewModel.isTrackDownloaded(track.id)
-                        else kotlinx.coroutines.flow.flowOf(false)
-                    }.collectAsState(initial = false)
-
-                    val isFavorite by remember(track?.id) {
-                        if (track != null) mainViewModel.observeTrackFavorite(track.id)
-                        else kotlinx.coroutines.flow.flowOf(false)
-                    }.collectAsState(initial = track?.isFavorite ?: false)
-
-                    PlayerScreen(
-                        trackName = track?.name ?: "",
-                        artistName = track?.artistName ?: "",
-                        albumName = track?.albumName ?: "",
-                        albumImageUrl = if (serverUrl != null) {
-                            val imgId = track?.imageId ?: track?.albumId
-                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
-                        } else null,
-                        isPlaying = pState.isPlaying,
-                        progress = if (positionState.durationMs > 0) {
-                            positionState.positionMs.toFloat() / positionState.durationMs
-                        } else 0f,
-                        positionMs = positionState.positionMs,
-                        durationMs = positionState.durationMs,
-                        isFavorite = isFavorite,
-                        isDownloaded = isDownloaded,
-                        error = pState.error,
-                        onCollapse = { navController.popBackStack() },
-                        onQueueClick = { navController.navigate("queue") },
-                        onLyricsClick = { navController.navigate("lyrics") },
-                        onPlayPauseClick = { mainViewModel.player.playPause() },
-                        onSkipNextClick = { mainViewModel.player.skipNext() },
-                        onSkipPreviousClick = { mainViewModel.player.skipPrevious() },
-                        onSeekTo = { ms -> mainViewModel.player.seekTo(ms) },
-                        shuffleEnabled = pState.shuffleEnabled,
-                        repeatMode = pState.repeatMode,
-                        onShuffleClick = { mainViewModel.player.toggleShuffle() },
-                        onRepeatClick = { mainViewModel.player.cycleRepeatMode() },
-                        onFavoriteClick = {
-                            if (track != null) {
-                                mainViewModel.toggleFavorite(track.id, isFavorite)
-                            }
-                        },
-                        onRetryClick = {
-                            val tracks = pState.queue
-                            if (tracks.isNotEmpty()) {
-                                scope.launch { mainViewModel.player.playTracks(tracks, pState.currentIndex) }
-                            }
-                        },
-                        onPlayDownloadedClick = {
+                    if (!isTabletLayout) {
+                        LaunchedEffect(Unit) {
+                            sheetState.expand()
                             navController.popBackStack()
-                            navController.navigate(MellowNavDestination.Library.route)
-                        },
-                        codec = track?.codec,
-                    )
+                        }
+                    } else {
+                        val pState = playbackState
+                        val track = pState.currentTrack
+
+                        val isDownloaded by remember(track?.id) {
+                            if (track != null) mainViewModel.isTrackDownloaded(track.id)
+                            else kotlinx.coroutines.flow.flowOf(false)
+                        }.collectAsState(initial = false)
+
+                        val isFavorite by remember(track?.id) {
+                            if (track != null) mainViewModel.observeTrackFavorite(track.id)
+                            else kotlinx.coroutines.flow.flowOf(false)
+                        }.collectAsState(initial = track?.isFavorite ?: false)
+
+                        PlayerScreen(
+                            trackName = track?.name ?: "",
+                            artistName = track?.artistName ?: "",
+                            albumName = track?.albumName ?: "",
+                            albumImageUrl = if (serverUrl != null) {
+                                val imgId = track?.imageId ?: track?.albumId
+                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                            } else null,
+                            isPlaying = pState.isPlaying,
+                            progress = if (positionState.durationMs > 0) {
+                                positionState.positionMs.toFloat() / positionState.durationMs
+                            } else 0f,
+                            positionMs = positionState.positionMs,
+                            durationMs = positionState.durationMs,
+                            isFavorite = isFavorite,
+                            isDownloaded = isDownloaded,
+                            error = pState.error,
+                            onCollapse = { navController.popBackStack() },
+                            onQueueClick = { navController.navigate("queue") },
+                            onLyricsClick = { navController.navigate("lyrics") },
+                            onPlayPauseClick = { mainViewModel.player.playPause() },
+                            onSkipNextClick = { mainViewModel.player.skipNext() },
+                            onSkipPreviousClick = { mainViewModel.player.skipPrevious() },
+                            onSeekTo = { ms -> mainViewModel.player.seekTo(ms) },
+                            shuffleEnabled = pState.shuffleEnabled,
+                            repeatMode = pState.repeatMode,
+                            onShuffleClick = { mainViewModel.player.toggleShuffle() },
+                            onRepeatClick = { mainViewModel.player.cycleRepeatMode() },
+                            onFavoriteClick = {
+                                if (track != null) {
+                                    mainViewModel.toggleFavorite(track.id, isFavorite)
+                                }
+                            },
+                            onRetryClick = {
+                                val tracks = pState.queue
+                                if (tracks.isNotEmpty()) {
+                                    scope.launch { mainViewModel.player.playTracks(tracks, pState.currentIndex) }
+                                }
+                            },
+                            onPlayDownloadedClick = {
+                                navController.popBackStack()
+                                navController.navigate(MellowNavDestination.Library.route)
+                            },
+                            codec = track?.codec,
+                        )
+                    }
                 }
                 composable("queue") {
                     val pState = playbackState
@@ -990,10 +1022,197 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             }
             if (showExpandedMiniPlayer) {
                 MiniPlayerBar(
-                    modifier = Modifier.align(Alignment.BottomCenter),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .anchoredDraggable(sheetState.anchoredState, androidx.compose.foundation.gestures.Orientation.Vertical),
                 )
             }
         }
+    }
+    if (showSheet) {
+        val track = playbackState.currentTrack!!
+
+        val sheetIsFavorite by remember(track.id) {
+            mainViewModel.observeTrackFavorite(track.id)
+        }.collectAsState(initial = track.isFavorite)
+
+        val sheetIsDownloaded by remember(track.id) {
+            mainViewModel.isTrackDownloaded(track.id)
+        }.collectAsState(initial = false)
+
+        ExpandablePlayerSheet(
+            sheetState = sheetState,
+            trackName = track.name,
+            artistName = track.artistName ?: "",
+            albumImageUrl = if (serverUrl != null) {
+                val imgId = track.imageId ?: track.albumId
+                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+            } else null,
+            isPlaying = playbackState.isPlaying,
+            isBuffering = playbackState.isBuffering,
+            progress = if (positionState.durationMs > 0) {
+                positionState.positionMs.toFloat() / positionState.durationMs
+            } else 0f,
+            onPlayPause = { mainViewModel.player.playPause() },
+            onSkipNext = { mainViewModel.player.skipNext() },
+            playerContent = { onCollapse, onQueueClick, onLyricsClick ->
+                val isArtTransitioning = sheetState.dragFraction > 0f && sheetState.dragFraction < 1f
+                PlayerScreen(
+                    embedded = true,
+                    artModifier = Modifier
+                        .trackArtPosition(sharedArtPositions, isMini = false)
+                        .graphicsLayer { alpha = if (isArtTransitioning) 0f else 1f },
+                    trackName = track.name,
+                    artistName = track.artistName ?: "",
+                    albumName = track.albumName ?: "",
+                    albumImageUrl = if (serverUrl != null) {
+                        val imgId = track.imageId ?: track.albumId
+                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                    } else null,
+                    isPlaying = playbackState.isPlaying,
+                    progress = if (positionState.durationMs > 0) {
+                        positionState.positionMs.toFloat() / positionState.durationMs
+                    } else 0f,
+                    positionMs = positionState.positionMs,
+                    durationMs = positionState.durationMs,
+                    isFavorite = sheetIsFavorite,
+                    isDownloaded = sheetIsDownloaded,
+                    error = playbackState.error,
+                    onCollapse = onCollapse,
+                    onQueueClick = onQueueClick,
+                    onLyricsClick = onLyricsClick,
+                    onPlayPauseClick = { mainViewModel.player.playPause() },
+                    onSkipNextClick = { mainViewModel.player.skipNext() },
+                    onSkipPreviousClick = { mainViewModel.player.skipPrevious() },
+                    onSeekTo = { ms -> mainViewModel.player.seekTo(ms) },
+                    shuffleEnabled = playbackState.shuffleEnabled,
+                    repeatMode = playbackState.repeatMode,
+                    onShuffleClick = { mainViewModel.player.toggleShuffle() },
+                    onRepeatClick = { mainViewModel.player.cycleRepeatMode() },
+                    onFavoriteClick = { mainViewModel.toggleFavorite(track.id, sheetIsFavorite) },
+                    onRetryClick = {
+                        val tracks = playbackState.queue
+                        if (tracks.isNotEmpty()) {
+                            scope.launch { mainViewModel.player.playTracks(tracks, playbackState.currentIndex) }
+                        }
+                    },
+                    onPlayDownloadedClick = {
+                        sheetState.collapse()
+                        navController.navigate(MellowNavDestination.Library.route)
+                    },
+                    codec = track.codec,
+                )
+            },
+            queueContent = { onBack ->
+                val pState = playbackState
+                val currentIdx = pState.currentIndex
+                val queue = pState.queue
+
+                val nowPlaying = pState.currentTrack?.let { t ->
+                    dev.mellow.feature.player.QueueTrack(
+                        id = t.id, title = t.name, artist = t.artistName ?: "",
+                        album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
+                        imageUrl = if (serverUrl != null) {
+                            val imgId = t.imageId ?: t.albumId
+                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                        } else null,
+                    )
+                }
+
+                val upNext = remember(queue, currentIdx, serverUrl) {
+                    queue.filterIndexed { idx, _ -> idx > currentIdx }.map { t ->
+                        dev.mellow.feature.player.QueueTrack(
+                            id = t.id, title = t.name, artist = t.artistName ?: "",
+                            album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
+                            imageUrl = if (serverUrl != null) {
+                                val imgId = t.imageId ?: t.albumId
+                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                            } else null,
+                        )
+                    }
+                }
+
+                dev.mellow.feature.player.QueueScreen(
+                    onBack = onBack,
+                    embedded = true,
+                    nowPlaying = nowPlaying,
+                    upNext = upNext,
+                    currentAlbumName = pState.currentTrack?.albumName ?: "",
+                    shuffleEnabled = pState.shuffleEnabled,
+                    repeatMode = pState.repeatMode,
+                    onTrackClick = { relativeIndex ->
+                        mainViewModel.player.playFromQueue(currentIdx + 1 + relativeIndex)
+                    },
+                    onShuffleClick = { mainViewModel.player.toggleShuffle() },
+                    onRepeatClick = { mainViewModel.player.cycleRepeatMode() },
+                    onClearClick = {
+                        mainViewModel.player.clearQueue()
+                        onBack()
+                    },
+                    onMoveTrack = { from, to ->
+                        mainViewModel.player.moveQueueItem(currentIdx + 1 + from, currentIdx + 1 + to)
+                    },
+                    onRemoveTrack = { relativeIndex ->
+                        mainViewModel.player.removeFromQueue(currentIdx + 1 + relativeIndex)
+                    },
+                )
+            },
+            lyricsContent = { onBack ->
+                val pState = playbackState
+                val lyricsTrack = pState.currentTrack
+
+                var lyrics by remember { mutableStateOf<List<dev.mellow.feature.player.LyricsLine>>(emptyList()) }
+                var isLoadingLyrics by remember { mutableStateOf(true) }
+
+                LaunchedEffect(lyricsTrack?.id) {
+                    isLoadingLyrics = true
+                    lyrics = if (lyricsTrack != null) {
+                        mainViewModel.fetchLyrics(lyricsTrack.id).map { r ->
+                            dev.mellow.feature.player.LyricsLine(startMs = r.startMs, text = r.text)
+                        }
+                    } else {
+                        emptyList()
+                    }
+                    isLoadingLyrics = false
+                }
+
+                dev.mellow.feature.player.LyricsScreen(
+                    embedded = true,
+                    trackName = lyricsTrack?.name ?: "",
+                    artistName = lyricsTrack?.artistName ?: "",
+                    albumImageUrl = if (serverUrl != null) {
+                        val imgId = lyricsTrack?.imageId ?: lyricsTrack?.albumId
+                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                    } else null,
+                    lyrics = lyrics,
+                    isLoadingLyrics = isLoadingLyrics,
+                    positionMs = positionState.positionMs,
+                    durationMs = positionState.durationMs,
+                    isPlaying = pState.isPlaying,
+                    onClose = onBack,
+                    onSeekTo = { ms -> mainViewModel.player.seekTo(ms) },
+                    onPlayPauseClick = { mainViewModel.player.playPause() },
+                    onSkipNextClick = { mainViewModel.player.skipNext() },
+                    onSkipPreviousClick = { mainViewModel.player.skipPrevious() },
+                )
+            },
+            bottomNavHeightPx = sheetBottomNavPx,
+        )
+
+        var parentWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        SharedArtOverlay(
+            imageUrl = if (serverUrl != null) {
+                val imgId = track.imageId ?: track.albumId
+                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+            } else null,
+            dragFraction = sheetState.dragFraction,
+            positions = sharedArtPositions,
+            parentOffset = parentWindowOffset,
+            modifier = Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { parentWindowOffset = it.positionInWindow() },
+        )
+    }
     }
     }
     }

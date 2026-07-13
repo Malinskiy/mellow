@@ -48,6 +48,7 @@ fun MiniPlayer(
     onNextClick: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    artModifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
@@ -70,7 +71,7 @@ fun MiniPlayer(
                 model = imageUrl,
                 contentDescription = null,
                 fallbackIconSize = 20.dp,
-                modifier = Modifier
+                modifier = artModifier
                     .size(44.dp)
                     .clip(MellowShapes.Small)
                     .background(MellowTheme.colors.surfaceElevated),
