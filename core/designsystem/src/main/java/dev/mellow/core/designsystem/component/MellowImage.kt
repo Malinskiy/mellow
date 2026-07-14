@@ -64,6 +64,7 @@ fun MellowImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(model)
                         .memoryCacheKey(model.toString())
+                        .placeholderMemoryCacheKey(model.toString())
                         .build(),
                     contentDescription = contentDescription,
                     contentScale = contentScale,
