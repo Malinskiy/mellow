@@ -101,4 +101,36 @@ interface AlbumDao {
 
     @Query("SELECT id FROM albums WHERE serverId = :serverId AND imageTag IS NOT NULL")
     suspend fun getIdsWithImage(serverId: String): List<String>
+
+    @Query("""
+        SELECT a.* FROM albums a 
+        INNER JOIN (
+            SELECT albumId, MAX(lastPlayedAt) as maxPlayed 
+            FROM tracks 
+            WHERE serverId = :serverId AND lastPlayedAt > 0 AND albumId IS NOT NULL
+            GROUP BY albumId
+        ) t ON a.id = t.albumId 
+        ORDER BY t.maxPlayed DESC 
+        LIMIT :limit
+    """)
+    suspend fun getRecentlyPlayedAlbumsSync(serverId: String, limit: Int = 12): List<AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY dateAdded DESC LIMIT :limit")
+    suspend fun getRecentlyAddedAlbums(serverId: String, limit: Int = 20): List<AlbumEntity>
+
+    @Query("""
+        SELECT a.* FROM albums a 
+        INNER JOIN (
+            SELECT albumId, SUM(playCount) as totalPlays 
+            FROM tracks 
+            WHERE serverId = :serverId AND playCount > 0 AND albumId IS NOT NULL
+            GROUP BY albumId
+        ) t ON a.id = t.albumId 
+        ORDER BY t.totalPlays DESC 
+        LIMIT :limit
+    """)
+    suspend fun getMostPlayedAlbumsSync(serverId: String, limit: Int = 20): List<AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE isFavorite = 1 AND serverId = :serverId")
+    suspend fun getFavoriteAlbumsSync(serverId: String): List<AlbumEntity>
 }

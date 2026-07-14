@@ -78,4 +78,7 @@ interface TrackDao {
 
     @Query("DELETE FROM tracks WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY sortName ASC")
+    suspend fun getAllTracksByServer(serverId: String): List<TrackEntity>
 }

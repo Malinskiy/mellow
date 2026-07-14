@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Bundle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -23,6 +24,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.mellow.core.common.jellyfinStreamUrl
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistDao
+import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
@@ -30,7 +32,6 @@ import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.PlaylistEntity
 import dev.mellow.core.database.entity.TrackEntity
-import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkStateObserver
 import dev.mellow.core.player.cache.MellowDataSourceFactory
@@ -59,7 +60,7 @@ class MellowMediaService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
-        if (mediaLibrarySession != null) return // Guard against Media3 bind/unbind loop
+        if (mediaLibrarySession != null) return
 
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -120,60 +121,92 @@ class MellowMediaService : MediaLibraryService() {
     private fun artworkUri(itemId: String): Uri =
         Uri.parse("content://${packageName}.artwork/$itemId")
 
-    private fun AlbumEntity.toBrowsableItem(): MediaItem =
-        MediaItem.Builder()
+    private fun AlbumEntity.toBrowsableItem(groupTitle: String? = null): MediaItem {
+        val extras = Bundle().apply {
+            putInt(CONTENT_STYLE_PLAYABLE_HINT, CONTENT_STYLE_LIST_ITEM)
+            groupTitle?.let { putString(CONTENT_STYLE_GROUP_TITLE, it) }
+        }
+        return MediaItem.Builder()
             .setMediaId("album:$id")
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(name)
                     .setArtist(artistName)
-                    .setArtworkUri(if (imageTag != null) artworkUri(id) else null)
+                    .setSubtitle(artistName?.let { "Album \u2022 $it" } ?: "Album")
+                    .setArtworkUri(artworkUri(id))
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_ALBUM)
+                    .apply { year?.let { setReleaseYear(it) } }
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
+                    .setExtras(extras)
                     .build()
             )
             .build()
+    }
 
-    private fun ArtistEntity.toBrowsableItem(): MediaItem =
-        MediaItem.Builder()
+    private fun ArtistEntity.toBrowsableItem(): MediaItem {
+        val extras = Bundle().apply {
+            putInt(CONTENT_STYLE_BROWSABLE_HINT, CONTENT_STYLE_GRID_ITEM)
+        }
+        return MediaItem.Builder()
             .setMediaId("artist:$id")
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(name)
+                    .setSubtitle("Artist")
                     .setArtworkUri(if (imageTag != null) artworkUri(id) else null)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_ARTIST)
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
+                    .setExtras(extras)
                     .build()
             )
             .build()
+    }
 
-    private fun PlaylistEntity.toBrowsableItem(): MediaItem =
-        MediaItem.Builder()
+    private fun PlaylistEntity.toBrowsableItem(): MediaItem {
+        val extras = Bundle().apply {
+            putInt(CONTENT_STYLE_PLAYABLE_HINT, CONTENT_STYLE_LIST_ITEM)
+        }
+        val subtitle = if (trackCount > 0) "Playlist \u2022 $trackCount tracks" else "Playlist"
+        return MediaItem.Builder()
             .setMediaId("playlist:$id")
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(name)
+                    .setSubtitle(subtitle)
                     .setArtworkUri(if (imageTag != null) artworkUri(id) else null)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_PLAYLIST)
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
+                    .setExtras(extras)
                     .build()
             )
             .build()
+    }
 
-    private fun TrackEntity.toPlayableItem(): MediaItem =
-        MediaItem.Builder()
+    private fun TrackEntity.toPlayableItem(groupTitle: String? = null): MediaItem {
+        val extras = groupTitle?.let {
+            Bundle().apply { putString(CONTENT_STYLE_GROUP_TITLE, it) }
+        }
+        return MediaItem.Builder()
             .setMediaId(id)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(name)
                     .setArtist(artistName)
                     .setAlbumTitle(albumName)
-                    .setArtworkUri(if (imageTag != null) artworkUri(albumId ?: id) else null)
+                    .setArtworkUri(artworkUri(albumId ?: id))
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                    .apply { trackNumber?.let { setTrackNumber(it) } }
+                    .apply { discNumber?.let { setDiscNumber(it) } }
                     .setIsBrowsable(false)
                     .setIsPlayable(true)
+                    .apply { extras?.let { setExtras(it) } }
                     .build()
             )
             .build()
+    }
 
     private inner class LibrarySessionCallback : MediaLibrarySession.Callback {
 
@@ -203,7 +236,8 @@ class MellowMediaService : MediaLibraryService() {
                                     .setTitle(track.name)
                                     .setArtist(track.artistName)
                                     .setAlbumTitle(track.albumName)
-                                    .setArtworkUri(if (track.imageTag != null) artworkUri(track.albumId ?: trackId) else null)
+                                    .setArtworkUri(artworkUri(track.albumId ?: trackId))
+                                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                                     .setIsPlayable(true)
                                     .setIsBrowsable(false)
                                     .build()
@@ -221,6 +255,10 @@ class MellowMediaService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<MediaItem>> {
+            val rootExtras = Bundle().apply {
+                putInt(CONTENT_STYLE_BROWSABLE_HINT, CONTENT_STYLE_LIST_ITEM)
+                putInt(CONTENT_STYLE_PLAYABLE_HINT, CONTENT_STYLE_GRID_ITEM)
+            }
             val root = MediaItem.Builder()
                 .setMediaId(ROOT_ID)
                 .setMediaMetadata(
@@ -228,10 +266,12 @@ class MellowMediaService : MediaLibraryService() {
                         .setIsBrowsable(true)
                         .setIsPlayable(false)
                         .setTitle("Mellow")
+                        .setExtras(rootExtras)
                         .build()
                 )
                 .build()
-            return Futures.immediateFuture(LibraryResult.ofItem(root, params))
+            val rootParams = LibraryParams.Builder().setExtras(rootExtras).build()
+            return Futures.immediateFuture(LibraryResult.ofItem(root, rootParams))
         }
 
         override fun onGetChildren(
@@ -269,10 +309,38 @@ class MellowMediaService : MediaLibraryService() {
                     if (dlArtistNames != null) filter { it.name in dlArtistNames } else this
 
                 val items = when {
-                    parentId == TAB_RECENT -> {
-                        trackDao.getRecentlyPlayedTracks(serverId, limit = 50)
+                    parentId == TAB_HOME -> {
+                        val recentAlbums = albumDao.getRecentlyPlayedAlbumsSync(serverId, limit = 12)
                             .onlineFilter()
-                            .map { it.toPlayableItem() }
+                        val recentItems = recentAlbums
+                            .map { it.toBrowsableItem(groupTitle = "Recently Played") }
+
+                        val addedAlbums = albumDao.getRecentlyAddedAlbums(serverId, limit = 20)
+                            .onlineFilter()
+                        val addedItems = addedAlbums
+                            .map { it.toBrowsableItem(groupTitle = "Recently Added") }
+
+                        val usedIds = recentAlbums.map { it.id }.toSet() +
+                            addedAlbums.map { it.id }.toSet()
+
+                        val mostPlayed = albumDao.getMostPlayedAlbumsSync(serverId, limit = 20)
+                            .onlineFilter()
+                        val favoriteAlbums = albumDao.getFavoriteAlbumsSync(serverId)
+                            .onlineFilter()
+                        val quickPicks = (mostPlayed + favoriteAlbums)
+                            .distinctBy { it.id }
+                            .filter { it.id !in usedIds }
+                            .shuffled()
+                            .take(12)
+                            .map { it.toBrowsableItem(groupTitle = "Quick Picks") }
+
+                        val favoriteTracks = trackDao.getFavoriteTracksSync(serverId)
+                            .onlineFilter()
+                            .shuffled()
+                            .take(5)
+                            .map { it.toPlayableItem(groupTitle = "Favorite Tracks") }
+
+                        recentItems + addedItems + quickPicks + favoriteTracks
                     }
                     parentId == TAB_FAVORITES -> {
                         trackDao.getFavoriteTracksSync(serverId)
@@ -296,7 +364,19 @@ class MellowMediaService : MediaLibraryService() {
                             .filter { it.isNotBlank() }
                             .distinct()
                             .sorted()
-                            .map { genre -> browsableItem("genre:$genre", genre) }
+                            .map { genre ->
+                                browsableItem(
+                                    mediaId = "genre:$genre",
+                                    title = genre,
+                                    mediaType = MediaMetadata.MEDIA_TYPE_GENRE,
+                                    browsableHint = CONTENT_STYLE_GRID_ITEM,
+                                )
+                            }
+                    }
+                    parentId == LIBRARY_SONGS -> {
+                        trackDao.getAllTracksByServer(serverId)
+                            .onlineFilter()
+                            .map { it.toPlayableItem() }
                     }
                     parentId == TAB_PLAYLISTS -> {
                         playlistDao.getPlaylistsByServer(serverId)
@@ -384,41 +464,107 @@ class MellowMediaService : MediaLibraryService() {
         }
 
         private fun rootChildren(): List<MediaItem> = listOf(
-            browsableItem(TAB_RECENT, "Recent"),
-            browsableItem(TAB_LIBRARY, "Library"),
-            browsableItem(TAB_PLAYLISTS, "Playlists"),
-            browsableItem(TAB_FAVORITES, "Favorites"),
+            browsableItem(
+                mediaId = TAB_HOME,
+                title = "Home",
+                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_MIXED,
+                browsableHint = CONTENT_STYLE_GRID_ITEM,
+                playableHint = CONTENT_STYLE_GRID_ITEM,
+            ),
+            browsableItem(
+                mediaId = TAB_LIBRARY,
+                title = "Library",
+                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_MIXED,
+                browsableHint = CONTENT_STYLE_LIST_ITEM,
+            ),
+            browsableItem(
+                mediaId = TAB_PLAYLISTS,
+                title = "Playlists",
+                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_PLAYLISTS,
+                browsableHint = CONTENT_STYLE_GRID_ITEM,
+            ),
+            browsableItem(
+                mediaId = TAB_FAVORITES,
+                title = "Favorites",
+                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_MIXED,
+                playableHint = CONTENT_STYLE_GRID_ITEM,
+            ),
         )
 
         private fun libraryChildren(): List<MediaItem> = listOf(
-            browsableItem(LIBRARY_ALBUMS, "Albums"),
-            browsableItem(LIBRARY_ARTISTS, "Artists"),
-            browsableItem(LIBRARY_GENRES, "Genres"),
+            browsableItem(
+                mediaId = LIBRARY_ALBUMS,
+                title = "Albums",
+                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_ALBUMS,
+                browsableHint = CONTENT_STYLE_GRID_ITEM,
+            ),
+            browsableItem(
+                mediaId = LIBRARY_ARTISTS,
+                title = "Artists",
+                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_ARTISTS,
+                browsableHint = CONTENT_STYLE_GRID_ITEM,
+            ),
+            browsableItem(
+                mediaId = LIBRARY_GENRES,
+                title = "Genres",
+                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_GENRES,
+                browsableHint = CONTENT_STYLE_LIST_ITEM,
+            ),
+            browsableItem(
+                mediaId = LIBRARY_SONGS,
+                title = "Songs",
+                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_MIXED,
+                playableHint = CONTENT_STYLE_GRID_ITEM,
+            ),
         )
 
-        private fun browsableItem(mediaId: String, title: String): MediaItem =
-            MediaItem.Builder()
+        private fun browsableItem(
+            mediaId: String,
+            title: String,
+            mediaType: Int? = null,
+            browsableHint: Int? = null,
+            playableHint: Int? = null,
+        ): MediaItem {
+            val extras = if (browsableHint != null || playableHint != null) {
+                Bundle().apply {
+                    browsableHint?.let { putInt(CONTENT_STYLE_BROWSABLE_HINT, it) }
+                    playableHint?.let { putInt(CONTENT_STYLE_PLAYABLE_HINT, it) }
+                }
+            } else null
+            return MediaItem.Builder()
                 .setMediaId(mediaId)
                 .setMediaMetadata(
                     MediaMetadata.Builder()
                         .setIsBrowsable(true)
                         .setIsPlayable(false)
                         .setTitle(title)
+                        .apply { mediaType?.let { setMediaType(it) } }
+                        .apply { extras?.let { setExtras(it) } }
                         .build()
                 )
                 .build()
+        }
     }
 
     companion object {
         private const val ROOT_ID = "mellow_root"
-        private const val TAB_RECENT = "tab_recent"
+        private const val TAB_HOME = "tab_home"
         private const val TAB_LIBRARY = "tab_library"
         private const val TAB_PLAYLISTS = "tab_playlists"
         private const val TAB_FAVORITES = "tab_favorites"
         private const val LIBRARY_ALBUMS = "library_albums"
         private const val LIBRARY_ARTISTS = "library_artists"
         private const val LIBRARY_GENRES = "library_genres"
+        private const val LIBRARY_SONGS = "library_songs"
         private const val GENRE_SEPARATOR = "|||"
+        private const val CONTENT_STYLE_BROWSABLE_HINT =
+            "android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"
+        private const val CONTENT_STYLE_PLAYABLE_HINT =
+            "android.media.browse.CONTENT_STYLE_PLAYABLE_HINT"
+        private const val CONTENT_STYLE_GROUP_TITLE =
+            "android.media.browse.CONTENT_STYLE_GROUP_TITLE_HINT"
+        private const val CONTENT_STYLE_LIST_ITEM = 1
+        private const val CONTENT_STYLE_GRID_ITEM = 2
     }
 }
 
