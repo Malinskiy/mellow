@@ -26,7 +26,12 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -1050,6 +1055,155 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         navController.navigate(MellowNavDestination.Library.route)
                     },
                     codec = track.codec,
+                    sidePanelContent = {
+                        val pState = playbackState
+                        val currentIdx = pState.currentIndex
+                        val sideQueue = pState.queue
+                        var activeTab by remember { mutableStateOf(0) }
+
+                        val sideNowPlaying = pState.currentTrack?.let { t ->
+                            dev.mellow.feature.player.QueueTrack(
+                                id = t.id, title = t.name, artist = t.artistName ?: "",
+                                album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
+                                imageUrl = if (serverUrl != null) {
+                                    val imgId = t.imageId ?: t.albumId
+                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                } else null,
+                            )
+                        }
+                        val sideUpNext = remember(sideQueue, currentIdx, serverUrl) {
+                            sideQueue.filterIndexed { idx, _ -> idx > currentIdx }.map { t ->
+                                dev.mellow.feature.player.QueueTrack(
+                                    id = t.id, title = t.name, artist = t.artistName ?: "",
+                                    album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
+                                    imageUrl = if (serverUrl != null) {
+                                        val imgId = t.imageId ?: t.albumId
+                                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                    } else null,
+                                )
+                            }
+                        }
+
+                        val lyricsTrack = pState.currentTrack
+                        var sideLyrics by remember { mutableStateOf<List<dev.mellow.feature.player.LyricsLine>>(emptyList()) }
+                        var sideIsLoadingLyrics by remember { mutableStateOf(true) }
+                        LaunchedEffect(lyricsTrack?.id) {
+                            sideIsLoadingLyrics = true
+                            sideLyrics = if (lyricsTrack != null) {
+                                mainViewModel.fetchLyrics(lyricsTrack.id).map { r ->
+                                    dev.mellow.feature.player.LyricsLine(startMs = r.startMs, text = r.text)
+                                }
+                            } else emptyList()
+                            sideIsLoadingLyrics = false
+                        }
+
+                        val borderColor = MellowTheme.colors.border
+                        Column(
+                            modifier = Modifier
+                                .width(400.dp)
+                                .fillMaxSize()
+                                .drawBehind {
+                                    drawLine(
+                                        color = borderColor,
+                                        start = Offset(0f, 0f),
+                                        end = Offset(0f, size.height),
+                                        strokeWidth = 1.dp.toPx(),
+                                    )
+                                }
+                                .background(MellowTheme.colors.background.copy(alpha = 0.3f)),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp)
+                                    .padding(top = 20.dp, bottom = 8.dp),
+                            ) {
+                                Text(
+                                    "Queue",
+                                    fontSize = 13.sp,
+                                    color = if (activeTab == 0) MellowTheme.colors.foreground else MellowTheme.colors.muted,
+                                    fontWeight = if (activeTab == 0) FontWeight.Medium else FontWeight.Normal,
+                                    modifier = Modifier
+                                        .clickable { activeTab = 0 }
+                                        .padding(bottom = 8.dp)
+                                        .then(
+                                            if (activeTab == 0) Modifier.drawBehind {
+                                                drawLine(
+                                                    color = borderColor,
+                                                    start = Offset(0f, size.height),
+                                                    end = Offset(size.width, size.height),
+                                                    strokeWidth = 2.dp.toPx(),
+                                                )
+                                            } else Modifier,
+                                        ),
+                                )
+                                Spacer(Modifier.width(MellowSpacing.Sp4))
+                                Text(
+                                    "Lyrics",
+                                    fontSize = 13.sp,
+                                    color = if (activeTab == 1) MellowTheme.colors.foreground else MellowTheme.colors.muted,
+                                    fontWeight = if (activeTab == 1) FontWeight.Medium else FontWeight.Normal,
+                                    modifier = Modifier
+                                        .clickable { activeTab = 1 }
+                                        .padding(bottom = 8.dp)
+                                        .then(
+                                            if (activeTab == 1) Modifier.drawBehind {
+                                                drawLine(
+                                                    color = borderColor,
+                                                    start = Offset(0f, size.height),
+                                                    end = Offset(size.width, size.height),
+                                                    strokeWidth = 2.dp.toPx(),
+                                                )
+                                            } else Modifier,
+                                        ),
+                                )
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                when (activeTab) {
+                                    0 -> dev.mellow.feature.player.QueueScreen(
+                                        onBack = {},
+                                        embedded = true,
+                                        nowPlaying = sideNowPlaying,
+                                        upNext = sideUpNext,
+                                        currentAlbumName = pState.currentTrack?.albumName ?: "",
+                                        shuffleEnabled = pState.shuffleEnabled,
+                                        repeatMode = pState.repeatMode,
+                                        onTrackClick = { relativeIndex ->
+                                            mainViewModel.player.playFromQueue(currentIdx + 1 + relativeIndex)
+                                        },
+                                        onShuffleClick = { mainViewModel.player.toggleShuffle() },
+                                        onRepeatClick = { mainViewModel.player.cycleRepeatMode() },
+                                        onClearClick = { mainViewModel.player.clearQueue() },
+                                        onMoveTrack = { from, to ->
+                                            mainViewModel.player.moveQueueItem(currentIdx + 1 + from, currentIdx + 1 + to)
+                                        },
+                                        onRemoveTrack = { relativeIndex ->
+                                            mainViewModel.player.removeFromQueue(currentIdx + 1 + relativeIndex)
+                                        },
+                                    )
+                                    1 -> dev.mellow.feature.player.LyricsScreen(
+                                        embedded = true,
+                                        trackName = lyricsTrack?.name ?: "",
+                                        artistName = lyricsTrack?.artistName ?: "",
+                                        albumImageUrl = if (serverUrl != null) {
+                                            val imgId = lyricsTrack?.imageId ?: lyricsTrack?.albumId
+                                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                        } else null,
+                                        lyrics = sideLyrics,
+                                        isLoadingLyrics = sideIsLoadingLyrics,
+                                        positionMs = positionState.positionMs,
+                                        durationMs = positionState.durationMs,
+                                        isPlaying = pState.isPlaying,
+                                        onClose = { activeTab = 0 },
+                                        onSeekTo = { ms -> mainViewModel.player.seekTo(ms) },
+                                        onPlayPauseClick = { mainViewModel.player.playPause() },
+                                        onSkipNextClick = { mainViewModel.player.skipNext() },
+                                        onSkipPreviousClick = { mainViewModel.player.skipPrevious() },
+                                    )
+                                }
+                            }
+                        }
+                    },
                 )
             },
             queueContent = { onBack ->

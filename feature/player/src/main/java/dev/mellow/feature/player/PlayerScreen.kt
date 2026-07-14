@@ -94,6 +94,7 @@ fun PlayerScreen(
     onRetryClick: () -> Unit = {},
     onPlayDownloadedClick: () -> Unit = {},
     codec: String? = null,
+    sidePanelContent: @Composable (() -> Unit)? = null,
 ) {
     val windowWidthClass = LocalWindowWidthClass.current
 
@@ -173,7 +174,9 @@ fun PlayerScreen(
                         PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick, reducedBottomPadding = true)
                         Spacer(Modifier.weight(1f))
                     }
-                    QueuePanel()
+                    if (sidePanelContent != null) {
+                        sidePanelContent()
+                    }
                 }
             }
             WindowWidthClass.Medium -> {
@@ -625,73 +628,7 @@ fun PlayerBottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}, r
     }
 }
 
-@Composable
-private fun QueuePanel() {
-    val borderColor = MellowTheme.colors.border
-    Column(
-        modifier = Modifier
-            .width(400.dp)
-            .fillMaxHeight()
-            .drawBehind {
-                drawLine(
-                    color = borderColor,
-                    start = Offset(0f, 0f),
-                    end = Offset(0f, size.height),
-                    strokeWidth = 1.dp.toPx(),
-                )
-            }
-            .background(MellowTheme.colors.background.copy(alpha = 0.3f)),
-    ) {
-        Text(
-            "Up Next",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MellowTheme.colors.foreground,
-            modifier = Modifier.padding(top = 20.dp, start = 24.dp, end = 24.dp, bottom = 12.dp),
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-        ) {
-            Text(
-                "Queue",
-                fontSize = 13.sp,
-                color = MellowTheme.colors.foreground,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .padding(bottom = 8.dp)
-                    .drawBehind {
-                        drawLine(
-                            color = borderColor,
-                            start = Offset(0f, size.height),
-                            end = Offset(size.width, size.height),
-                            strokeWidth = 2.dp.toPx(),
-                        )
-                    },
-            )
-            Spacer(Modifier.width(MellowSpacing.Sp4))
-            Text(
-                "Lyrics",
-                fontSize = 13.sp,
-                color = MellowTheme.colors.muted,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(MellowSpacing.Sp4),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                "Queue available from queue screen",
-                style = MaterialTheme.typography.bodySmall,
-                color = MellowTheme.colors.muted,
-            )
-        }
-    }
-}
+
 
 fun formatMs(ms: Long): String {
     val totalSeconds = ms / 1000
