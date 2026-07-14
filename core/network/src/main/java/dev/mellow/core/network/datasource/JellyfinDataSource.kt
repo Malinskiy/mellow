@@ -259,10 +259,12 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getLyrics(itemId: UUID): List<LyricsResult> {
-        return try {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
             val baseUrl = client.api.baseUrl?.trimEnd('/')
-                ?: return emptyList()
-            val token = client.api.accessToken ?: return emptyList()
+                ?: return@withContext emptyList()
+            val token = client.api.accessToken
+                ?: return@withContext emptyList()
             val url = "$baseUrl/Audio/$itemId/Lyrics"
 
             val request = okhttp3.Request.Builder()
@@ -272,22 +274,27 @@ class JellyfinDataSource @Inject constructor(
                 .build()
 
             val response = okhttp3.OkHttpClient().newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
+            if (!response.isSuccessful) return@withContext emptyList()
 
-            val body = response.body?.string() ?: return emptyList()
+            val body = response.body?.string() ?: return@withContext emptyList()
             val json = org.json.JSONObject(body)
-            val lyricsArray = json.optJSONArray("Lyrics") ?: return emptyList()
+            val lyricsArray = json.optJSONArray("Lyrics")
+                ?: return@withContext emptyList()
 
             (0 until lyricsArray.length()).mapNotNull { i ->
                 val line = lyricsArray.getJSONObject(i)
-                val startTicks = line.optLong("Start", -1L)
                 val text = line.optString("Text", "")
-                if (startTicks < 0 || text.isEmpty()) return@mapNotNull null
-                LyricsResult(startMs = startTicks / 10_000, text = text)
+                if (text.isEmpty()) return@mapNotNull null
+                val startTicks = if (line.has("Start")) line.getLong("Start") else -1L
+                LyricsResult(
+                    startMs = if (startTicks >= 0) startTicks / 10_000 else -1L,
+                    text = text,
+                )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch lyrics for $itemId", e)
             emptyList()
+        }
         }
     }
 

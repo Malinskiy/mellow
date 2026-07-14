@@ -50,7 +50,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseIcon
 import dev.mellow.core.designsystem.theme.MellowPalette
@@ -81,10 +86,14 @@ fun LyricsScreen(
     onSkipNextClick: () -> Unit = {},
     onSkipPreviousClick: () -> Unit = {},
 ) {
+    val isSynced by remember(lyrics) {
+        derivedStateOf { lyrics.any { it.startMs >= 0 } }
+    }
+
     val activeIndex by remember(lyrics, positionMs) {
         derivedStateOf {
-            if (lyrics.isEmpty()) -1
-            else lyrics.indexOfLast { it.startMs <= positionMs }
+            if (!isSynced || lyrics.isEmpty()) -1
+            else lyrics.indexOfLast { it.startMs in 0..positionMs }
         }
     }
 
@@ -137,7 +146,14 @@ fun LyricsScreen(
                 onClose = onClose,
             )
 
-            Box(modifier = Modifier.weight(1f)) {
+            val scrollIsolation = remember {
+                object : NestedScrollConnection {
+                    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset = available
+                    override suspend fun onPreFling(available: Velocity): Velocity = available
+                }
+            }
+
+            Box(modifier = Modifier.weight(1f).nestedScroll(scrollIsolation)) {
                 when {
                     isLoadingLyrics -> {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -180,9 +196,10 @@ fun LyricsScreen(
                             ),
                         ) {
                             itemsIndexed(lyrics, key = { idx, _ -> idx }) { index, line ->
-                                val isActive = index == activeIndex
-                                val isPast = index < activeIndex
+                                val isActive = isSynced && index == activeIndex
+                                val isPast = isSynced && index < activeIndex
                                 val alpha = when {
+                                    !isSynced -> 0.9f
                                     isActive -> 1f
                                     isPast -> 0.4f
                                     else -> 0.6f
@@ -197,7 +214,10 @@ fun LyricsScreen(
                                     textAlign = TextAlign.Start,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { onSeekTo(line.startMs) }
+                                        .then(
+                                            if (isSynced) Modifier.clickable { onSeekTo(line.startMs) }
+                                            else Modifier
+                                        )
                                         .padding(vertical = MellowSpacing.Sp1),
                                 )
                             }
@@ -206,15 +226,17 @@ fun LyricsScreen(
                 }
             }
 
-            LyricsMiniControls(
-                positionMs = positionMs,
-                durationMs = durationMs,
-                isPlaying = isPlaying,
-                onSeekTo = onSeekTo,
-                onPlayPauseClick = onPlayPauseClick,
-                onSkipPreviousClick = onSkipPreviousClick,
-                onSkipNextClick = onSkipNextClick,
-            )
+            if (!embedded) {
+                LyricsMiniControls(
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    isPlaying = isPlaying,
+                    onSeekTo = onSeekTo,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onSkipPreviousClick = onSkipPreviousClick,
+                    onSkipNextClick = onSkipNextClick,
+                )
+            }
         }
     }
 }

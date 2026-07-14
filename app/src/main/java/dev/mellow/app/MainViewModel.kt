@@ -8,7 +8,9 @@ import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
 import dev.mellow.core.database.dao.DownloadDao
+import dev.mellow.core.database.dao.LyricsDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.entity.LyricsEntity
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkStateObserver
 import dev.mellow.core.network.datasource.JellyfinDataSource
@@ -36,6 +38,7 @@ class MainViewModel @Inject constructor(
     private val jellyfinDataSource: JellyfinDataSource,
     private val downloadDao: DownloadDao,
     private val trackDao: TrackDao,
+    private val lyricsDao: LyricsDao,
     private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
 
@@ -141,8 +144,51 @@ class MainViewModel @Inject constructor(
     }
 
     suspend fun fetchLyrics(trackId: String): List<JellyfinDataSource.LyricsResult> {
-        return try {
+        val cached = lyricsDao.getLyrics(trackId)
+        if (cached != null) {
+            return parseLyricsData(cached.lyricsData)
+        }
+
+        val results = try {
             jellyfinDataSource.getLyrics(UUID.fromString(trackId))
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+        if (results.isNotEmpty()) {
+            val serverId = _serverId.value ?: return results
+            val json = org.json.JSONArray()
+            for (r in results) {
+                json.put(org.json.JSONObject().apply {
+                    put("startMs", r.startMs)
+                    put("text", r.text)
+                })
+            }
+            lyricsDao.upsert(
+                LyricsEntity(
+                    trackId = trackId,
+                    serverId = serverId,
+                    lyricsData = json.toString(),
+                    lastSynced = System.currentTimeMillis(),
+                ),
+            )
+        }
+
+        return results
+    }
+
+    private fun parseLyricsData(data: String): List<JellyfinDataSource.LyricsResult> {
+        return try {
+            val arr = org.json.JSONArray(data)
+            (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.getJSONObject(i)
+                val text = obj.optString("text", "")
+                if (text.isEmpty()) return@mapNotNull null
+                JellyfinDataSource.LyricsResult(
+                    startMs = obj.optLong("startMs", -1L),
+                    text = text,
+                )
+            }
         } catch (e: Exception) {
             emptyList()
         }
