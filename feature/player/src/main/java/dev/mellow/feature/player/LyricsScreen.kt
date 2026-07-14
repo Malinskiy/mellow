@@ -72,6 +72,7 @@ data class LyricsLine(
 fun LyricsScreen(
     modifier: Modifier = Modifier,
     embedded: Boolean = false,
+    showControls: Boolean = !embedded,
     trackName: String = "",
     artistName: String = "",
     albumImageUrl: String? = null,
@@ -101,8 +102,8 @@ fun LyricsScreen(
 
     LaunchedEffect(activeIndex) {
         if (activeIndex >= 0) {
-            val targetIndex = (activeIndex + 2).coerceAtMost(lyrics.lastIndex)
-            listState.animateScrollToItem(targetIndex, scrollOffset = -200)
+            val viewportHeight = listState.layoutInfo.viewportSize.height
+            listState.animateScrollToItem(activeIndex, scrollOffset = -(viewportHeight / 3))
         }
     }
 
@@ -226,7 +227,7 @@ fun LyricsScreen(
                 }
             }
 
-            if (!embedded) {
+            if (showControls) {
                 LyricsMiniControls(
                     positionMs = positionMs,
                     durationMs = durationMs,

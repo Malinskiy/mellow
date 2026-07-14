@@ -1281,6 +1281,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                 dev.mellow.feature.player.LyricsScreen(
                     embedded = true,
+                    showControls = true,
                     trackName = lyricsTrack?.name ?: "",
                     artistName = lyricsTrack?.artistName ?: "",
                     albumImageUrl = if (serverUrl != null) {
