@@ -30,6 +30,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.graphicsLayer
@@ -1101,19 +1103,27 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         }
 
                         val borderColor = MellowTheme.colors.border
+                        val panelBgColor = MellowTheme.colors.background.copy(alpha = 0.3f)
+                        val density = LocalDensity.current
+                        val topInsetPx = WindowInsets.systemBars.getTop(density).toFloat()
+                        val bottomInsetPx = WindowInsets.systemBars.getBottom(density).toFloat()
                         Column(
                             modifier = Modifier
                                 .width(400.dp)
                                 .fillMaxSize()
                                 .drawBehind {
+                                    drawRect(
+                                        color = panelBgColor,
+                                        topLeft = Offset(0f, -topInsetPx),
+                                        size = Size(size.width, size.height + topInsetPx + bottomInsetPx),
+                                    )
                                     drawLine(
                                         color = borderColor,
-                                        start = Offset(0f, 0f),
-                                        end = Offset(0f, size.height),
+                                        start = Offset(0f, -topInsetPx),
+                                        end = Offset(0f, size.height + bottomInsetPx),
                                         strokeWidth = 1.dp.toPx(),
                                     )
-                                }
-                                .background(MellowTheme.colors.background.copy(alpha = 0.3f)),
+                                },
                         ) {
                             Row(
                                 modifier = Modifier

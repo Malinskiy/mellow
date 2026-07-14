@@ -126,7 +126,8 @@ fun PlayerScreen(
                             .weight(1f)
                             .fillMaxHeight(),
                     ) {
-                        NowPlayingTopBar(albumName, onCollapse, onQueueClick)
+                        val hasSidePanel = sidePanelContent != null
+                        NowPlayingTopBar(albumName, onCollapse, onQueueClick, showQueueButton = !hasSidePanel)
                         Spacer(Modifier.weight(1f))
                         Box(
                             contentAlignment = Alignment.Center,
@@ -157,7 +158,7 @@ fun PlayerScreen(
                             onShuffleClick = onShuffleClick,
                             onRepeatClick = onRepeatClick,
                         )
-                        PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick, reducedBottomPadding = true)
+                        PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick, reducedBottomPadding = true, showLyricsButton = !hasSidePanel)
                         Spacer(Modifier.weight(1f))
                     }
                     if (sidePanelContent != null) {
@@ -166,67 +167,77 @@ fun PlayerScreen(
                 }
             }
             WindowWidthClass.Medium -> {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(
-                                start = MellowSpacing.Sp8,
-                                end = MellowSpacing.Sp4,
-                            ),
-                    ) {
-                        NowPlayingCollapseButton(onCollapse)
-                        AsyncImage(
-                            model = albumImageUrl,
-                            contentDescription = "Album art",
-                            contentScale = ContentScale.Crop,
-                            modifier = artModifier
-                                .fillMaxHeight(0.75f)
-                                .aspectRatio(1f)
-                                .clip(MellowShapes.Large)
-                                .background(MellowTheme.colors.surface),
-                        )
-                    }
-                    Column(
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                    ) {
-                        if (albumName.isNotEmpty()) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp2),
-                                modifier = Modifier.padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp1),
-                            ) {
-                                Text(
-                                    "Playing from",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MellowTheme.colors.muted,
-                                    letterSpacing = 0.1.sp,
-                                )
-                                Text(
-                                    albumName,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                    color = MellowTheme.colors.foreground,
-                                )
-                            }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .padding(
+                                    start = MellowSpacing.Sp8,
+                                    end = MellowSpacing.Sp4,
+                                ),
+                        ) {
+                            NowPlayingCollapseButton(onCollapse)
+                            AsyncImage(
+                                model = albumImageUrl,
+                                contentDescription = "Album art",
+                                contentScale = ContentScale.Crop,
+                                modifier = artModifier
+                                    .fillMaxHeight(0.75f)
+                                    .aspectRatio(1f)
+                                    .clip(MellowShapes.Large)
+                                    .background(MellowTheme.colors.surface),
+                            )
                         }
-                        PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
-                        PlayerProgressBar(progress, positionMs, durationMs, onSeekTo, compactVerticalPadding = true)
-                        PlayerPlaybackControls(
-                            isPlaying = isPlaying,
-                            onPlayPauseClick = onPlayPauseClick,
-                            onSkipPreviousClick = onSkipPreviousClick,
-                            onSkipNextClick = onSkipNextClick,
-                            shuffleEnabled = shuffleEnabled,
-                            repeatMode = repeatMode,
-                            onShuffleClick = onShuffleClick,
-                            onRepeatClick = onRepeatClick,
-                            compactVerticalPadding = true,
-                        )
-                        PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick, compactVerticalPadding = true)
+                        Column(
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                        ) {
+                            if (albumName.isNotEmpty()) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp2),
+                                    modifier = Modifier.padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp1),
+                                ) {
+                                    Text(
+                                        "Playing from",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MellowTheme.colors.muted,
+                                        letterSpacing = 0.1.sp,
+                                    )
+                                    Text(
+                                        albumName,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                        color = MellowTheme.colors.foreground,
+                                    )
+                                }
+                            }
+                            PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                            PlayerProgressBar(progress, positionMs, durationMs, onSeekTo, compactVerticalPadding = true)
+                            PlayerPlaybackControls(
+                                isPlaying = isPlaying,
+                                onPlayPauseClick = onPlayPauseClick,
+                                onSkipPreviousClick = onSkipPreviousClick,
+                                onSkipNextClick = onSkipNextClick,
+                                shuffleEnabled = shuffleEnabled,
+                                repeatMode = repeatMode,
+                                onShuffleClick = onShuffleClick,
+                                onRepeatClick = onRepeatClick,
+                                compactVerticalPadding = true,
+                            )
+                            PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick, compactVerticalPadding = true)
+                        }
+                    }
+                    IconButton(
+                        onClick = onQueueClick,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(MellowSpacing.Sp2),
+                    ) {
+                        Icon(PhosphorIcons.Queue, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -333,7 +344,7 @@ private fun PlaybackErrorOverlay(
 }
 
 @Composable
-fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: () -> Unit) {
+fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: () -> Unit, showQueueButton: Boolean = true) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -348,22 +359,30 @@ fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: ()
             Text("PLAYING FROM", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
             Text(albumName.ifEmpty { "Unknown" }, style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.foreground)
         }
-        IconButton(onClick = onQueueClick) {
-            Icon(PhosphorIcons.Queue, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+        if (showQueueButton) {
+            IconButton(onClick = onQueueClick) {
+                Icon(PhosphorIcons.Queue, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+            }
+        } else {
+            Spacer(Modifier.size(48.dp))
         }
     }
 }
 
 @Composable
-private fun NowPlayingCollapseButton(onCollapse: () -> Unit) {
+private fun NowPlayingCollapseButton(onCollapse: () -> Unit, onQueueClick: (() -> Unit)? = null) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(MellowSpacing.Sp2),
-        contentAlignment = Alignment.TopStart,
     ) {
-        IconButton(onClick = onCollapse) {
+        IconButton(onClick = onCollapse, modifier = Modifier.align(Alignment.TopStart)) {
             Icon(PhosphorIcons.CaretDown, "Collapse", tint = MellowTheme.colors.foreground)
+        }
+        if (onQueueClick != null) {
+            IconButton(onClick = onQueueClick, modifier = Modifier.align(Alignment.TopEnd)) {
+                Icon(PhosphorIcons.Queue, "Queue", tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+            }
         }
     }
 }
@@ -556,7 +575,7 @@ fun PlayerPlaybackControls(
 }
 
 @Composable
-fun PlayerBottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}, reducedBottomPadding: Boolean = false, compactVerticalPadding: Boolean = false) {
+fun PlayerBottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}, reducedBottomPadding: Boolean = false, compactVerticalPadding: Boolean = false, showLyricsButton: Boolean = true) {
     val qualityLabel = when (codec?.lowercase()) {
         "flac", "alac", "wav", "pcm" -> "Lossless"
         "aac", "mp3", "opus", "vorbis", "ogg" -> "Lossy"
@@ -597,13 +616,15 @@ fun PlayerBottomActions(codec: String? = null, onLyricsClick: () -> Unit = {}, r
                 Spacer(Modifier.height(4.dp))
                 Text("This device", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
             }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clickable(onClick = onLyricsClick),
-            ) {
-                Icon(PhosphorIcons.TextAa, "Lyrics", tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.height(4.dp))
-                Text("Lyrics", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
+            if (showLyricsButton) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable(onClick = onLyricsClick),
+                ) {
+                    Icon(PhosphorIcons.TextAa, "Lyrics", tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Text("Lyrics", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
+                }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 QualityBadge(codec = codec?.uppercase() ?: "\u2014")

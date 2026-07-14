@@ -33,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -294,13 +296,25 @@ fun ExpandablePlayerSheet(
                     // (dragFraction 1.0→0.7) to reveal the player art beneath
                     // before SharedArtOverlay takes over the morph.
                     if (currentPage != SheetPage.Player) {
+                        val overlayBg = MellowTheme.colors.background
+                        val sysInsets = WindowInsets.systemBars
+                        val topPx = sysInsets.getTop(density).toFloat()
+                        val bottomPx = sysInsets.getBottom(density).toFloat()
+                        val leftPx = sysInsets.getLeft(density, androidx.compose.ui.unit.LayoutDirection.Ltr).toFloat()
+                        val rightPx = sysInsets.getRight(density, androidx.compose.ui.unit.LayoutDirection.Ltr).toFloat()
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
                                     alpha = ((dragFraction - 0.7f) / 0.3f).coerceIn(0f, 1f)
                                 }
-                                .background(MellowTheme.colors.background),
+                                .drawBehind {
+                                    drawRect(
+                                        color = overlayBg,
+                                        topLeft = Offset(-leftPx, -topPx),
+                                        size = Size(size.width + leftPx + rightPx, size.height + topPx + bottomPx),
+                                    )
+                                },
                         ) {
                             when (currentPage) {
                                 SheetPage.Queue -> queueContent { currentPage = SheetPage.Player }

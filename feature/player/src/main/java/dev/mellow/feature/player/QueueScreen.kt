@@ -29,7 +29,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
@@ -132,9 +137,17 @@ fun QueueScreen(
                 onMoveTrack(fromIdx, toIdx)
             }
 
+            val scrollIsolation = remember {
+                object : NestedScrollConnection {
+                    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset = available
+                    override suspend fun onPreFling(available: Velocity): Velocity = available
+                }
+            }
+
             LazyColumn(
                 state = lazyListState,
                 contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
+                modifier = if (embedded) Modifier.nestedScroll(scrollIsolation) else Modifier,
             ) {
                 if (nowPlaying != null) {
                     item {
