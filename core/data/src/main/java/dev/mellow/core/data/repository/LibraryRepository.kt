@@ -22,6 +22,10 @@ interface LibraryRepository {
     suspend fun search(serverId: String, query: String): List<Track>
     suspend fun searchAlbums(serverId: String, query: String): List<Album>
     suspend fun searchArtists(serverId: String, query: String): List<Artist>
+    fun getRecentSearches(serverId: String): Flow<List<String>>
+    suspend fun saveRecentSearch(serverId: String, query: String)
+    suspend fun deleteRecentSearch(serverId: String, query: String)
+    suspend fun clearRecentSearches(serverId: String)
     fun getFavoriteTracks(serverId: String): Flow<List<Track>>
     fun getFavoriteAlbums(serverId: String): Flow<List<Album>>
     fun getFavoriteArtists(serverId: String): Flow<List<Artist>>

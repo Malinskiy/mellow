@@ -10,6 +10,7 @@ import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.LyricsDao
 import dev.mellow.core.database.dao.PendingPlaybackEventDao
 import dev.mellow.core.database.dao.PlaylistDao
+import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.AlbumEntity
@@ -19,6 +20,7 @@ import dev.mellow.core.database.entity.LyricsEntity
 import dev.mellow.core.database.entity.PendingPlaybackEventEntity
 import dev.mellow.core.database.entity.PlaylistEntity
 import dev.mellow.core.database.entity.PlaylistTrackCrossRef
+import dev.mellow.core.database.entity.SearchQueryEntity
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.database.entity.TrackEntity
 
@@ -33,8 +35,9 @@ import dev.mellow.core.database.entity.TrackEntity
         PendingPlaybackEventEntity::class,
         DownloadEntity::class,
         LyricsEntity::class,
+        SearchQueryEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -47,4 +50,5 @@ abstract class MellowDatabase : RoomDatabase() {
     abstract fun pendingPlaybackEventDao(): PendingPlaybackEventDao
     abstract fun downloadDao(): DownloadDao
     abstract fun lyricsDao(): LyricsDao
+    abstract fun searchQueryDao(): SearchQueryDao
 }

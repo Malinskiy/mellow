@@ -29,6 +29,7 @@ data class SearchUiState(
     val artists: List<Artist> = emptyList(),
     val topResult: SearchResult? = null,
     val isSearching: Boolean = false,
+    val recentSearches: List<String> = emptyList(),
 ) {
     val hasResults: Boolean
         get() = tracks.isNotEmpty() || albums.isNotEmpty() || artists.isNotEmpty()
@@ -43,12 +44,28 @@ class SearchViewModel @Inject constructor(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
+    private var recentSearchesJob: Job? = null
+    private var currentServerId: String? = null
+
+    fun loadRecentSearches(serverId: String) {
+        if (serverId == currentServerId) return
+        currentServerId = serverId
+        recentSearchesJob?.cancel()
+        recentSearchesJob = viewModelScope.launch {
+            libraryRepository.getRecentSearches(serverId).collect { searches ->
+                _uiState.value = _uiState.value.copy(recentSearches = searches)
+            }
+        }
+    }
 
     fun onQueryChanged(query: String, serverId: String) {
         _uiState.value = _uiState.value.copy(query = query)
         searchJob?.cancel()
         if (query.length < 2) {
-            _uiState.value = SearchUiState(query = query)
+            _uiState.value = SearchUiState(
+                query = query,
+                recentSearches = _uiState.value.recentSearches,
+            )
             return
         }
         searchJob = viewModelScope.launch {
@@ -76,6 +93,29 @@ class SearchViewModel @Inject constructor(
                 topResult = topResult,
                 isSearching = false,
             )
+        }
+    }
+
+    fun onResultInteracted() {
+        val serverId = currentServerId ?: return
+        val query = _uiState.value.query
+        if (query.length < 2) return
+        viewModelScope.launch {
+            libraryRepository.saveRecentSearch(serverId, query)
+        }
+    }
+
+    fun onDeleteRecentSearch(query: String) {
+        val serverId = currentServerId ?: return
+        viewModelScope.launch {
+            libraryRepository.deleteRecentSearch(serverId, query)
+        }
+    }
+
+    fun onClearRecentSearches() {
+        val serverId = currentServerId ?: return
+        viewModelScope.launch {
+            libraryRepository.clearRecentSearches(serverId)
         }
     }
 

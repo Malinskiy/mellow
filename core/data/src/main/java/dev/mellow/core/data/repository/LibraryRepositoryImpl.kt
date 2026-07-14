@@ -9,8 +9,10 @@ import dev.mellow.core.data.mapper.toTrackEntity
 import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistDao
+import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.entity.SearchQueryEntity
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
 import dev.mellow.core.model.Track
@@ -31,6 +33,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val artistDao: ArtistDao,
     private val trackDao: TrackDao,
     private val serverDao: ServerDao,
+    private val searchQueryDao: SearchQueryDao,
     private val jellyfinDataSource: JellyfinDataSource,
     private val syncPreferences: SyncPreferences,
 ) : LibraryRepository {
@@ -96,6 +99,29 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override suspend fun searchArtists(serverId: String, query: String): List<Artist> =
         artistDao.search(serverId, query).map { it.toModel() }
+
+    override fun getRecentSearches(serverId: String): Flow<List<String>> =
+        searchQueryDao.getRecentSearches(serverId).map { entities ->
+            entities.map { it.queryText }
+        }
+
+    override suspend fun saveRecentSearch(serverId: String, query: String) {
+        searchQueryDao.upsert(
+            SearchQueryEntity(
+                serverId = serverId,
+                queryText = query,
+                searchedAt = System.currentTimeMillis(),
+            ),
+        )
+    }
+
+    override suspend fun deleteRecentSearch(serverId: String, query: String) {
+        searchQueryDao.delete(serverId, query)
+    }
+
+    override suspend fun clearRecentSearches(serverId: String) {
+        searchQueryDao.clearAll(serverId)
+    }
 
     override fun getFavoriteTracks(serverId: String): Flow<List<Track>> =
         trackDao.getFavoriteTracks(serverId).map { entities -> entities.map { it.toModel() } }

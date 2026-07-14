@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,18 +41,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
-import dev.mellow.core.designsystem.component.ArtistRow
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
@@ -81,6 +77,12 @@ fun SearchScreen(
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
+
+    LaunchedEffect(serverId) {
+        if (serverId.isNotEmpty()) {
+            viewModel.loadRecentSearches(serverId)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -164,6 +166,7 @@ fun SearchScreen(
                                 result = topResult,
                                 serverUrl = serverUrl,
                                 onClick = {
+                                    viewModel.onResultInteracted()
                                     when (topResult) {
                                         is SearchResult.ArtistResult -> onArtistClick(topResult.artist.id)
                                         is SearchResult.AlbumResult -> onAlbumClick(topResult.album.id)
@@ -188,7 +191,7 @@ fun SearchScreen(
                                 subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
                                 duration = formatDuration(track),
                                 imageUrl = trackImageUrl(serverUrl, track),
-                                onClick = { onPlayTracks(uiState.tracks, index) },
+                                onClick = { viewModel.onResultInteracted(); onPlayTracks(uiState.tracks, index) },
                                 onMenuClick = { onTrackMenuClick(track.id) },
                                 showDivider = index < uiState.tracks.take(5).lastIndex,
                             )
@@ -205,7 +208,7 @@ fun SearchScreen(
                                     jellyfinImageUrl(serverUrl, album.imageId!!)
                                 } else null,
                                 typeTag = "Album",
-                                onClick = { onAlbumClick(album.id) },
+                                onClick = { viewModel.onResultInteracted(); onAlbumClick(album.id) },
                             )
                         }
                     }
@@ -221,7 +224,7 @@ fun SearchScreen(
                                 } else null,
                                 typeTag = "Artist",
                                 isRound = true,
-                                onClick = { onArtistClick(artist.id) },
+                                onClick = { viewModel.onResultInteracted(); onArtistClick(artist.id) },
                             )
                         }
                     }
@@ -235,11 +238,15 @@ fun SearchScreen(
             else -> {
                 if (isExpanded) {
                     Row(modifier = Modifier.fillMaxSize()) {
-                        Column(modifier = Modifier.weight(1f).padding(MellowSpacing.Sp4)) {
-                            SectionHeader("Recent Searches")
-                            EmptyContent("Search your music library")
+                        Column(modifier = Modifier.weight(1f)) {
+                            RecentSearchesSection(
+                                recentSearches = uiState.recentSearches,
+                                onSearchClick = { viewModel.onQueryChanged(it, serverId) },
+                                onDeleteClick = { viewModel.onDeleteRecentSearch(it) },
+                                onClearAllClick = { viewModel.onClearRecentSearches() },
+                            )
                         }
-                        Column(modifier = Modifier.weight(1f).padding(MellowSpacing.Sp4)) {
+                        Column(modifier = Modifier.weight(1f)) {
                             SectionHeader("Browse Genres")
                             if (genres.isNotEmpty()) {
                                 LazyVerticalGrid(
@@ -266,9 +273,102 @@ fun SearchScreen(
                         }
                     }
                 } else {
-                    EmptyContent("Search your music library")
+                    if (uiState.recentSearches.isNotEmpty()) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            item {
+                                RecentSearchesSection(
+                                    recentSearches = uiState.recentSearches,
+                                    onSearchClick = { viewModel.onQueryChanged(it, serverId) },
+                                    onDeleteClick = { viewModel.onDeleteRecentSearch(it) },
+                                    onClearAllClick = { viewModel.onClearRecentSearches() },
+                                )
+                            }
+                        }
+                    } else {
+                        EmptyContent("Search your music library")
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun RecentSearchesSection(
+    recentSearches: List<String>,
+    onSearchClick: (String) -> Unit,
+    onDeleteClick: (String) -> Unit,
+    onClearAllClick: () -> Unit,
+) {
+    if (recentSearches.isEmpty()) {
+        SectionHeader("Recent Searches")
+        EmptyContent("No recent searches")
+        return
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        SectionHeader("Recent Searches")
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = "Clear all",
+            style = MaterialTheme.typography.labelSmall,
+            color = MellowTheme.colors.muted,
+            modifier = Modifier
+                .clickable(onClick = onClearAllClick)
+                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+        )
+    }
+    recentSearches.forEach { query ->
+        RecentSearchItem(
+            query = query,
+            onClick = { onSearchClick(query) },
+            onDelete = { onDeleteClick(query) },
+        )
+    }
+}
+
+@Composable
+private fun RecentSearchItem(
+    query: String,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+    ) {
+        Icon(
+            imageVector = PhosphorIcons.ClockCounterClockwise,
+            contentDescription = null,
+            tint = MellowTheme.colors.muted,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(MellowSpacing.Sp3))
+        Text(
+            text = query,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MellowTheme.colors.foreground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier.size(32.dp),
+        ) {
+            Icon(
+                imageVector = PhosphorIcons.X,
+                contentDescription = "Remove",
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(14.dp),
+            )
         }
     }
 }
