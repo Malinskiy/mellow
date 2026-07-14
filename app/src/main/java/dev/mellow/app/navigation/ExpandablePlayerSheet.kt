@@ -298,19 +298,32 @@ fun ExpandablePlayerSheet(
                         .graphicsLayer { alpha = expandedAlpha }
                         .windowInsetsPadding(WindowInsets.systemBars),
                 ) {
-                    when (currentPage) {
-                        SheetPage.Player -> {
-                            playerContent(
-                                { sheetState.collapse() },
-                                { currentPage = SheetPage.Queue },
-                                { currentPage = SheetPage.Lyrics },
-                            )
-                        }
-                        SheetPage.Queue -> {
-                            queueContent { currentPage = SheetPage.Player }
-                        }
-                        SheetPage.Lyrics -> {
-                            lyricsContent { currentPage = SheetPage.Player }
+                    // Always compose player so cover art position is tracked
+                    // during collapse from Queue/Lyrics — SharedArtOverlay
+                    // needs a live expanded position to interpolate from.
+                    playerContent(
+                        { sheetState.collapse() },
+                        { currentPage = SheetPage.Queue },
+                        { currentPage = SheetPage.Lyrics },
+                    )
+
+                    // Queue/Lyrics overlay — fades out early during collapse
+                    // (dragFraction 1.0→0.7) to reveal the player art beneath
+                    // before SharedArtOverlay takes over the morph.
+                    if (currentPage != SheetPage.Player) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    alpha = ((dragFraction - 0.7f) / 0.3f).coerceIn(0f, 1f)
+                                }
+                                .background(MellowTheme.colors.background),
+                        ) {
+                            when (currentPage) {
+                                SheetPage.Queue -> queueContent { currentPage = SheetPage.Player }
+                                SheetPage.Lyrics -> lyricsContent { currentPage = SheetPage.Player }
+                                else -> {}
+                            }
                         }
                     }
                 }
