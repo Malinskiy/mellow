@@ -11,8 +11,11 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.data.ArtworkPreCacher
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.preferences.SyncPreferences
@@ -38,6 +41,12 @@ class LibrarySyncWorker @AssistedInject constructor(
         return try {
             setForeground(createForegroundInfo("Syncing library…", 0, 0))
             ensureConnected()
+
+            val homeImageIds = libraryRepository.syncHomeScreenPriority(serverId) { progress ->
+                setForegroundAsync(createForegroundInfo(progress))
+            }
+            prefetchImages(homeImageIds)
+
             libraryRepository.syncLibrary(serverId) { progress ->
                 setForegroundAsync(createForegroundInfo(progress))
                 setProgressAsync(
@@ -105,6 +114,18 @@ class LibrarySyncWorker @AssistedInject constructor(
             ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             ForegroundInfo(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private suspend fun prefetchImages(itemIds: Set<String>) {
+        if (itemIds.isEmpty()) return
+        val server = serverDao.getActiveServer() ?: return
+        val imageLoader = SingletonImageLoader.get(applicationContext)
+        itemIds.forEach { itemId ->
+            val url = jellyfinImageUrl(server.url, itemId)
+            imageLoader.enqueue(
+                ImageRequest.Builder(applicationContext).data(url).build(),
+            )
         }
     }
 

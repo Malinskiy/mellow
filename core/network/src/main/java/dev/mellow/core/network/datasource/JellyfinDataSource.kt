@@ -49,6 +49,20 @@ class JellyfinDataSource @Inject constructor(
         )
     }
 
+    suspend fun getRecentlyAddedAlbums(userId: UUID, limit: Int = 50): List<BaseItemDto> {
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
+            recursive = true,
+            sortBy = listOf(ItemSortBy.DATE_CREATED),
+            sortOrder = listOf(SortOrder.DESCENDING),
+            fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
+            enableUserData = true,
+            limit = limit,
+        )
+        return response.items.orEmpty()
+    }
+
     suspend fun getAlbums(
         userId: UUID,
         startIndex: Int = 0,

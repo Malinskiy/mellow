@@ -80,7 +80,7 @@ class HomeViewModel @Inject constructor(
                     .shuffled(Random(shuffleSeed))
                     .take(12)
                     .map { it.toHomeAlbumItem() }
-                cachedQuickPicks = picks
+                if (picks.isNotEmpty()) cachedQuickPicks = picks
                 picks
             }
 
@@ -95,7 +95,7 @@ class HomeViewModel @Inject constructor(
 
             val shuffledFavs = cachedFavTracks ?: run {
                 val picks = favTracks.shuffled(Random(shuffleSeed)).take(5)
-                cachedFavTracks = picks
+                if (picks.isNotEmpty()) cachedFavTracks = picks
                 picks
             }
             _favTrackModels.value = shuffledFavs

@@ -17,6 +17,8 @@ import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
 import dev.mellow.core.model.Track
 import dev.mellow.core.network.datasource.JellyfinDataSource
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -137,6 +139,51 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override fun getMostPlayedAlbums(serverId: String): Flow<List<Album>> =
         albumDao.getMostPlayedAlbums(serverId).map { entities -> entities.map { it.toModel() } }
+
+    override suspend fun syncHomeScreenPriority(
+        serverId: String,
+        onProgress: (SyncProgress) -> Unit,
+    ): Set<String> {
+        val server = serverDao.getActiveServer() ?: return emptySet()
+        val userId = UUID.fromString(server.userId)
+        val imageIds = mutableSetOf<String>()
+
+        onProgress(SyncProgress("home", 0, 4))
+
+        coroutineScope {
+            val recentAlbums = async { jellyfinDataSource.getRecentlyAddedAlbums(userId, 50) }
+            val recentTracks = async { jellyfinDataSource.getRecentlyPlayedItems(userId, 200) }
+            val favAlbums = async { jellyfinDataSource.getFavoriteAlbums(userId) }
+            val favTracks = async { jellyfinDataSource.getFavoriteTracks(userId) }
+
+            val albums = recentAlbums.await()
+            albumDao.upsertAlbums(albums.map { it.toAlbumEntity(serverId) })
+            albums.forEach { it.id.toString().let(imageIds::add) }
+            onProgress(SyncProgress("home", 1, 4))
+
+            val tracks = recentTracks.await()
+            trackDao.upsertTracks(tracks.map { it.toTrackEntity(serverId) })
+            tracks.forEach { dto ->
+                dto.albumId?.toString()?.let(imageIds::add)
+            }
+            onProgress(SyncProgress("home", 2, 4))
+
+            val fAlbums = favAlbums.await()
+            albumDao.upsertAlbums(fAlbums.map { it.toAlbumEntity(serverId) })
+            fAlbums.forEach { it.id.toString().let(imageIds::add) }
+            onProgress(SyncProgress("home", 3, 4))
+
+            val fTracks = favTracks.await()
+            trackDao.upsertTracks(fTracks.map { it.toTrackEntity(serverId) })
+            fTracks.forEach { dto ->
+                dto.albumId?.toString()?.let(imageIds::add)
+            }
+            onProgress(SyncProgress("home", 4, 4))
+        }
+
+        Log.d(TAG, "Home screen priority sync: ${imageIds.size} unique image IDs")
+        return imageIds
+    }
 
     override suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit) {
         val server = serverDao.getActiveServer() ?: return

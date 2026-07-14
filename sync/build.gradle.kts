@@ -31,6 +31,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(libs.jellyfin.model)
 
+    implementation(libs.coil.compose)
     implementation(libs.work.runtime.ktx)
     implementation(libs.work.hilt)
 

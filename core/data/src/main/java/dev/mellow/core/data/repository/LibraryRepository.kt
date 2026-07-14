@@ -31,6 +31,7 @@ interface LibraryRepository {
     fun getFavoriteArtists(serverId: String): Flow<List<Artist>>
     fun getRecentlyPlayedAlbums(serverId: String): Flow<List<Album>>
     fun getMostPlayedAlbums(serverId: String): Flow<List<Album>>
+    suspend fun syncHomeScreenPriority(serverId: String, onProgress: (SyncProgress) -> Unit = {}): Set<String>
     suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit = {})
     suspend fun syncFavorites(serverId: String)
     suspend fun cleanupOrphans(serverId: String, onProgress: (SyncProgress) -> Unit = {})
