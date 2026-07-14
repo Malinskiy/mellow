@@ -31,12 +31,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -50,6 +47,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -260,31 +258,16 @@ fun ExpandablePlayerSheet(
                         .graphicsLayer { alpha = bgAlpha }
                         .background(MellowTheme.colors.background),
                 )
-                if (albumImageUrl != null) {
-                    AsyncImage(
-                        model = albumImageUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .requiredHeight(fullHeightDp)
-                            .blur(120.dp)
-                            .graphicsLayer { alpha = bgAlpha * 0.35f },
-                    )
-                }
-                Box(
+                ArtworkBackground(
+                    artworkKey = albumImageUrl,
+                    imageUrl = albumImageUrl,
                     modifier = Modifier
                         .fillMaxWidth()
                         .requiredHeight(fullHeightDp)
-                        .graphicsLayer { alpha = bgAlpha }
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    MellowTheme.colors.background.copy(alpha = 0.5f),
-                                    MellowTheme.colors.background.copy(alpha = 0.85f),
-                                ),
-                            ),
-                        ),
+                        .graphicsLayer { alpha = bgAlpha },
+                    blurRadius = 120.dp,
+                    imageAlpha = 0.35f,
+                    overlayColors = listOf(0.5f to 0f, 0.85f to 1f),
                 )
             }
 

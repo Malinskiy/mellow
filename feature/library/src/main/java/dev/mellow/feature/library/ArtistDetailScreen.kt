@@ -41,9 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.MellowImage
@@ -238,17 +237,14 @@ private fun ArtistDetailExpanded(
                 .width(380.dp)
                 .fillMaxHeight(),
         ) {
-            if (artistImageUrl != null) {
-                AsyncImage(
-                    model = artistImageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = 0.25f }
-                        .blur(70.dp),
-                )
-            }
+            ArtworkBackground(
+                artworkKey = artistImageUrl,
+                imageUrl = artistImageUrl,
+                modifier = Modifier.fillMaxSize(),
+                blurRadius = 70.dp,
+                imageAlpha = 0.25f,
+                overlayColors = emptyList(),
+            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier

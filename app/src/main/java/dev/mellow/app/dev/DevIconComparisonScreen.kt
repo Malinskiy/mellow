@@ -7,14 +7,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -22,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -32,8 +32,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
+import androidx.compose.material3.Switch
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.designsystem.component.AnimatedAlbumDownloadIndicator
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
@@ -41,41 +43,24 @@ import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseIcon
 import dev.mellow.core.designsystem.component.AnimatedSongDownloadIcon
 import dev.mellow.core.designsystem.component.DownloadIconState
+import dev.mellow.core.designsystem.component.GrainientBackground
+import dev.mellow.core.designsystem.component.IridescenceBackground
+import dev.mellow.core.designsystem.component.PixelBlastPlaceholder
+import dev.mellow.core.designsystem.component.Shimmer
 import dev.mellow.core.designsystem.icon.PhosphorIcons
+import dev.mellow.core.designsystem.theme.MellowPalette
+import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 private val DoneGreen = Color(0xFF6EBB8A)
 
 @Composable
 fun DevIconComparisonScreen(onBack: () -> Unit) {
-    val comparisons = listOf(
-        IconComparison("Play", PhosphorIcons.Play, PhosphorIcons.Play),
-        IconComparison("Pause", PhosphorIcons.Pause, PhosphorIcons.Pause),
-        IconComparison("Skip Forward", PhosphorIcons.SkipForward, PhosphorIcons.SkipForward),
-        IconComparison("Skip Back", PhosphorIcons.SkipBack, PhosphorIcons.SkipBack),
-        IconComparison("Heart", PhosphorIcons.Heart, PhosphorIcons.Heart),
-        IconComparison("House", PhosphorIcons.House, PhosphorIcons.House),
-        IconComparison("Search", PhosphorIcons.MagnifyingGlass, PhosphorIcons.MagnifyingGlass),
-        IconComparison("Shuffle", PhosphorIcons.Shuffle, PhosphorIcons.Shuffle),
-        IconComparison("Repeat", PhosphorIcons.Repeat, PhosphorIcons.Repeat),
-        IconComparison("Queue", PhosphorIcons.Queue, PhosphorIcons.Queue),
-        IconComparison("Vinyl Record", PhosphorIcons.VinylRecord, PhosphorIcons.VinylRecord),
-        IconComparison("User", PhosphorIcons.User, PhosphorIcons.User),
-        IconComparison("More", PhosphorIcons.DotsThreeVertical, PhosphorIcons.DotsThreeVertical),
-        IconComparison("Music Notes", PhosphorIcons.MusicNotes, PhosphorIcons.MusicNotes),
-        IconComparison("Caret Right", PhosphorIcons.CaretRight, PhosphorIcons.CaretRight),
-    )
-
-    val filledComparisons = listOf(
-        IconComparison("Heart (Filled)", PhosphorIcons.HeartFill, PhosphorIcons.HeartFill),
-        IconComparison("House (Filled)", PhosphorIcons.HouseFill, PhosphorIcons.HouseFill),
-        IconComparison("Play (Filled)", PhosphorIcons.PlayFill, PhosphorIcons.PlayFill),
-        IconComparison("Pause (Filled)", PhosphorIcons.PauseFill, PhosphorIcons.PauseFill),
-    )
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -89,7 +74,7 @@ fun DevIconComparisonScreen(onBack: () -> Unit) {
                 Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
             }
             Text(
-                "Icon Comparison",
+                "Dev Tools",
                 style = MaterialTheme.typography.headlineLarge,
                 color = MellowTheme.colors.foreground,
             )
@@ -98,66 +83,260 @@ fun DevIconComparisonScreen(onBack: () -> Unit) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
         ) {
-            item {
-                SectionHeader("Material vs Phosphor (Regular)")
-            }
-            item {
-                ComparisonHeader()
-            }
-            items(comparisons, key = { it.label }) { comparison ->
-                ComparisonRow(comparison)
-                HorizontalDivider(color = MellowTheme.colors.border)
-            }
+            item { SectionHeader("Background Shaders") }
+            item { BackgroundShaderDemo() }
             item {
                 Spacer(Modifier.height(MellowSpacing.Sp6))
-                SectionHeader("Material vs Phosphor (Filled)")
+                SectionHeader("Loading Placeholders")
             }
-            item {
-                ComparisonHeader()
-            }
-            items(filledComparisons, key = { it.label }) { comparison ->
-                ComparisonRow(comparison)
-                HorizontalDivider(color = MellowTheme.colors.border)
-            }
+            item { LoadingPlaceholderDemo() }
             item {
                 Spacer(Modifier.height(MellowSpacing.Sp6))
                 SectionHeader("Play / Pause — Filled")
             }
-            item {
-                PlayPauseFilledDemo()
-            }
+            item { PlayPauseFilledDemo() }
             item {
                 Spacer(Modifier.height(MellowSpacing.Sp6))
                 SectionHeader("Play / Pause — Outlined")
             }
-            item {
-                PlayPauseOutlinedDemo()
-            }
+            item { PlayPauseOutlinedDemo() }
             item {
                 Spacer(Modifier.height(MellowSpacing.Sp6))
                 SectionHeader("Heart / Favorite")
             }
-            item {
-                HeartFavoriteDemo()
-            }
+            item { HeartFavoriteDemo() }
             item {
                 Spacer(Modifier.height(MellowSpacing.Sp6))
                 SectionHeader("Song Download Status")
             }
-            item {
-                SongDownloadDemo()
-            }
+            item { SongDownloadDemo() }
             item {
                 Spacer(Modifier.height(MellowSpacing.Sp6))
                 SectionHeader("Album Download")
             }
-            item {
-                AlbumDownloadDemo()
-            }
-            item {
-                Spacer(Modifier.height(MellowSpacing.Sp16))
+            item { AlbumDownloadDemo() }
+            item { Spacer(Modifier.height(MellowSpacing.Sp16)) }
+        }
+    }
+}
+
+private val presetColors = listOf(
+    Color(0xFF6366F1),
+    Color(0xFF8B5CF6),
+    Color(0xFFEC4899),
+    Color(0xFFEF4444),
+    Color(0xFFF97316),
+    Color(0xFF22C55E),
+    Color(0xFF06B6D4),
+    Color(0xFF3B82F6),
+)
+
+@Composable
+private fun BackgroundShaderDemo() {
+    var selectedColor by remember { mutableStateOf(presetColors[0]) }
+    var animated by remember { mutableStateOf(true) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp6),
+        verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Color", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+            Spacer(Modifier.weight(1f))
+            Text("Animate", style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
+            Spacer(Modifier.size(MellowSpacing.Sp2))
+            Switch(checked = animated, onCheckedChange = { animated = it })
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp2)) {
+            presetColors.forEach { color ->
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                        .then(
+                            if (color == selectedColor) Modifier.border(2.dp, Color.White, CircleShape)
+                            else Modifier,
+                        )
+                        .clickable { selectedColor = color },
+                )
             }
         }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            ShaderTile("Grainient", Modifier.weight(1f)) {
+                GrainientBackground(
+                    modifier = Modifier.fillMaxSize(),
+                    baseColor = selectedColor,
+                    animated = animated,
+                )
+            }
+            ShaderTile("Iridescence", Modifier.weight(1f)) {
+                IridescenceBackground(
+                    modifier = Modifier.fillMaxSize(),
+                    color = selectedColor,
+                    animated = animated,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(MellowSpacing.Sp2))
+        Text(
+            "Multi-color iridescence (album palette)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MellowTheme.colors.muted,
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            val secondary = presetColors[(presetColors.indexOf(selectedColor) + 3) % presetColors.size]
+            ShaderTile("Dual-color", Modifier.weight(1f)) {
+                IridescenceBackground(
+                    modifier = Modifier.fillMaxSize(),
+                    color = selectedColor,
+                    secondaryColor = secondary,
+                    animated = animated,
+                )
+            }
+            ShaderTile("Simple fallback", Modifier.weight(1f)) {
+                val light = androidx.compose.ui.graphics.lerp(selectedColor, Color.White, 0.35f)
+                val dark = androidx.compose.ui.graphics.lerp(selectedColor, Color.Black, 0.45f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(light, selectedColor, dark),
+                            ),
+                        ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShaderTile(
+    label: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(MellowShapes.Medium),
+        ) {
+            content()
+        }
+        Spacer(Modifier.height(MellowSpacing.Sp1))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
+    }
+}
+
+@Composable
+private fun LoadingPlaceholderDemo() {
+    val pixelColor = MellowTheme.colors.foreground.copy(alpha = 0.15f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp6),
+        verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
+    ) {
+        Text(
+            "Cycles load \u2192 image \u2192 reset with random delay",
+            style = MaterialTheme.typography.bodySmall,
+            color = MellowTheme.colors.muted,
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            LoadingDemoTile(
+                label = "Shimmer",
+                placeholder = { mod -> Shimmer(mod) },
+                modifier = Modifier.weight(1f),
+            )
+            LoadingDemoTile(
+                label = "Pixel Blast",
+                placeholder = { mod ->
+                    PixelBlastPlaceholder(modifier = mod, color = pixelColor)
+                },
+                modifier = Modifier.weight(1f),
+            )
+            LoadingDemoTile(
+                label = "Pixel Blast (dense)",
+                placeholder = { mod ->
+                    PixelBlastPlaceholder(modifier = mod, color = pixelColor, patternDensity = 0.9f)
+                },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingDemoTile(
+    label: String,
+    placeholder: @Composable (Modifier) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            isLoading = true
+            delay(Random.nextLong(800, 3000))
+            isLoading = false
+            delay(Random.nextLong(2000, 3500))
+        }
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(MellowShapes.Medium)
+                .background(MellowTheme.colors.surface),
+        ) {
+            if (isLoading) {
+                placeholder(Modifier.fillMaxSize())
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(MellowPalette.Stone700, MellowPalette.Stone500),
+                            ),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        PhosphorIcons.MusicNote,
+                        contentDescription = null,
+                        tint = MellowPalette.Stone300,
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(MellowSpacing.Sp1))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
     }
 }
 
@@ -279,7 +458,7 @@ private fun SongDownloadDemo() {
             .fillMaxWidth()
             .padding(vertical = MellowSpacing.Sp6),
     ) {
-        SongDownloadRow("Track 1 — Idle → Animate", row1State, row1Progress)
+        SongDownloadRow("Track 1 — Idle \u2192 Animate", row1State, row1Progress)
         HorizontalDivider(color = MellowTheme.colors.border)
         SongDownloadRow("Track 2 — Downloading", SongDlState.Downloading, 0.63f)
         HorizontalDivider(color = MellowTheme.colors.border)
@@ -431,91 +610,3 @@ private fun SectionHeader(title: String) {
         modifier = Modifier.padding(start = MellowSpacing.Sp4, top = MellowSpacing.Sp4, bottom = MellowSpacing.Sp2),
     )
 }
-
-@Composable
-private fun ComparisonHeader() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
-    ) {
-        Text(
-            "Icon",
-            style = MaterialTheme.typography.labelSmall,
-            color = MellowTheme.colors.muted,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            "Material",
-            style = MaterialTheme.typography.labelSmall,
-            color = MellowTheme.colors.muted,
-            modifier = Modifier.width(80.dp),
-        )
-        Text(
-            "Phosphor",
-            style = MaterialTheme.typography.labelSmall,
-            color = MellowTheme.colors.muted,
-            modifier = Modifier.width(80.dp),
-        )
-    }
-}
-
-@Composable
-private fun ComparisonRow(comparison: IconComparison) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
-    ) {
-        Text(
-            comparison.label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MellowTheme.colors.foreground,
-            modifier = Modifier.weight(1f),
-        )
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.width(80.dp),
-        ) {
-            Icon(
-                comparison.material,
-                contentDescription = "${comparison.label} Material",
-                tint = MellowTheme.colors.foreground,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(Modifier.width(MellowSpacing.Sp2))
-            Icon(
-                comparison.material,
-                contentDescription = "${comparison.label} Material 32",
-                tint = MellowTheme.colors.foreground,
-                modifier = Modifier.size(32.dp),
-            )
-        }
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.width(80.dp),
-        ) {
-            Icon(
-                comparison.phosphor,
-                contentDescription = "${comparison.label} Phosphor",
-                tint = MellowTheme.colors.foreground,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(Modifier.width(MellowSpacing.Sp2))
-            Icon(
-                comparison.phosphor,
-                contentDescription = "${comparison.label} Phosphor 32",
-                tint = MellowTheme.colors.foreground,
-                modifier = Modifier.size(32.dp),
-            )
-        }
-    }
-}
-
-private data class IconComparison(
-    val label: String,
-    val material: ImageVector,
-    val phosphor: ImageVector,
-)

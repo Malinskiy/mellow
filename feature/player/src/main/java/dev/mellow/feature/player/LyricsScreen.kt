@@ -39,11 +39,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +54,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.Velocity
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseIcon
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -113,26 +111,13 @@ fun LyricsScreen(
             .then(if (embedded) Modifier else Modifier.background(MellowTheme.colors.background)),
     ) {
         if (!embedded && albumImageUrl != null) {
-            AsyncImage(
-                model = albumImageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(120.dp)
-                    .graphicsLayer { alpha = 0.3f },
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MellowTheme.colors.background.copy(alpha = 0.6f),
-                                MellowTheme.colors.background.copy(alpha = 0.9f),
-                            ),
-                        ),
-                    ),
+            ArtworkBackground(
+                artworkKey = albumImageUrl,
+                imageUrl = albumImageUrl,
+                modifier = Modifier.fillMaxSize(),
+                blurRadius = 120.dp,
+                imageAlpha = 0.3f,
+                overlayColors = listOf(0.6f to 0f, 0.9f to 1f),
             )
         }
 

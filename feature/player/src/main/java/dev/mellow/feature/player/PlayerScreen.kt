@@ -38,10 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -53,6 +51,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.QualityBadge
@@ -104,26 +103,13 @@ fun PlayerScreen(
             .then(if (embedded) Modifier else Modifier.background(MellowTheme.colors.background)),
     ) {
         if (!embedded && albumImageUrl != null) {
-            AsyncImage(
-                model = albumImageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(120.dp)
-                    .graphicsLayer { alpha = 0.35f },
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MellowTheme.colors.background.copy(alpha = 0.5f),
-                                MellowTheme.colors.background.copy(alpha = 0.85f),
-                            ),
-                        ),
-                    ),
+            ArtworkBackground(
+                artworkKey = albumImageUrl,
+                imageUrl = albumImageUrl,
+                modifier = Modifier.fillMaxSize(),
+                blurRadius = 120.dp,
+                imageAlpha = 0.35f,
+                overlayColors = listOf(0.5f to 0f, 0.85f to 1f),
             )
         }
 

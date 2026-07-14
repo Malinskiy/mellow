@@ -73,11 +73,13 @@ import dev.mellow.core.designsystem.component.MellowNavDestination
 import dev.mellow.core.designsystem.component.MiniPlayer
 import dev.mellow.core.designsystem.component.TrackContextMenu
 import dev.mellow.core.designsystem.component.TrackMenuData
+import dev.mellow.core.designsystem.theme.LocalBatterySaverActive
 import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.designsystem.theme.WindowWidthClass
+import dev.mellow.core.designsystem.theme.rememberIsBatterySaverActive
 import dev.mellow.core.network.ConnectionState
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.common.jellyfinImageUrl
@@ -285,6 +287,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     CompositionLocalProvider(
         LocalWindowWidthClass provides windowWidthClass,
         LocalMiniPlayerPadding provides miniPlayerPadding,
+        LocalBatterySaverActive provides rememberIsBatterySaverActive(),
     ) {
     Row(modifier = Modifier.fillMaxSize()) {
         if (isExpanded && !isFullScreen && !isTabletPortrait) {

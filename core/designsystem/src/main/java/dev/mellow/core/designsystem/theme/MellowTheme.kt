@@ -10,6 +10,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 
 val LocalMellowColors = staticCompositionLocalOf { mellowDarkColorScheme }
+val LocalBatterySaverActive = staticCompositionLocalOf { false }
 
 private val MellowMaterial3Dark = darkColorScheme(
     background = MellowPalette.Stone950,

@@ -43,7 +43,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -53,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.ArtworkBackground
+import dev.mellow.core.designsystem.component.BackgroundMode
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
@@ -131,6 +132,15 @@ fun AlbumDetailScreen(
     val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
     val showDownloadIndicators = downloadStatus != AlbumDownloadState.Status.NONE
     val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
+    var backgroundMode by remember { mutableStateOf(BackgroundMode.Auto) }
+    val cycleMode = {
+        backgroundMode = when (backgroundMode) {
+            BackgroundMode.Auto -> BackgroundMode.Blur
+            BackgroundMode.Blur -> BackgroundMode.Iridescence
+            BackgroundMode.Iridescence -> BackgroundMode.Grainient
+            BackgroundMode.Grainient -> BackgroundMode.Auto
+        }
+    }
 
     if (isExpanded) {
         Row(
@@ -143,17 +153,15 @@ fun AlbumDetailScreen(
                     .width(420.dp)
                     .fillMaxHeight(),
             ) {
-                if (albumImageUrl != null) {
-                    AsyncImage(
-                        model = albumImageUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer { alpha = 0.35f }
-                            .blur(60.dp),
-                    )
-                }
+                ArtworkBackground(
+                    artworkKey = albumId,
+                    imageUrl = albumImageUrl,
+                    modifier = Modifier.fillMaxSize(),
+                    mode = backgroundMode,
+                    blurRadius = 60.dp,
+                    imageAlpha = 0.35f,
+                    overlayColors = emptyList(),
+                )
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -180,7 +188,7 @@ fun AlbumDetailScreen(
                         .clip(MellowShapes.AlbumArt)
                         .background(MellowTheme.colors.surfaceElevated)
 
-                    AlbumDetailTopBar(onBack)
+                    AlbumDetailTopBar(onBack, onCycleBackground = cycleMode)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
@@ -436,7 +444,7 @@ fun AlbumDetailScreen(
             LazyColumn(
                 contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
             ) {
-                item { AlbumDetailTopBar(onBack) }
+                item { AlbumDetailTopBar(onBack, onCycleBackground = cycleMode) }
                 item {
                     AlbumHero(
                         albumId = albumId,
@@ -458,6 +466,7 @@ fun AlbumDetailScreen(
                         downloadInfoText = downloadInfoText,
                         onDownloadClick = onDownloadClick,
                         onRemoveDownloadsClick = onRemoveDownloadsClick,
+                        backgroundMode = backgroundMode,
                     )
                 }
                 when {
@@ -561,7 +570,7 @@ fun AlbumDetailScreen(
 
 
 @Composable
-private fun AlbumDetailTopBar(onBack: () -> Unit) {
+private fun AlbumDetailTopBar(onBack: () -> Unit, onCycleBackground: () -> Unit = {}) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -573,6 +582,9 @@ private fun AlbumDetailTopBar(onBack: () -> Unit) {
             Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
         }
         Row {
+            IconButton(onClick = onCycleBackground) {
+                Icon(PhosphorIcons.Palette, "Background mode", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+            }
             IconButton(onClick = {}) {
                 Icon(PhosphorIcons.ShareNetwork, "Share", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }
@@ -606,27 +618,19 @@ private fun AlbumHero(
     onDownloadClick: () -> Unit = {},
     onRemoveDownloadsClick: () -> Unit = {},
     showBackground: Boolean = true,
+    backgroundMode: BackgroundMode = BackgroundMode.Auto,
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
         if (showBackground) {
-            if (imageUrl != null) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .matchParentSize()
-                        .graphicsLayer { alpha = 0.35f }
-                        .blur(60.dp),
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(MellowPalette.Stone800)
-                        .blur(60.dp),
-                )
-            }
+            ArtworkBackground(
+                artworkKey = albumId,
+                imageUrl = imageUrl,
+                modifier = Modifier.matchParentSize(),
+                mode = backgroundMode,
+                blurRadius = 60.dp,
+                imageAlpha = 0.35f,
+                overlayColors = emptyList(),
+            )
         }
 
         val sharedTransitionScope = LocalSharedTransitionScope.current

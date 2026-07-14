@@ -70,12 +70,13 @@ fun AnimatedPlayPauseButton(
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
             if (rippleAlpha.value > 0f) {
-                drawCircle(
-                    fgColor,
-                    radius = (size.minDimension / 2f) * rippleScale.value / 1.3f,
-                    style = Stroke(width = 2.dp.toPx()),
-                    alpha = rippleAlpha.value,
-                )
+                    val buttonRadius = size.minDimension / 2.6f
+                    drawCircle(
+                        fgColor,
+                        radius = buttonRadius * 1.08f * rippleScale.value,
+                        style = Stroke(width = 2.dp.toPx()),
+                        alpha = rippleAlpha.value,
+                    )
             }
         }
         Box(
@@ -95,9 +96,10 @@ fun AnimatedPlayPauseButton(
                     }
                     scope.launch {
                         rippleScale.snapTo(0.95f)
-                        rippleAlpha.snapTo(0.5f)
-                        launch { rippleScale.animateTo(1.25f, tween(500)) }
-                        launch { rippleAlpha.animateTo(0f, tween(500)) }
+                        rippleAlpha.snapTo(0.6f)
+                        val rippleEasing = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)
+                        launch { rippleScale.animateTo(1.25f, tween(500, easing = rippleEasing)) }
+                        launch { rippleAlpha.animateTo(0f, tween(500, easing = rippleEasing)) }
                     }
                     onToggle()
                 },

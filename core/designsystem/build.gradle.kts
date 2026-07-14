@@ -33,6 +33,7 @@ dependencies {
     api(libs.compose.material.icons.extended)
     api(libs.bundles.coil)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.material)
 
     testImplementation(libs.bundles.testing)
 }
