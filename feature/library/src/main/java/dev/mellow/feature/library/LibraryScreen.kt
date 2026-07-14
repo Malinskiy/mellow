@@ -66,7 +66,7 @@ import dev.mellow.core.common.jellyfinImageUrl
 
 data class LibraryPlaylistItem(val id: String, val name: String, val trackCount: Int, val imageId: String?)
 
-private val TABS = listOf("Albums", "Artists", "Tracks", "Genres", "Playlists", "Folders")
+private val TABS = listOf("Albums", "Artists", "Tracks", "Genres", "Playlists")
 
 data class ArtistItem(val id: String, val name: String, val albumCount: Int, val imageId: String?)
 
@@ -155,7 +155,6 @@ fun LibraryScreen(
             4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
                  else if (playlists.isEmpty()) EmptyContent("No playlists yet")
                  else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist, topPadding)
-            5 -> EmptyContent("Coming soon")
         }
     }
 }
