@@ -132,16 +132,6 @@ fun AlbumDetailScreen(
     val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
     val showDownloadIndicators = downloadStatus != AlbumDownloadState.Status.NONE
     val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
-    var backgroundMode by remember { mutableStateOf(BackgroundMode.Auto) }
-    val cycleMode = {
-        backgroundMode = when (backgroundMode) {
-            BackgroundMode.Auto -> BackgroundMode.Blur
-            BackgroundMode.Blur -> BackgroundMode.Iridescence
-            BackgroundMode.Iridescence -> BackgroundMode.Grainient
-            BackgroundMode.Grainient -> BackgroundMode.Auto
-        }
-    }
-
     if (isExpanded) {
         Row(
             modifier = modifier
@@ -157,7 +147,6 @@ fun AlbumDetailScreen(
                     artworkKey = albumId,
                     imageUrl = albumImageUrl,
                     modifier = Modifier.fillMaxSize(),
-                    mode = backgroundMode,
                     blurRadius = 60.dp,
                     imageAlpha = 0.35f,
                     overlayColors = emptyList(),
@@ -188,7 +177,7 @@ fun AlbumDetailScreen(
                         .clip(MellowShapes.AlbumArt)
                         .background(MellowTheme.colors.surfaceElevated)
 
-                    AlbumDetailTopBar(onBack, onCycleBackground = cycleMode)
+                    AlbumDetailTopBar(onBack)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
@@ -444,7 +433,7 @@ fun AlbumDetailScreen(
             LazyColumn(
                 contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
             ) {
-                item { AlbumDetailTopBar(onBack, onCycleBackground = cycleMode) }
+                item { AlbumDetailTopBar(onBack) }
                 item {
                     AlbumHero(
                         albumId = albumId,
@@ -466,7 +455,7 @@ fun AlbumDetailScreen(
                         downloadInfoText = downloadInfoText,
                         onDownloadClick = onDownloadClick,
                         onRemoveDownloadsClick = onRemoveDownloadsClick,
-                        backgroundMode = backgroundMode,
+                        backgroundMode = BackgroundMode.Auto,
                     )
                 }
                 when {
@@ -570,7 +559,7 @@ fun AlbumDetailScreen(
 
 
 @Composable
-private fun AlbumDetailTopBar(onBack: () -> Unit, onCycleBackground: () -> Unit = {}) {
+private fun AlbumDetailTopBar(onBack: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -582,9 +571,6 @@ private fun AlbumDetailTopBar(onBack: () -> Unit, onCycleBackground: () -> Unit 
             Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
         }
         Row {
-            IconButton(onClick = onCycleBackground) {
-                Icon(PhosphorIcons.Palette, "Background mode", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
-            }
             IconButton(onClick = {}) {
                 Icon(PhosphorIcons.ShareNetwork, "Share", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }

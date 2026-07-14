@@ -67,7 +67,8 @@ private fun GrainientAgsl(
 
     if (animated) {
         LaunchedEffect(Unit) {
-            val startNanos = System.nanoTime()
+            val randomOffsetNanos = (Math.random() * 60_000_000_000).toLong()
+            val startNanos = System.nanoTime() - randomOffsetNanos
             while (true) {
                 withInfiniteAnimationFrameMillis {
                     time = (System.nanoTime() - startNanos) / 1_000_000_000f
