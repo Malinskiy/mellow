@@ -49,6 +49,7 @@ import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionStatusDot
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
+import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -110,7 +111,7 @@ fun HomeScreen(
         LazyColumn(
             contentPadding = PaddingValues(
                 top = (toolbarTopPadding - MellowSpacing.Sp5).coerceAtLeast(0.dp),
-                bottom = MellowSpacing.Sp8,
+                bottom = MellowSpacing.Sp8 + LocalMiniPlayerPadding.current,
             ),
             modifier = Modifier.fillMaxSize(),
         ) {
