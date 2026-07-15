@@ -43,7 +43,7 @@ import androidx.compose.ui.Alignment
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
 import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
-import dev.mellow.core.designsystem.component.ConnectionStatusDot
+import dev.mellow.core.designsystem.component.ConnectionCloudIcon
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
@@ -67,6 +67,8 @@ fun FavoritesScreen(
     serverUrl: String? = null,
     isConnected: Boolean = false,
     isServerUnreachable: Boolean = false,
+    isFilterActive: Boolean = false,
+    onToggleFilter: () -> Unit = {},
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
     onTrackClick: (String) -> Unit = {},
@@ -101,13 +103,14 @@ fun FavoritesScreen(
                         color = MellowTheme.colors.foreground,
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    ConnectionStatusDot(
+                    ConnectionCloudIcon(
                         isConnected = isConnected,
                         isServerUnreachable = isServerUnreachable,
                         error = state.error,
                         onRetry = viewModel::retry,
+                        isFilterActive = isFilterActive,
+                        onToggleFilter = onToggleFilter,
                     )
-                    Box(modifier = Modifier.width(MellowSpacing.Sp2))
                     IconButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = PhosphorIcons.Gear,

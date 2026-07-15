@@ -164,4 +164,13 @@ class DownloadRepositoryImpl @Inject constructor(
         )
         else -> DownloadState.Removed(trackId)
     }
+
+    override suspend fun getDownloadedTrackIds(): Set<String> =
+        downloadDao.getDownloadedTrackIds().toSet()
+
+    override suspend fun getDownloadedAlbumIds(): Set<String> =
+        downloadDao.getDownloadedAlbumIds().toSet()
+
+    override suspend fun getDownloadedArtistNames(): Set<String> =
+        downloadDao.getDownloadedArtistNames().toSet()
 }

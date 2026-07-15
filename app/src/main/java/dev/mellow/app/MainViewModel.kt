@@ -20,6 +20,7 @@ import dev.mellow.core.player.MellowPlayer
 import dev.mellow.sync.SyncScheduler
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +37,7 @@ class MainViewModel @Inject constructor(
     val player: MellowPlayer,
     private val networkStateObserver: NetworkStateObserver,
     private val syncPreferences: SyncPreferences,
-    displayPreferences: DisplayPreferences,
+    private val displayPreferences: DisplayPreferences,
     private val syncScheduler: SyncScheduler,
     private val jellyfinDataSource: JellyfinDataSource,
     private val libraryRepository: LibraryRepository,
@@ -58,7 +59,14 @@ class MainViewModel @Inject constructor(
     val lowPowerMode: StateFlow<Boolean> = displayPreferences.lowPowerMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    val downloadedOnly: StateFlow<Boolean> = displayPreferences.downloadedOnly
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     val connectionState: StateFlow<ConnectionState> = networkStateObserver.connectionState
+
+    fun toggleDownloadedOnly() {
+        viewModelScope.launch { displayPreferences.setDownloadedOnly(!downloadedOnly.value) }
+    }
 
     val isSyncing: StateFlow<Boolean> = syncScheduler.observeSyncState()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -89,6 +97,7 @@ class MainViewModel @Inject constructor(
                 networkStateObserver.setOfflineMode(offline)
             }
         }
+
         viewModelScope.launch {
             val restored = userRepository.restoreSession()
             if (restored) {

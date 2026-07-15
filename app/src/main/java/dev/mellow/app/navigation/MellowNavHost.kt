@@ -354,6 +354,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val homeVm: HomeViewModel = hiltViewModel()
                     val homeState by homeVm.uiState.collectAsState()
+                    val effectiveFilter by mainViewModel.downloadedOnly.collectAsState()
                     LaunchedEffect(serverId) {
                         if (serverId.isNotEmpty()) homeVm.loadHome(serverId)
                     }
@@ -369,6 +370,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
                         error = homeState.error,
                         onRetry = homeVm::retry,
+                        isFilterActive = effectiveFilter,
+                        onToggleFilter = { mainViewModel.toggleDownloadedOnly() },
                         onAlbumClick = { albumId, source -> navController.navigate("album/$albumId?source=$source") },
                         onTrackClick = { trackId ->
                             val favTracks = homeVm.uiState.value.favoriteTracks
@@ -408,6 +411,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     val initialGenre = it.arguments?.getString("genre")?.takeIf { g -> g.isNotEmpty() }
                     var selectedGenre by rememberSaveable { mutableStateOf(initialGenre) }
 
+                    val effectiveLibFilter by mainViewModel.downloadedOnly.collectAsState()
                     LaunchedEffect(serverId) {
                         if (serverId.isNotEmpty()) libraryVm.loadLibrary(serverId)
                     }
@@ -485,6 +489,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
                         error = state.error,
                         onRetry = libraryVm::retry,
+                        isFilterActive = effectiveLibFilter,
+                        onToggleFilter = { mainViewModel.toggleDownloadedOnly() },
                         sortLabel = currentSort,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId?source=library") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
@@ -525,11 +531,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         searchLibraryState.albums.flatMap { it.genres }.distinct().sorted()
                     }
 
+                    val effectiveSearchFilter by mainViewModel.downloadedOnly.collectAsState()
                     SearchScreen(
                         serverId = serverId,
                         serverUrl = serverUrl ?: "",
                         isConnected = connectionState is ConnectionState.Connected,
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
+                        isFilterActive = effectiveSearchFilter,
+                        onToggleFilter = { mainViewModel.toggleDownloadedOnly() },
                         onPlayTracks = { tracks, index ->
                             scope.launch { mainViewModel.player.playTracks(tracks, index) }
                         },
@@ -551,7 +560,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable(MellowNavDestination.Favorites.route) {
                     val favVm: FavoritesViewModel = hiltViewModel()
                     val favState by favVm.uiState.collectAsState()
+                    val effectiveFavFilter by mainViewModel.downloadedOnly.collectAsState()
                     FavoritesScreen(
+                        isFilterActive = effectiveFavFilter,
+                        onToggleFilter = { mainViewModel.toggleDownloadedOnly() },
                         serverId = serverId,
                         serverUrl = serverUrl,
                         isConnected = connectionState is ConnectionState.Connected,
@@ -1516,7 +1528,7 @@ private fun TabScreenTopBar(
             color = MellowTheme.colors.foreground,
         )
         Spacer(modifier = Modifier.weight(1f))
-        dev.mellow.core.designsystem.component.ConnectionStatusDot(
+        dev.mellow.core.designsystem.component.ConnectionCloudIcon(
             isConnected = isConnected,
             isServerUnreachable = isServerUnreachable,
         )

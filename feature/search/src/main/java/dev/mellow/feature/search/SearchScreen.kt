@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
-import dev.mellow.core.designsystem.component.ConnectionStatusDot
+import dev.mellow.core.designsystem.component.ConnectionCloudIcon
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.model.Track
@@ -67,6 +67,8 @@ fun SearchScreen(
     isConnected: Boolean = false,
     isServerUnreachable: Boolean = false,
     error: String? = null,
+    isFilterActive: Boolean = false,
+    onToggleFilter: () -> Unit = {},
     onPlayTracks: (List<Track>, Int) -> Unit = { _, _ -> },
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
@@ -103,12 +105,13 @@ fun SearchScreen(
                 color = MellowTheme.colors.foreground,
             )
             Spacer(modifier = Modifier.weight(1f))
-            ConnectionStatusDot(
+            ConnectionCloudIcon(
                 isConnected = isConnected,
                 isServerUnreachable = isServerUnreachable,
                 error = error ?: uiState.error,
+                isFilterActive = isFilterActive,
+                onToggleFilter = onToggleFilter,
             )
-            Box(modifier = Modifier.width(MellowSpacing.Sp2))
             IconButton(onClick = onSettingsClick) {
                 Icon(
                     imageVector = PhosphorIcons.Gear,

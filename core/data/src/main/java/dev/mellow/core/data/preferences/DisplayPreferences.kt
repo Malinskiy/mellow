@@ -26,13 +26,24 @@ class DisplayPreferences @Inject constructor(
         preferences[LOW_POWER_MODE] ?: false
     }
 
+    val downloadedOnly: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[DOWNLOADED_ONLY] ?: false
+    }
+
     suspend fun setLowPowerMode(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[LOW_POWER_MODE] = enabled
         }
     }
 
+    suspend fun setDownloadedOnly(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[DOWNLOADED_ONLY] = enabled
+        }
+    }
+
     companion object {
         private val LOW_POWER_MODE = booleanPreferencesKey("low_power_mode")
+        private val DOWNLOADED_ONLY = booleanPreferencesKey("downloaded_only")
     }
 }

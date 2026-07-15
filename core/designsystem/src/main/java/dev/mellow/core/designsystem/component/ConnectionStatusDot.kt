@@ -1,18 +1,16 @@
 package dev.mellow.core.designsystem.component
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,103 +18,123 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowPalette
-import dev.mellow.core.designsystem.theme.MellowShapes
-import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import kotlinx.coroutines.delay
 
+private const val LABEL_DISPLAY_MS = 4000L
+
 @Composable
-fun ConnectionStatusDot(
+fun ConnectionCloudIcon(
     isConnected: Boolean,
     isServerUnreachable: Boolean,
     modifier: Modifier = Modifier,
     error: String? = null,
     onRetry: (() -> Unit)? = null,
+    isFilterActive: Boolean = false,
+    onToggleFilter: (() -> Unit)? = null,
 ) {
     val hasError = error != null
 
-    val dotColor = when {
+    val targetColor = when {
         hasError -> MellowPalette.Red500
-        isConnected -> MellowPalette.Green500
         isServerUnreachable -> MellowPalette.Amber500
-        else -> MellowPalette.Stone500
+        !isConnected -> MellowPalette.Stone500
+        else -> MellowPalette.Green500
     }
 
-    val label = when {
+    val iconColor by animateColorAsState(
+        targetValue = targetColor,
+        animationSpec = tween(durationMillis = 300),
+        label = "cloudIconColor",
+    )
+
+    val transientLabel = when {
         hasError -> error
         isServerUnreachable -> "Unreachable"
         !isConnected -> "Offline"
         else -> null
     }
 
-    var visibleLabel by remember { mutableStateOf<String?>(null) }
-    var previousLabel by remember { mutableStateOf(label) }
+    val labelColor = when {
+        hasError -> MellowPalette.Red500
+        isServerUnreachable -> MellowPalette.Amber500
+        !isConnected -> MellowPalette.Stone500
+        else -> MellowPalette.Green500
+    }
 
-    LaunchedEffect(label) {
-        if (label != previousLabel) {
-            previousLabel = label
-            if (label != null) {
-                visibleLabel = label
+    val currentFilterActive by rememberUpdatedState(isFilterActive)
+
+    var showLabel by remember { mutableStateOf(false) }
+    var labelText by remember { mutableStateOf("") }
+    var labelColorState by remember { mutableStateOf(Color.Unspecified) }
+    var previousTransient by remember { mutableStateOf(transientLabel) }
+
+    LaunchedEffect(transientLabel) {
+        if (transientLabel != previousTransient) {
+            previousTransient = transientLabel
+            if (transientLabel != null) {
+                labelText = transientLabel
+                labelColorState = labelColor
+                showLabel = true
                 delay(LABEL_DISPLAY_MS)
-                visibleLabel = null
+                showLabel = false
             } else {
-                visibleLabel = null
+                showLabel = false
             }
         }
     }
-
-    val dotSizeDp = 8.dp
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints.copy(minWidth = 0))
-                val dotPx = dotSizeDp.roundToPx()
-                layout(dotPx, placeable.height) {
-                    placeable.place(dotPx - placeable.width, 0)
-                }
-            },
+        modifier = modifier,
     ) {
         AnimatedContent(
-            targetState = visibleLabel,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
-            label = "connectionLabel",
+            targetState = if (showLabel) labelText else "",
+            transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) },
+            label = "cloudLabel",
         ) { text ->
-            if (text != null) {
-                Row(
-                    modifier = if (onRetry != null) {
-                        Modifier
-                            .clip(MellowShapes.Full)
-                            .clickable(onClick = onRetry)
-                            .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp1)
-                    } else {
-                        Modifier
-                    },
-                ) {
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MellowTheme.colors.muted,
-                    )
-                    Spacer(Modifier.width(MellowSpacing.Sp2))
-                }
+            if (text.isNotEmpty()) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = labelColorState,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(end = 4.dp),
+                )
             }
         }
-        Box(
-            modifier = Modifier
-                .size(dotSizeDp)
-                .clip(CircleShape)
-                .background(dotColor),
-        )
+
+        IconButton(
+            onClick = {
+                when {
+                    hasError && onRetry != null -> onRetry()
+                    onToggleFilter != null -> onToggleFilter()
+                }
+            },
+        ) {
+            AnimatedContent(
+                targetState = currentFilterActive,
+                transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                label = "cloudShape",
+            ) { filterOn ->
+                Icon(
+                    imageVector = if (filterOn) PhosphorIcons.CloudSlash else PhosphorIcons.CloudCheck,
+                    contentDescription = if (filterOn) "Downloaded only" else "All content",
+                    tint = iconColor,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
     }
 }
-
-private const val LABEL_DISPLAY_MS = 4000L

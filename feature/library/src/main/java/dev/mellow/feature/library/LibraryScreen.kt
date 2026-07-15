@@ -51,7 +51,7 @@ import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
 import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
-import dev.mellow.core.designsystem.component.ConnectionStatusDot
+import dev.mellow.core.designsystem.component.ConnectionCloudIcon
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
@@ -89,6 +89,8 @@ fun LibraryScreen(
     isServerUnreachable: Boolean = false,
     error: String? = null,
     onRetry: () -> Unit = {},
+    isFilterActive: Boolean = false,
+    onToggleFilter: () -> Unit = {},
     sortLabel: String = "Recently Added",
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
@@ -119,6 +121,8 @@ fun LibraryScreen(
                     isServerUnreachable = isServerUnreachable,
                     error = error,
                     onRetry = onRetry,
+                    isFilterActive = isFilterActive,
+                    onToggleFilter = onToggleFilter,
                     onSettingsClick = onSettingsClick,
                     onSortChanged = onSortChanged,
                     showViewToggle = selectedTab == 0,
@@ -171,6 +175,8 @@ private fun LibraryTopBar(
     isServerUnreachable: Boolean = false,
     error: String? = null,
     onRetry: () -> Unit = {},
+    isFilterActive: Boolean = false,
+    onToggleFilter: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSortChanged: (String) -> Unit = {},
     showViewToggle: Boolean = false,
@@ -192,13 +198,14 @@ private fun LibraryTopBar(
             color = MellowTheme.colors.foreground,
         )
         Spacer(modifier = Modifier.weight(1f))
-        ConnectionStatusDot(
+        ConnectionCloudIcon(
             isConnected = isConnected,
             isServerUnreachable = isServerUnreachable,
             error = error,
             onRetry = onRetry,
+            isFilterActive = isFilterActive,
+            onToggleFilter = onToggleFilter,
         )
-        Box(modifier = Modifier.width(MellowSpacing.Sp2))
         Box {
             IconButton(onClick = { showSortMenu = true }) {
                 Icon(

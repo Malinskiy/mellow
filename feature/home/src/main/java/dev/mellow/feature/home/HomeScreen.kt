@@ -46,7 +46,7 @@ import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
-import dev.mellow.core.designsystem.component.ConnectionStatusDot
+import dev.mellow.core.designsystem.component.ConnectionCloudIcon
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
@@ -87,6 +87,8 @@ fun HomeScreen(
     isServerUnreachable: Boolean = false,
     error: String? = null,
     onRetry: () -> Unit = {},
+    isFilterActive: Boolean = false,
+    onToggleFilter: () -> Unit = {},
     onAlbumClick: (String, String) -> Unit = { _, _ -> },
     onTrackClick: (String) -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
@@ -104,6 +106,8 @@ fun HomeScreen(
                 isServerUnreachable = isServerUnreachable,
                 error = error,
                 onRetry = onRetry,
+                isFilterActive = isFilterActive,
+                onToggleFilter = onToggleFilter,
                 onSettingsClick = onSettingsClick,
             )
         },
@@ -277,6 +281,8 @@ private fun HomeTopBar(
     isServerUnreachable: Boolean,
     error: String? = null,
     onRetry: () -> Unit = {},
+    isFilterActive: Boolean = false,
+    onToggleFilter: () -> Unit = {},
     onSettingsClick: () -> Unit,
 ) {
     Row(
@@ -293,13 +299,14 @@ private fun HomeTopBar(
             color = MellowTheme.colors.foreground,
         )
         Spacer(modifier = Modifier.weight(1f))
-        ConnectionStatusDot(
+        ConnectionCloudIcon(
             isConnected = isConnected,
             isServerUnreachable = isServerUnreachable,
             error = error,
             onRetry = onRetry,
+            isFilterActive = isFilterActive,
+            onToggleFilter = onToggleFilter,
         )
-        Box(modifier = Modifier.width(MellowSpacing.Sp2))
         IconButton(onClick = onSettingsClick) {
             Icon(
                 imageVector = PhosphorIcons.Gear,

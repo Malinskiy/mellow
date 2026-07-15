@@ -19,4 +19,7 @@ interface DownloadRepository {
     suspend fun removeDownload(trackId: String)
     suspend fun removeAlbumDownloads(albumId: String)
     suspend fun clearAllDownloads()
+    suspend fun getDownloadedTrackIds(): Set<String>
+    suspend fun getDownloadedAlbumIds(): Set<String>
+    suspend fun getDownloadedArtistNames(): Set<String>
 }

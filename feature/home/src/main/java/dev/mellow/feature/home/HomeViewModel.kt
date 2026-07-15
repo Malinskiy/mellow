@@ -11,8 +11,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.onEach
 import java.time.Duration
 import javax.inject.Inject
@@ -31,6 +33,8 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
+    private val downloadRepository: dev.mellow.core.data.repository.DownloadRepository,
+    displayPreferences: dev.mellow.core.data.preferences.DisplayPreferences,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -38,6 +42,9 @@ class HomeViewModel @Inject constructor(
 
     private val _favTrackModels = MutableStateFlow<List<Track>>(emptyList())
     val favTrackModels: StateFlow<List<Track>> = _favTrackModels.asStateFlow()
+
+    private val _downloadedOnly: StateFlow<Boolean> = displayPreferences.downloadedOnly
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private var loadedServerId: String? = null
     private val shuffleSeed = System.nanoTime()
@@ -110,7 +117,7 @@ class HomeViewModel @Inject constructor(
             }
             _favTrackModels.value = shuffledFavs
 
-            _uiState.value = HomeUiState(
+            unfilteredHome = HomeUiState(
                 quickPicks = quickPickPool,
                 recentlyPlayed = recentlyPlayed,
                 recentlyAdded = recentlyAdded,
@@ -119,12 +126,33 @@ class HomeViewModel @Inject constructor(
                 albumCount = albums.size,
                 isLoading = false,
             )
+            emitFiltered()
         }.catch { e ->
             _uiState.value = _uiState.value.copy(
                 error = e.message ?: "Failed to load home",
                 isLoading = false,
             )
         }.launchIn(viewModelScope)
+
+        _downloadedOnly.onEach { emitFiltered() }.launchIn(viewModelScope)
+    }
+
+    private var unfilteredHome = HomeUiState()
+    private var cachedDlAlbumIds: Set<String>? = null
+    private var cachedDlTrackIds: Set<String>? = null
+
+    private suspend fun emitFiltered() {
+        val state = unfilteredHome
+        if (state.isLoading) { _uiState.value = state; return }
+        if (!_downloadedOnly.value) { _uiState.value = state; return }
+        val dlAlbumIds = cachedDlAlbumIds ?: downloadRepository.getDownloadedAlbumIds().also { cachedDlAlbumIds = it }
+        val dlTrackIds = cachedDlTrackIds ?: downloadRepository.getDownloadedTrackIds().also { cachedDlTrackIds = it }
+        _uiState.value = state.copy(
+            quickPicks = state.quickPicks.filter { it.id in dlAlbumIds },
+            recentlyPlayed = state.recentlyPlayed.filter { it.id in dlAlbumIds },
+            recentlyAdded = state.recentlyAdded.filter { it.id in dlAlbumIds },
+            favoriteTracks = state.favoriteTracks.filter { it.id in dlTrackIds },
+        )
     }
 }
 

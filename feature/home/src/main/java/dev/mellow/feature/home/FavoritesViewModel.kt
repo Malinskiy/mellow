@@ -12,8 +12,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -28,10 +31,15 @@ data class FavoritesUiState(
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
+    private val downloadRepository: dev.mellow.core.data.repository.DownloadRepository,
+    displayPreferences: dev.mellow.core.data.preferences.DisplayPreferences,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FavoritesUiState())
     val uiState: StateFlow<FavoritesUiState> = _uiState.asStateFlow()
+
+    private val _downloadedOnly: StateFlow<Boolean> = displayPreferences.downloadedOnly
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private var loadedServerId: String? = null
     private var syncCompleted = false
@@ -53,13 +61,12 @@ class FavoritesViewModel @Inject constructor(
             libraryRepository.getFavoriteAlbums(serverId),
             libraryRepository.getFavoriteArtists(serverId),
         ) { tracks, albums, artists ->
+            unfilteredFavTracks = tracks
+            unfilteredFavAlbums = albums
+            unfilteredFavArtists = artists
             val hasData = tracks.isNotEmpty() || albums.isNotEmpty() || artists.isNotEmpty()
-            _uiState.value = FavoritesUiState(
-                tracks = tracks,
-                albums = albums,
-                artists = artists,
-                isLoading = !hasData && !syncCompleted,
-            )
+            syncCompleted = syncCompleted || hasData
+            emitFiltered()
         }.catch { e ->
             _uiState.value = _uiState.value.copy(error = e.message, isLoading = false)
         }.launchIn(viewModelScope)
@@ -74,6 +81,36 @@ class FavoritesViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
+
+        _downloadedOnly.onEach { emitFiltered() }.launchIn(viewModelScope)
+    }
+
+    private var unfilteredFavTracks: List<Track> = emptyList()
+    private var unfilteredFavAlbums: List<Album> = emptyList()
+    private var unfilteredFavArtists: List<Artist> = emptyList()
+    private var cachedDlAlbumIds: Set<String>? = null
+    private var cachedDlArtistNames: Set<String>? = null
+    private var cachedDlTrackIds: Set<String>? = null
+
+    private suspend fun emitFiltered() {
+        if (!_downloadedOnly.value) {
+            _uiState.value = FavoritesUiState(
+                tracks = unfilteredFavTracks,
+                albums = unfilteredFavAlbums,
+                artists = unfilteredFavArtists,
+                isLoading = unfilteredFavTracks.isEmpty() && unfilteredFavAlbums.isEmpty() && !syncCompleted,
+            )
+            return
+        }
+        val dlAlbumIds = cachedDlAlbumIds ?: downloadRepository.getDownloadedAlbumIds().also { cachedDlAlbumIds = it }
+        val dlArtistNames = cachedDlArtistNames ?: downloadRepository.getDownloadedArtistNames().also { cachedDlArtistNames = it }
+        val dlTrackIds = cachedDlTrackIds ?: downloadRepository.getDownloadedTrackIds().also { cachedDlTrackIds = it }
+        _uiState.value = FavoritesUiState(
+            tracks = unfilteredFavTracks.filter { it.id in dlTrackIds },
+            albums = unfilteredFavAlbums.filter { it.id in dlAlbumIds },
+            artists = unfilteredFavArtists.filter { it.name in dlArtistNames },
+            isLoading = false,
+        )
     }
 
     companion object {
