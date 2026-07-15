@@ -33,6 +33,7 @@ import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.PlaylistEntity
 import dev.mellow.core.database.entity.TrackEntity
 import dev.mellow.core.network.ConnectionState
+import dev.mellow.core.network.JellyfinClientWrapper
 import dev.mellow.core.network.NetworkStateObserver
 import dev.mellow.core.player.cache.MellowDataSourceFactory
 import kotlinx.coroutines.CoroutineScope
@@ -53,6 +54,7 @@ class MellowMediaService : MediaLibraryService() {
     @Inject lateinit var playlistDao: PlaylistDao
     @Inject lateinit var downloadDao: DownloadDao
     @Inject lateinit var networkStateObserver: NetworkStateObserver
+    @Inject lateinit var jellyfinClientWrapper: JellyfinClientWrapper
 
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
@@ -83,6 +85,14 @@ class MellowMediaService : MediaLibraryService() {
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, LibrarySessionCallback())
             .setBitmapLoader(bitmapLoader)
             .build()
+
+        serviceScope.launch {
+            if (!jellyfinClientWrapper.isConnected) {
+                val server = serverDao.getActiveServer() ?: return@launch
+                jellyfinClientWrapper.restoreSession(server.url, server.accessToken)
+                networkStateObserver.refresh()
+            }
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =

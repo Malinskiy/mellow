@@ -7,6 +7,7 @@ import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.createJellyfin
 import org.jellyfin.sdk.model.ClientInfo
 import org.jellyfin.sdk.model.DeviceInfo
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,4 +35,11 @@ class JellyfinClientWrapper @Inject constructor(
     }
 
     val isConnected: Boolean get() = _api != null
+
+    fun restoreSession(serverUrl: String, accessToken: String) {
+        if (!isConnected) {
+            connect(serverUrl, DeviceInfo(id = UUID.randomUUID().toString(), name = "Mellow"))
+        }
+        authenticate(accessToken)
+    }
 }
