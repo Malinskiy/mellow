@@ -30,13 +30,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import dev.mellow.core.designsystem.icon.PhosphorIcons
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,6 +67,7 @@ import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
+import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.designsystem.theme.WindowWidthClass
@@ -92,7 +99,10 @@ fun ArtistDetailScreen(
     onPlayAll: () -> Unit = {},
     onShuffle: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
+    onShare: () -> Unit = {},
+    onAddAllToQueue: () -> Unit = {},
 ) {
+    var showMoreMenu by remember { mutableStateOf(false) }
     val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
     Box(
@@ -122,6 +132,7 @@ fun ArtistDetailScreen(
                         onPlayAll = onPlayAll,
                         onShuffle = onShuffle,
                         onFavoriteClick = onFavoriteClick,
+                        onMore = { showMoreMenu = true },
                     )
                 } else {
                     LazyColumn(
@@ -139,7 +150,7 @@ fun ArtistDetailScreen(
                                 IconButton(onClick = onBack) {
                                     Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
                                 }
-                                IconButton(onClick = {}) {
+                                IconButton(onClick = { showMoreMenu = true }) {
                                     Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
                                 }
                             }
@@ -206,6 +217,77 @@ fun ArtistDetailScreen(
             }
         }
     }
+
+    if (showMoreMenu) {
+        ArtistMoreMenu(
+            onDismiss = { showMoreMenu = false },
+            onPlayAll = {
+                onPlayAll()
+                showMoreMenu = false
+            },
+            onAddAllToQueue = {
+                onAddAllToQueue()
+                showMoreMenu = false
+            },
+            onShare = {
+                onShare()
+                showMoreMenu = false
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ArtistMoreMenu(
+    onDismiss: () -> Unit,
+    onPlayAll: () -> Unit,
+    onAddAllToQueue: () -> Unit,
+    onShare: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MellowTheme.colors.surfaceElevated,
+        contentColor = MellowTheme.colors.foreground,
+        dragHandle = {
+            Spacer(
+                modifier = Modifier
+                    .padding(vertical = MellowSpacing.Sp3)
+                    .size(width = 36.dp, height = 4.dp)
+                    .background(MellowTheme.colors.muted.copy(alpha = 0.4f), MellowShapes.Full),
+            )
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = MellowSpacing.Sp8),
+        ) {
+            ArtistMenuAction(PhosphorIcons.Play, "Play All", onClick = onPlayAll)
+            ArtistMenuAction(PhosphorIcons.Queue, "Add All to Queue", onClick = onAddAllToQueue)
+            ArtistMenuAction(PhosphorIcons.ShareNetwork, "Share", onClick = onShare)
+        }
+    }
+}
+
+@Composable
+private fun ArtistMenuAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+    ) {
+        Icon(icon, label, tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(MellowSpacing.Sp4))
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = MellowTheme.colors.foreground)
+    }
 }
 
 private val ARTIST_TABS = listOf("Top Tracks", "Discography")
@@ -228,6 +310,7 @@ private fun ArtistDetailExpanded(
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onMore: () -> Unit,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -261,7 +344,7 @@ private fun ArtistDetailExpanded(
                     IconButton(onClick = onBack) {
                         Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
                     }
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = onMore) {
                         Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
                     }
                 }

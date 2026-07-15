@@ -31,11 +31,14 @@ import androidx.compose.foundation.verticalScroll
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -127,7 +130,11 @@ fun AlbumDetailScreen(
     onDownloadClick: () -> Unit = {},
     onRemoveDownloadsClick: () -> Unit = {},
     isOffline: Boolean = false,
+    onShare: () -> Unit = {},
+    onAddAllToQueue: () -> Unit = {},
+    onGoToArtist: () -> Unit = {},
 ) {
+    var showMoreMenu by remember { mutableStateOf(false) }
     val tracksLoading = tracks.isEmpty() && (isSyncing || expectedTrackCount > 0)
     val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
     val showDownloadIndicators = downloadStatus != AlbumDownloadState.Status.NONE
@@ -177,7 +184,7 @@ fun AlbumDetailScreen(
                         .clip(MellowShapes.AlbumArt)
                         .background(MellowTheme.colors.surfaceElevated)
 
-                    AlbumDetailTopBar(onBack)
+                        AlbumDetailTopBar(onBack, onShare, onMore = { showMoreMenu = true })
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
@@ -433,7 +440,7 @@ fun AlbumDetailScreen(
             LazyColumn(
                 contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
             ) {
-                item { AlbumDetailTopBar(onBack) }
+                item { AlbumDetailTopBar(onBack, onShare, onMore = { showMoreMenu = true }) }
                 item {
                     AlbumHero(
                         albumId = albumId,
@@ -554,12 +561,79 @@ fun AlbumDetailScreen(
             }
         }
     }
+
+    if (showMoreMenu) {
+        AlbumMoreMenu(
+            onDismiss = { showMoreMenu = false },
+            onAddAllToQueue = {
+                onAddAllToQueue()
+                showMoreMenu = false
+            },
+            onGoToArtist = {
+                onGoToArtist()
+                showMoreMenu = false
+            },
+        )
+    }
 }
 
-
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AlbumMoreMenu(
+    onDismiss: () -> Unit,
+    onAddAllToQueue: () -> Unit,
+    onGoToArtist: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MellowTheme.colors.surfaceElevated,
+        contentColor = MellowTheme.colors.foreground,
+        dragHandle = {
+            Spacer(
+                modifier = Modifier
+                    .padding(vertical = MellowSpacing.Sp3)
+                    .size(width = 36.dp, height = 4.dp)
+                    .background(MellowTheme.colors.muted.copy(alpha = 0.4f), MellowShapes.Full),
+            )
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = MellowSpacing.Sp8),
+        ) {
+            MenuAction(PhosphorIcons.Queue, "Add All to Queue", onClick = onAddAllToQueue)
+            MenuAction(PhosphorIcons.User, "Go to Artist", onClick = onGoToArtist)
+        }
+    }
+}
 
 @Composable
-private fun AlbumDetailTopBar(onBack: () -> Unit) {
+private fun MenuAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+    ) {
+        Icon(icon, label, tint = MellowTheme.colors.foreground, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(MellowSpacing.Sp4))
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = MellowTheme.colors.foreground)
+    }
+}
+
+@Composable
+private fun AlbumDetailTopBar(
+    onBack: () -> Unit,
+    onShare: () -> Unit = {},
+    onMore: () -> Unit = {},
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -571,10 +645,10 @@ private fun AlbumDetailTopBar(onBack: () -> Unit) {
             Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
         }
         Row {
-            IconButton(onClick = {}) {
+            IconButton(onClick = onShare) {
                 Icon(PhosphorIcons.ShareNetwork, "Share", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }
-            IconButton(onClick = {}) {
+            IconButton(onClick = onMore) {
                 Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
             }
         }

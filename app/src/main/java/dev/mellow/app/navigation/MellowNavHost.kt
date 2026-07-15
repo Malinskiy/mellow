@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.ui.platform.LocalContext
 import dev.mellow.app.dev.DevIconComparisonScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -179,6 +180,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: MellowNavDestination.Home.route
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val fullScreenRoutes = setOf("now_playing", "queue", "lyrics")
     val isFullScreen = currentRoute in fullScreenRoutes
@@ -729,6 +731,28 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 openContextMenu(track, mainViewModel.serverUrl.value)
                             }
                         },
+                        onShare = {
+                            val album = albumState.album
+                            if (album != null) {
+                                val text = buildString {
+                                    append("${album.name} by ${album.artistName ?: "Unknown Artist"}")
+                                    val url = serverUrl
+                                    if (url != null) append("\n${url}/web/index.html#!/details?id=${album.id}")
+                                }
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, null))
+                            }
+                        },
+                        onAddAllToQueue = {
+                            albumState.tracks.forEach { mainViewModel.player.addToQueue(it) }
+                        },
+                        onGoToArtist = {
+                            val artist = albumState.album?.artistId
+                            if (artist != null) navController.navigate("artist/$artist")
+                        },
                     )
                     }
                 }
@@ -809,6 +833,24 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             if (artist != null) {
                                 mainViewModel.toggleFavorite(artist.id, artist.isFavorite)
                             }
+                        },
+                        onShare = {
+                            val artist = artistState.artist
+                            if (artist != null) {
+                                val text = buildString {
+                                    append(artist.name)
+                                    val url = serverUrl
+                                    if (url != null) append("\n${url}/web/index.html#!/details?id=${artist.id}")
+                                }
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, null))
+                            }
+                        },
+                        onAddAllToQueue = {
+                            artistState.topTracks.forEach { mainViewModel.player.addToQueue(it) }
                         },
                     )
                 }
