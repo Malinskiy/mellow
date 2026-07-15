@@ -292,9 +292,12 @@ class MellowPlayer @Inject constructor(
                 positionUpdateCount = 0
                 reportingScope.launch { playbackReporter.reportStarted(track.id) }
             } else if (mediaItem != null) {
+                val mediaIds = (0 until ctrl.mediaItemCount).map { i ->
+                    ctrl.getMediaItemAt(i).mediaId
+                }
                 reportingScope.launch {
-                    val newQueue = (0 until ctrl.mediaItemCount).mapNotNull { i ->
-                        trackDao.getTrackById(ctrl.getMediaItemAt(i).mediaId)?.toModel()
+                    val newQueue = mediaIds.mapNotNull { id ->
+                        trackDao.getTrackById(id)?.toModel()
                     }
                     currentQueue = newQueue
                     val resolved = newQueue.getOrNull(idx)
