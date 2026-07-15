@@ -10,6 +10,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import dev.mellow.core.network.ConnectionState
+import dev.mellow.core.network.NetworkStateObserver
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
@@ -58,6 +60,7 @@ class MellowPlayer @Inject constructor(
     private val downloadDao: DownloadDao,
     private val trackDao: TrackDao,
     private val playbackReporter: PlaybackReporter,
+    private val networkStateObserver: NetworkStateObserver,
 ) {
     private var controller: MediaController? = null
 
@@ -369,9 +372,20 @@ class MellowPlayer @Inject constructor(
                 }
             }
 
+            val isOffline = networkStateObserver.connectionState.value != ConnectionState.Connected
+            if (isOffline) {
+                controller?.stop()
+            }
+
+            val errorMessage = when {
+                httpCode == 404 -> "Track no longer available"
+                isOffline -> "No network connection"
+                else -> "Playback error: ${error.localizedMessage}"
+            }
+
             _state.value = _state.value.copy(
                 isPlaying = false,
-                error = if (httpCode == 404) "Track no longer available" else "Playback error: ${error.localizedMessage}",
+                error = errorMessage,
             )
         }
     }

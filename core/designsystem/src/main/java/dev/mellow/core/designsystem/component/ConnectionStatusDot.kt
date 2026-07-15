@@ -57,14 +57,18 @@ fun ConnectionStatusDot(
     }
 
     var visibleLabel by remember { mutableStateOf<String?>(null) }
+    var previousLabel by remember { mutableStateOf(label) }
 
     LaunchedEffect(label) {
-        if (label != null) {
-            visibleLabel = label
-            delay(LABEL_DISPLAY_MS)
-            visibleLabel = null
-        } else {
-            visibleLabel = null
+        if (label != previousLabel) {
+            previousLabel = label
+            if (label != null) {
+                visibleLabel = label
+                delay(LABEL_DISPLAY_MS)
+                visibleLabel = null
+            } else {
+                visibleLabel = null
+            }
         }
     }
 

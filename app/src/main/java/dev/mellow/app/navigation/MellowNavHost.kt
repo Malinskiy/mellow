@@ -1370,18 +1370,20 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         )
 
         var parentWindowOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-        SharedArtOverlay(
-            imageUrl = if (serverUrl != null) {
-                val imgId = track.imageId ?: track.albumId
-                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
-            } else null,
-            dragFraction = sheetState.dragFraction,
-            positions = sharedArtPositions,
-            parentOffset = parentWindowOffset,
-            modifier = Modifier
-                .fillMaxSize()
-                .onGloballyPositioned { parentWindowOffset = it.positionInWindow() },
-        )
+        if (playbackState.error == null) {
+            SharedArtOverlay(
+                imageUrl = if (serverUrl != null) {
+                    val imgId = track.imageId ?: track.albumId
+                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                } else null,
+                dragFraction = sheetState.dragFraction,
+                positions = sharedArtPositions,
+                parentOffset = parentWindowOffset,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { parentWindowOffset = it.positionInWindow() },
+            )
+        }
     }
     }
     }
