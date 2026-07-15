@@ -81,4 +81,7 @@ interface TrackDao {
 
     @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY sortName ASC")
     suspend fun getAllTracksByServer(serverId: String): List<TrackEntity>
+
+    @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY sortName ASC LIMIT :limit OFFSET :offset")
+    suspend fun getTracksByServerPaged(serverId: String, limit: Int, offset: Int): List<TrackEntity>
 }

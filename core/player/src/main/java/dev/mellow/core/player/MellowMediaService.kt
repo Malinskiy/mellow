@@ -557,7 +557,9 @@ class MellowMediaService : MediaLibraryService() {
                             }
                     }
                     parentId == LIBRARY_SONGS -> {
-                        trackDao.getAllTracksByServer(serverId)
+                        val effectivePageSize = if (pageSize > 0 && pageSize < Int.MAX_VALUE) pageSize else AA_PAGE_SIZE
+                        val offset = if (page > 0) page * effectivePageSize else 0
+                        trackDao.getTracksByServerPaged(serverId, limit = effectivePageSize, offset = offset)
                             .onlineFilter()
                             .map { it.toPlayableItem() }
                     }
@@ -761,6 +763,7 @@ class MellowMediaService : MediaLibraryService() {
         private const val FAV_ARTISTS = "fav_artists"
         private const val FAV_TRACKS = "fav_tracks"
         private const val HOME_ROW_SIZE = 3
+        private const val AA_PAGE_SIZE = 200
         private const val EXTRA_PARENT_ID = "dev.mellow.PARENT_ID"
         private const val GENRE_SEPARATOR = "|||"
         private const val CONTENT_STYLE_BROWSABLE_HINT =
