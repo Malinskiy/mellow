@@ -14,7 +14,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.mellow.app"
+        applicationId = "com.malinskiy.mellow"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
