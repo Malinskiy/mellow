@@ -121,6 +121,9 @@ class MellowMediaService : MediaLibraryService() {
     private fun artworkUri(itemId: String): Uri =
         Uri.parse("content://${packageName}.artwork/$itemId")
 
+    private fun drawableUri(resId: Int): Uri =
+        Uri.parse("android.resource://$packageName/$resId")
+
     private fun AlbumEntity.toBrowsableItem(groupTitle: String? = null): MediaItem {
         val extras = Bundle().apply {
             putInt(CONTENT_STYLE_PLAYABLE_HINT, CONTENT_STYLE_LIST_ITEM)
@@ -170,13 +173,14 @@ class MellowMediaService : MediaLibraryService() {
             putInt(CONTENT_STYLE_PLAYABLE_HINT, CONTENT_STYLE_LIST_ITEM)
         }
         val subtitle = if (trackCount > 0) "Playlist \u2022 $trackCount tracks" else "Playlist"
+        val artUri = if (imageTag != null) artworkUri(id) else drawableUri(R.drawable.ic_aa_playlists)
         return MediaItem.Builder()
             .setMediaId("playlist:$id")
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(name)
                     .setSubtitle(subtitle)
-                    .setArtworkUri(if (imageTag != null) artworkUri(id) else null)
+                    .setArtworkUri(artUri)
                     .setMediaType(MediaMetadata.MEDIA_TYPE_PLAYLIST)
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
@@ -186,9 +190,13 @@ class MellowMediaService : MediaLibraryService() {
             .build()
     }
 
-    private fun TrackEntity.toPlayableItem(groupTitle: String? = null): MediaItem {
-        val extras = groupTitle?.let {
-            Bundle().apply { putString(CONTENT_STYLE_GROUP_TITLE, it) }
+    private fun TrackEntity.toPlayableItem(
+        groupTitle: String? = null,
+        parentId: String? = null,
+    ): MediaItem {
+        val extras = Bundle().apply {
+            groupTitle?.let { putString(CONTENT_STYLE_GROUP_TITLE, it) }
+            putString(EXTRA_PARENT_ID, parentId ?: albumId?.let { "album:$it" } ?: "")
         }
         return MediaItem.Builder()
             .setMediaId(id)
@@ -203,52 +211,165 @@ class MellowMediaService : MediaLibraryService() {
                     .apply { discNumber?.let { setDiscNumber(it) } }
                     .setIsBrowsable(false)
                     .setIsPlayable(true)
-                    .apply { extras?.let { setExtras(it) } }
+                    .setExtras(extras)
                     .build()
             )
             .build()
     }
 
+    private fun AlbumEntity.toPlayablePreview(): MediaItem =
+        MediaItem.Builder()
+            .setMediaId("album:$id")
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(name)
+                    .setSubtitle(artistName?.let { "Album \u2022 $it" } ?: "Album")
+                    .setArtworkUri(artworkUri(id))
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_ALBUM)
+                    .setIsBrowsable(false)
+                    .setIsPlayable(true)
+                    .build()
+            )
+            .build()
+
+    private fun ArtistEntity.toPlayablePreview(): MediaItem =
+        MediaItem.Builder()
+            .setMediaId("artist:$id")
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(name)
+                    .setSubtitle("Artist")
+                    .setArtworkUri(if (imageTag != null) artworkUri(id) else null)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_ARTIST)
+                    .setIsBrowsable(false)
+                    .setIsPlayable(true)
+                    .build()
+            )
+            .build()
+
+    private suspend fun enrichMediaItems(mediaItems: List<MediaItem>): List<MediaItem> {
+        val server = serverDao.getActiveServer() ?: return mediaItems
+        val serverUrl = server.url
+        val apiKey = server.accessToken
+
+        return mediaItems.map { item ->
+            val trackId = item.mediaId
+            if (item.localConfiguration != null) return@map item
+
+            val track = trackDao.getTrackById(trackId)
+            if (track != null) {
+                MediaItem.Builder()
+                    .setMediaId(trackId)
+                    .setUri(Uri.parse(jellyfinStreamUrl(serverUrl, trackId, apiKey)))
+                    .setCustomCacheKey(trackId)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(track.name)
+                            .setArtist(track.artistName)
+                            .setAlbumTitle(track.albumName)
+                            .setArtworkUri(artworkUri(track.albumId ?: trackId))
+                            .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                            .setIsPlayable(true)
+                            .setIsBrowsable(false)
+                            .build()
+                    )
+                    .build()
+            } else {
+                item
+            }
+        }
+    }
+
     private inner class LibrarySessionCallback : MediaLibrarySession.Callback {
+
+        override fun onSetMediaItems(
+            session: MediaSession,
+            browser: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            return asyncFuture {
+                if (mediaItems.size == 1) {
+                    val mediaId = mediaItems[0].mediaId
+
+                    if (mediaId.startsWith("album:")) {
+                        val albumId = mediaId.removePrefix("album:")
+                        val tracks = trackDao.getTracksByAlbumSync(albumId)
+                        if (tracks.isNotEmpty()) {
+                            val enriched = enrichMediaItems(tracks.map {
+                                it.toPlayableItem(parentId = "album:$albumId")
+                            })
+                            return@asyncFuture MediaSession.MediaItemsWithStartPosition(
+                                enriched, 0, startPositionMs,
+                            )
+                        }
+                    }
+                    if (mediaId.startsWith("artist:")) {
+                        val artistId = mediaId.removePrefix("artist:")
+                        val albums = albumDao.getAllAlbumsByArtist(artistId)
+                        if (albums.isNotEmpty()) {
+                            val firstAlbumTracks = trackDao.getTracksByAlbumSync(albums[0].id)
+                            if (firstAlbumTracks.isNotEmpty()) {
+                                val enriched = enrichMediaItems(firstAlbumTracks.map {
+                                    it.toPlayableItem(parentId = "album:${albums[0].id}")
+                                })
+                                return@asyncFuture MediaSession.MediaItemsWithStartPosition(
+                                    enriched, 0, startPositionMs,
+                                )
+                            }
+                        }
+                    }
+
+                    val trackId = mediaId
+                    val parentId = mediaItems[0].mediaMetadata.extras?.getString(EXTRA_PARENT_ID)
+                    val track = trackDao.getTrackById(trackId)
+                    val serverId = serverDao.getActiveServer()?.id ?: ""
+
+                    val siblings = when {
+                        parentId?.startsWith("playlist:") == true -> {
+                            val plId = parentId.removePrefix("playlist:")
+                            playlistDao.getPlaylistTracksSync(plId)
+                        }
+                        parentId == FAV_TRACKS -> {
+                            trackDao.getFavoriteTracksSync(serverId)
+                        }
+                        parentId == LIBRARY_SONGS -> {
+                            trackDao.getAllTracksByServer(serverId)
+                        }
+                        parentId?.startsWith("album:") == true -> {
+                            val aId = parentId.removePrefix("album:")
+                            trackDao.getTracksByAlbumSync(aId)
+                        }
+                        track?.albumId != null -> {
+                            trackDao.getTracksByAlbumSync(track.albumId!!)
+                        }
+                        else -> null
+                    }
+
+                    if (!siblings.isNullOrEmpty()) {
+                        val enriched = enrichMediaItems(siblings.map {
+                            it.toPlayableItem(parentId = parentId)
+                        })
+                        val idx = siblings.indexOfFirst { it.id == trackId }.coerceAtLeast(0)
+                        MediaSession.MediaItemsWithStartPosition(enriched, idx, startPositionMs)
+                    } else {
+                        val enriched = enrichMediaItems(mediaItems)
+                        MediaSession.MediaItemsWithStartPosition(enriched, startIndex, startPositionMs)
+                    }
+                } else {
+                    val enriched = enrichMediaItems(mediaItems)
+                    MediaSession.MediaItemsWithStartPosition(enriched, startIndex, startPositionMs)
+                }
+            }
+        }
 
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> {
-            return asyncFuture {
-                val server = serverDao.getActiveServer()
-                    ?: return@asyncFuture mediaItems
-                val serverUrl = server.url
-                val apiKey = server.accessToken
-
-                mediaItems.map { item ->
-                    val trackId = item.mediaId
-                    if (item.localConfiguration != null) return@map item
-
-                    val track = trackDao.getTrackById(trackId)
-                    if (track != null) {
-                        MediaItem.Builder()
-                            .setMediaId(trackId)
-                            .setUri(Uri.parse(jellyfinStreamUrl(serverUrl, trackId, apiKey)))
-                            .setCustomCacheKey(trackId)
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(track.name)
-                                    .setArtist(track.artistName)
-                                    .setAlbumTitle(track.albumName)
-                                    .setArtworkUri(artworkUri(track.albumId ?: trackId))
-                                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-                                    .setIsPlayable(true)
-                                    .setIsBrowsable(false)
-                                    .build()
-                            )
-                            .build()
-                    } else {
-                        item
-                    }
-                }
-            }
+            return asyncFuture { enrichMediaItems(mediaItems) }
         }
 
         override fun onGetLibraryRoot(
@@ -344,16 +465,60 @@ class MellowMediaService : MediaLibraryService() {
                         recentItems + addedItems + quickPicks + favoriteTracks
                     }
                     parentId == TAB_FAVORITES -> {
-                        val favAlbums = albumDao.getFavoriteAlbumsSync(serverId)
+                        val items = mutableListOf<MediaItem>()
+
+                        val favAlbums = albumDao.getFavoriteAlbumsSync(serverId).onlineFilter()
+                        if (favAlbums.isNotEmpty()) {
+                            items.add(browsableItem(
+                                mediaId = FAV_ALBUMS, title = "Albums",
+                                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_ALBUMS,
+                                browsableHint = CONTENT_STYLE_GRID_ITEM,
+                                iconUri = drawableUri(R.drawable.ic_aa_albums),
+                            ))
+                            items.addAll(favAlbums.take(HOME_ROW_SIZE)
+                                .map { it.toPlayablePreview() })
+                        }
+
+                        val favArtists = artistDao.getFavoriteArtistsSync(serverId).onlineFilter()
+                        if (favArtists.isNotEmpty()) {
+                            items.add(browsableItem(
+                                mediaId = FAV_ARTISTS, title = "Artists",
+                                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_ARTISTS,
+                                browsableHint = CONTENT_STYLE_GRID_ITEM,
+                                iconUri = drawableUri(R.drawable.ic_aa_artists),
+                            ))
+                            items.addAll(favArtists.take(HOME_ROW_SIZE)
+                                .map { it.toPlayablePreview() })
+                        }
+
+                        val favTracks = trackDao.getFavoriteTracksSync(serverId).onlineFilter()
+                        if (favTracks.isNotEmpty()) {
+                            items.add(browsableItem(
+                                mediaId = FAV_TRACKS, title = "Tracks",
+                                mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_MIXED,
+                                playableHint = CONTENT_STYLE_GRID_ITEM,
+                                iconUri = drawableUri(R.drawable.ic_aa_songs),
+                            ))
+                            items.addAll(favTracks.take(HOME_ROW_SIZE)
+                                .map { it.toPlayableItem(parentId = FAV_TRACKS) })
+                        }
+
+                        items
+                    }
+                    parentId == FAV_ALBUMS -> {
+                        albumDao.getFavoriteAlbumsSync(serverId)
                             .onlineFilter()
-                            .map { it.toBrowsableItem(groupTitle = "Albums") }
-                        val favArtists = artistDao.getFavoriteArtistsSync(serverId)
+                            .map { it.toBrowsableItem() }
+                    }
+                    parentId == FAV_ARTISTS -> {
+                        artistDao.getFavoriteArtistsSync(serverId)
                             .onlineFilter()
-                            .map { it.toBrowsableItem(groupTitle = "Artists") }
-                        val favTracks = trackDao.getFavoriteTracksSync(serverId)
+                            .map { it.toBrowsableItem() }
+                    }
+                    parentId == FAV_TRACKS -> {
+                        trackDao.getFavoriteTracksSync(serverId)
                             .onlineFilter()
-                            .map { it.toPlayableItem(groupTitle = "Tracks") }
-                        favAlbums + favArtists + favTracks
+                            .map { it.toPlayableItem(parentId = FAV_TRACKS) }
                     }
                     parentId == LIBRARY_ALBUMS -> {
                         albumDao.getAllAlbumsByServer(serverId)
@@ -412,7 +577,7 @@ class MellowMediaService : MediaLibraryService() {
                         val playlistId = parentId.removePrefix("playlist:")
                         playlistDao.getPlaylistTracksSync(playlistId)
                             .onlineFilter()
-                            .map { it.toPlayableItem() }
+                            .map { it.toPlayableItem(parentId = parentId) }
                     }
                     else -> emptyList()
                 }
@@ -432,12 +597,17 @@ class MellowMediaService : MediaLibraryService() {
                 val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
                 val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
                 val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
+                val dlArtistNames = if (!isOnline) downloadDao.getDownloadedArtistNames().toSet() else null
 
+                val artists = artistDao.search(serverId, query, limit = 5)
+                    .let { if (dlArtistNames != null) it.filter { a -> a.name in dlArtistNames } else it }
                 val albums = albumDao.search(serverId, query, limit = 10)
                     .let { if (dlAlbumIds != null) it.filter { a -> a.id in dlAlbumIds } else it }
                 val tracks = trackDao.search(serverId, query, limit = 20)
                     .let { if (dlTrackIds != null) it.filter { t -> t.id in dlTrackIds } else it }
-                session.notifySearchResultChanged(browser, query, albums.size + tracks.size, params)
+                session.notifySearchResultChanged(
+                    browser, query, artists.size + albums.size + tracks.size, params,
+                )
             }
             return Futures.immediateFuture(LibraryResult.ofVoid())
         }
@@ -459,7 +629,11 @@ class MellowMediaService : MediaLibraryService() {
                 val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
                 val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
                 val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
+                val dlArtistNames = if (!isOnline) downloadDao.getDownloadedArtistNames().toSet() else null
 
+                val artists = artistDao.search(serverId, query, limit = 5)
+                    .let { if (dlArtistNames != null) it.filter { a -> a.name in dlArtistNames } else it }
+                    .map { it.toBrowsableItem() }
                 val albums = albumDao.search(serverId, query, limit = 10)
                     .let { if (dlAlbumIds != null) it.filter { a -> a.id in dlAlbumIds } else it }
                     .map { it.toBrowsableItem() }
@@ -467,7 +641,7 @@ class MellowMediaService : MediaLibraryService() {
                     .let { if (dlTrackIds != null) it.filter { t -> t.id in dlTrackIds } else it }
                     .map { it.toPlayableItem() }
 
-                LibraryResult.ofItemList(ImmutableList.copyOf(albums + tracks), params)
+                LibraryResult.ofItemList(ImmutableList.copyOf(artists + albums + tracks), params)
             }
         }
 
@@ -495,7 +669,7 @@ class MellowMediaService : MediaLibraryService() {
                 mediaId = TAB_FAVORITES,
                 title = "Favorites",
                 mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_MIXED,
-                browsableHint = CONTENT_STYLE_GRID_ITEM,
+                browsableHint = CONTENT_STYLE_LIST_ITEM,
                 playableHint = CONTENT_STYLE_GRID_ITEM,
             ),
         )
@@ -506,24 +680,28 @@ class MellowMediaService : MediaLibraryService() {
                 title = "Albums",
                 mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_ALBUMS,
                 browsableHint = CONTENT_STYLE_GRID_ITEM,
+                iconUri = drawableUri(R.drawable.ic_aa_albums),
             ),
             browsableItem(
                 mediaId = LIBRARY_ARTISTS,
                 title = "Artists",
                 mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_ARTISTS,
                 browsableHint = CONTENT_STYLE_GRID_ITEM,
+                iconUri = drawableUri(R.drawable.ic_aa_artists),
             ),
             browsableItem(
                 mediaId = LIBRARY_GENRES,
                 title = "Genres",
                 mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_GENRES,
                 browsableHint = CONTENT_STYLE_LIST_ITEM,
+                iconUri = drawableUri(R.drawable.ic_aa_genres),
             ),
             browsableItem(
                 mediaId = LIBRARY_SONGS,
                 title = "Songs",
                 mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_MIXED,
                 playableHint = CONTENT_STYLE_GRID_ITEM,
+                iconUri = drawableUri(R.drawable.ic_aa_songs),
             ),
         )
 
@@ -533,11 +711,14 @@ class MellowMediaService : MediaLibraryService() {
             mediaType: Int? = null,
             browsableHint: Int? = null,
             playableHint: Int? = null,
+            groupTitle: String? = null,
+            iconUri: Uri? = null,
         ): MediaItem {
-            val extras = if (browsableHint != null || playableHint != null) {
+            val extras = if (browsableHint != null || playableHint != null || groupTitle != null) {
                 Bundle().apply {
                     browsableHint?.let { putInt(CONTENT_STYLE_BROWSABLE_HINT, it) }
                     playableHint?.let { putInt(CONTENT_STYLE_PLAYABLE_HINT, it) }
+                    groupTitle?.let { putString(CONTENT_STYLE_GROUP_TITLE, it) }
                 }
             } else null
             return MediaItem.Builder()
@@ -547,6 +728,7 @@ class MellowMediaService : MediaLibraryService() {
                         .setIsBrowsable(true)
                         .setIsPlayable(false)
                         .setTitle(title)
+                        .apply { iconUri?.let { setArtworkUri(it) } }
                         .apply { mediaType?.let { setMediaType(it) } }
                         .apply { extras?.let { setExtras(it) } }
                         .build()
@@ -565,7 +747,11 @@ class MellowMediaService : MediaLibraryService() {
         private const val LIBRARY_ARTISTS = "library_artists"
         private const val LIBRARY_GENRES = "library_genres"
         private const val LIBRARY_SONGS = "library_songs"
+        private const val FAV_ALBUMS = "fav_albums"
+        private const val FAV_ARTISTS = "fav_artists"
+        private const val FAV_TRACKS = "fav_tracks"
         private const val HOME_ROW_SIZE = 3
+        private const val EXTRA_PARENT_ID = "dev.mellow.PARENT_ID"
         private const val GENRE_SEPARATOR = "|||"
         private const val CONTENT_STYLE_BROWSABLE_HINT =
             "android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"

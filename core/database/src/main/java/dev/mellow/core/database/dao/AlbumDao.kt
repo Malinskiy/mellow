@@ -34,7 +34,7 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE isFavorite = 1 AND serverId = :serverId")
     fun getFavoriteAlbums(serverId: String): Flow<List<AlbumEntity>>
 
-    @Query("SELECT * FROM albums WHERE serverId = :serverId AND name LIKE '%' || :query || '%' ORDER BY sortName ASC LIMIT :limit")
+    @Query("SELECT * FROM albums WHERE serverId = :serverId AND (name LIKE '%' || :query || '%' OR artistName LIKE '%' || :query || '%') ORDER BY sortName ASC LIMIT :limit")
     suspend fun search(serverId: String, query: String, limit: Int = 20): List<AlbumEntity>
 
     @Upsert

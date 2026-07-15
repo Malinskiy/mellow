@@ -28,7 +28,7 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY playCount DESC LIMIT :limit")
     fun getMostPlayed(serverId: String, limit: Int = 50): Flow<List<TrackEntity>>
 
-    @Query("SELECT * FROM tracks WHERE serverId = :serverId AND name LIKE '%' || :query || '%' ORDER BY sortName ASC LIMIT :limit")
+    @Query("SELECT * FROM tracks WHERE serverId = :serverId AND (name LIKE '%' || :query || '%' OR artistName LIKE '%' || :query || '%') ORDER BY sortName ASC LIMIT :limit")
     suspend fun search(serverId: String, query: String, limit: Int = 50): List<TrackEntity>
 
     @Upsert
