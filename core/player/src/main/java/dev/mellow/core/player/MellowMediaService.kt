@@ -557,9 +557,7 @@ class MellowMediaService : MediaLibraryService() {
                             }
                     }
                     parentId == LIBRARY_SONGS -> {
-                        val effectivePageSize = if (pageSize > 0 && pageSize < Int.MAX_VALUE) pageSize else AA_PAGE_SIZE
-                        val offset = if (page > 0) page * effectivePageSize else 0
-                        trackDao.getTracksByServerPaged(serverId, limit = effectivePageSize, offset = offset)
+                        trackDao.getAllTracksByServer(serverId)
                             .onlineFilter()
                             .map { it.toPlayableItem() }
                     }
