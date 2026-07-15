@@ -75,6 +75,8 @@ fun SettingsScreen(
     onStorageCapChange: (Long) -> Unit = {},
     onAutoCleanupChange: (Int) -> Unit = {},
     onClearAllDownloads: () -> Unit = {},
+    lowPowerMode: Boolean = false,
+    onLowPowerModeChange: (Boolean) -> Unit = {},
     onDevToolsClick: () -> Unit = {},
 ) {
     var showIntervalPicker by remember { mutableStateOf(false) }
@@ -206,6 +208,13 @@ fun SettingsScreen(
         SettingsSection("Appearance")
         SettingsRow(PhosphorIcons.Palette, "Theme", "Dark")
         SettingsRow(PhosphorIcons.Palette, "Dynamic Colors", "From album art")
+        SettingsToggleRow(
+            icon = PhosphorIcons.Palette,
+            title = "Low Power Mode",
+            subtitle = "Disable animated backgrounds to save battery",
+            checked = lowPowerMode,
+            onCheckedChange = onLowPowerModeChange,
+        )
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Android Auto")

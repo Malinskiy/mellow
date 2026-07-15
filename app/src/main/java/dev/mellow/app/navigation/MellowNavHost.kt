@@ -293,7 +293,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     CompositionLocalProvider(
         LocalWindowWidthClass provides windowWidthClass,
         LocalMiniPlayerPadding provides miniPlayerPadding,
-        LocalBatterySaverActive provides rememberIsBatterySaverActive(),
+        LocalBatterySaverActive provides (rememberIsBatterySaverActive() || mainViewModel.lowPowerMode.collectAsState().value),
     ) {
     Row(modifier = Modifier.fillMaxSize()) {
         if (isExpanded && !isFullScreen && !isTabletPortrait) {
@@ -587,6 +587,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     val storageCap by settingsVm.storageCap.collectAsState()
                     val autoCleanupDays by settingsVm.autoCleanupDays.collectAsState()
                     val totalDownloadedBytes by settingsVm.totalDownloadedBytes.collectAsState()
+                    val lowPowerMode by settingsVm.lowPowerMode.collectAsState()
 
                     SettingsScreen(
                         onBack = { navController.popBackStack() },
@@ -612,6 +613,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onStorageCapChange = settingsVm::setStorageCap,
                         onAutoCleanupChange = settingsVm::setAutoCleanupDays,
                         onClearAllDownloads = settingsVm::clearAllDownloads,
+                        lowPowerMode = lowPowerMode,
+                        onLowPowerModeChange = settingsVm::setLowPowerMode,
                         onDevToolsClick = {
                             navController.navigate("dev_tools")
                         },

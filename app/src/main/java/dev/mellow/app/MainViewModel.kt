@@ -4,8 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.SyncProgress
-import dev.mellow.core.data.repository.LibraryRepository
+import dev.mellow.core.data.preferences.DisplayPreferences
 import dev.mellow.core.data.preferences.SyncPreferences
+import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
 import dev.mellow.core.database.dao.DownloadDao
@@ -35,6 +36,7 @@ class MainViewModel @Inject constructor(
     val player: MellowPlayer,
     private val networkStateObserver: NetworkStateObserver,
     private val syncPreferences: SyncPreferences,
+    displayPreferences: DisplayPreferences,
     private val syncScheduler: SyncScheduler,
     private val jellyfinDataSource: JellyfinDataSource,
     private val libraryRepository: LibraryRepository,
@@ -52,6 +54,9 @@ class MainViewModel @Inject constructor(
 
     private val _serverUrl = MutableStateFlow<String?>(null)
     val serverUrl: StateFlow<String?> = _serverUrl.asStateFlow()
+
+    val lowPowerMode: StateFlow<Boolean> = displayPreferences.lowPowerMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val connectionState: StateFlow<ConnectionState> = networkStateObserver.connectionState
 

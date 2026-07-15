@@ -3,6 +3,7 @@ package dev.mellow.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.mellow.core.data.preferences.DisplayPreferences
 import dev.mellow.core.data.preferences.DownloadPreferences
 import dev.mellow.core.data.repository.DownloadRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,8 +15,16 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val downloadPreferences: DownloadPreferences,
+    private val displayPreferences: DisplayPreferences,
     private val downloadRepository: DownloadRepository,
 ) : ViewModel() {
+
+    val lowPowerMode: StateFlow<Boolean> = displayPreferences.lowPowerMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setLowPowerMode(enabled: Boolean) {
+        viewModelScope.launch { displayPreferences.setLowPowerMode(enabled) }
+    }
 
     val downloadQuality: StateFlow<String> = downloadPreferences.downloadQuality
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DownloadPreferences.DEFAULT_QUALITY)
