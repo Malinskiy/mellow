@@ -367,6 +367,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         serverUrl = serverUrl,
                         isConnected = connectionState is ConnectionState.Connected,
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
+                        error = homeState.error,
+                        onRetry = homeVm::retry,
                         onAlbumClick = { albumId, source -> navController.navigate("album/$albumId?source=$source") },
                         onTrackClick = { trackId ->
                             val favTracks = homeVm.uiState.value.favoriteTracks
@@ -481,6 +483,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         isSyncing = isSyncing,
                         isConnected = connectionState is ConnectionState.Connected,
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
+                        error = state.error,
+                        onRetry = libraryVm::retry,
                         sortLabel = currentSort,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId?source=library") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },

@@ -11,6 +11,7 @@ import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.launch
@@ -21,6 +22,7 @@ data class FavoritesUiState(
     val albums: List<Album> = emptyList(),
     val artists: List<Artist> = emptyList(),
     val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -33,6 +35,14 @@ class FavoritesViewModel @Inject constructor(
 
     private var loadedServerId: String? = null
     private var syncCompleted = false
+
+    fun retry() {
+        val id = loadedServerId ?: return
+        loadedServerId = null
+        syncCompleted = false
+        _uiState.value = FavoritesUiState()
+        loadFavorites(id)
+    }
 
     fun loadFavorites(serverId: String) {
         if (serverId.isEmpty() || serverId == loadedServerId) return
@@ -50,6 +60,8 @@ class FavoritesViewModel @Inject constructor(
                 artists = artists,
                 isLoading = !hasData && !syncCompleted,
             )
+        }.catch { e ->
+            _uiState.value = _uiState.value.copy(error = e.message, isLoading = false)
         }.launchIn(viewModelScope)
 
         viewModelScope.launch {

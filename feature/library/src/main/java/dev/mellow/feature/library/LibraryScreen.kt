@@ -87,6 +87,8 @@ fun LibraryScreen(
     isSyncing: Boolean = false,
     isConnected: Boolean = false,
     isServerUnreachable: Boolean = false,
+    error: String? = null,
+    onRetry: () -> Unit = {},
     sortLabel: String = "Recently Added",
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
@@ -115,6 +117,8 @@ fun LibraryScreen(
                 LibraryTopBar(
                     isConnected = isConnected,
                     isServerUnreachable = isServerUnreachable,
+                    error = error,
+                    onRetry = onRetry,
                     onSettingsClick = onSettingsClick,
                     onSortChanged = onSortChanged,
                     showViewToggle = selectedTab == 0,
@@ -165,6 +169,8 @@ private val SORT_OPTIONS = listOf("Recently Added", "Name (A-Z)", "Name (Z-A)", 
 private fun LibraryTopBar(
     isConnected: Boolean = false,
     isServerUnreachable: Boolean = false,
+    error: String? = null,
+    onRetry: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSortChanged: (String) -> Unit = {},
     showViewToggle: Boolean = false,
@@ -189,6 +195,8 @@ private fun LibraryTopBar(
         ConnectionStatusDot(
             isConnected = isConnected,
             isServerUnreachable = isServerUnreachable,
+            error = error,
+            onRetry = onRetry,
         )
         Box(modifier = Modifier.width(MellowSpacing.Sp2))
         Box {

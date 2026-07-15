@@ -8,6 +8,7 @@ import dev.mellow.core.model.Playlist
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -16,6 +17,7 @@ import javax.inject.Inject
 data class PlaylistsUiState(
     val playlists: List<Playlist> = emptyList(),
     val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -28,6 +30,13 @@ class PlaylistsViewModel @Inject constructor(
 
     private var loadedServerId: String? = null
 
+    fun retry() {
+        val id = loadedServerId ?: return
+        loadedServerId = null
+        _uiState.value = PlaylistsUiState()
+        loadPlaylists(id)
+    }
+
     fun loadPlaylists(serverId: String) {
         if (serverId.isEmpty() || serverId == loadedServerId) return
         loadedServerId = serverId
@@ -35,6 +44,9 @@ class PlaylistsViewModel @Inject constructor(
         playlistRepository.observePlaylists(serverId)
             .onEach { playlists ->
                 _uiState.value = PlaylistsUiState(playlists = playlists, isLoading = false)
+            }
+            .catch { e ->
+                _uiState.value = _uiState.value.copy(error = e.message, isLoading = false)
             }
             .launchIn(viewModelScope)
 

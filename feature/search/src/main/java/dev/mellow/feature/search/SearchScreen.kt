@@ -66,6 +66,7 @@ fun SearchScreen(
     serverUrl: String = "",
     isConnected: Boolean = false,
     isServerUnreachable: Boolean = false,
+    error: String? = null,
     onPlayTracks: (List<Track>, Int) -> Unit = { _, _ -> },
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
@@ -105,6 +106,7 @@ fun SearchScreen(
             ConnectionStatusDot(
                 isConnected = isConnected,
                 isServerUnreachable = isServerUnreachable,
+                error = error ?: uiState.error,
             )
             Box(modifier = Modifier.width(MellowSpacing.Sp2))
             IconButton(onClick = onSettingsClick) {

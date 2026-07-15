@@ -104,6 +104,8 @@ fun FavoritesScreen(
                     ConnectionStatusDot(
                         isConnected = isConnected,
                         isServerUnreachable = isServerUnreachable,
+                        error = state.error,
+                        onRetry = viewModel::retry,
                     )
                     Box(modifier = Modifier.width(MellowSpacing.Sp2))
                     IconButton(onClick = onSettingsClick) {

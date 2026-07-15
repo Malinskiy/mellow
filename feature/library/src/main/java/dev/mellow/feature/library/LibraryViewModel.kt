@@ -10,6 +10,7 @@ import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
@@ -19,6 +20,7 @@ data class LibraryUiState(
     val artists: List<Artist> = emptyList(),
     val tracks: List<Track> = emptyList(),
     val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -29,17 +31,32 @@ class LibraryViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
+    private var loadedServerId: String? = null
+
+    fun retry() {
+        val id = loadedServerId ?: return
+        loadedServerId = null
+        _uiState.value = LibraryUiState()
+        loadLibrary(id)
+    }
+
     fun loadLibrary(serverId: String) {
+        if (loadedServerId == serverId) return
+        loadedServerId = serverId
+
         libraryRepository.getAlbums(serverId)
             .onEach { albums -> _uiState.value = _uiState.value.copy(albums = albums, isLoading = false) }
+            .catch { e -> _uiState.value = _uiState.value.copy(error = e.message, isLoading = false) }
             .launchIn(viewModelScope)
 
         libraryRepository.getArtists(serverId)
             .onEach { artists -> _uiState.value = _uiState.value.copy(artists = artists) }
+            .catch { e -> _uiState.value = _uiState.value.copy(error = e.message, isLoading = false) }
             .launchIn(viewModelScope)
 
         libraryRepository.getRecentTracks(serverId)
             .onEach { tracks -> _uiState.value = _uiState.value.copy(tracks = tracks) }
+            .catch { e -> _uiState.value = _uiState.value.copy(error = e.message, isLoading = false) }
             .launchIn(viewModelScope)
     }
 }

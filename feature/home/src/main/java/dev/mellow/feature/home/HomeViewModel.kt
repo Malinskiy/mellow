@@ -10,8 +10,10 @@ import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import java.time.Duration
 import javax.inject.Inject
 
@@ -23,6 +25,7 @@ data class HomeUiState(
     val genres: List<String> = emptyList(),
     val albumCount: Int = 0,
     val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -40,6 +43,13 @@ class HomeViewModel @Inject constructor(
     private val shuffleSeed = System.nanoTime()
     private var cachedQuickPicks: List<HomeAlbumItem>? = null
     private var cachedFavTracks: List<Track>? = null
+
+    fun retry() {
+        val id = loadedServerId ?: return
+        loadedServerId = null
+        _uiState.value = _uiState.value.copy(error = null, isLoading = true)
+        loadHome(id)
+    }
 
     fun loadHome(serverId: String) {
         if (serverId.isEmpty() || serverId == loadedServerId) return
@@ -107,6 +117,11 @@ class HomeViewModel @Inject constructor(
                 favoriteTracks = shuffledFavs.map { it.toHomeTrackItem() },
                 genres = genres,
                 albumCount = albums.size,
+                isLoading = false,
+            )
+        }.catch { e ->
+            _uiState.value = _uiState.value.copy(
+                error = e.message ?: "Failed to load home",
                 isLoading = false,
             )
         }.launchIn(viewModelScope)

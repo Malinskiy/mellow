@@ -85,6 +85,8 @@ fun HomeScreen(
     serverUrl: String? = null,
     isConnected: Boolean = false,
     isServerUnreachable: Boolean = false,
+    error: String? = null,
+    onRetry: () -> Unit = {},
     onAlbumClick: (String, String) -> Unit = { _, _ -> },
     onTrackClick: (String) -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
@@ -100,6 +102,8 @@ fun HomeScreen(
             HomeTopBar(
                 isConnected = isConnected,
                 isServerUnreachable = isServerUnreachable,
+                error = error,
+                onRetry = onRetry,
                 onSettingsClick = onSettingsClick,
             )
         },
@@ -271,6 +275,8 @@ fun HomeScreen(
 private fun HomeTopBar(
     isConnected: Boolean,
     isServerUnreachable: Boolean,
+    error: String? = null,
+    onRetry: () -> Unit = {},
     onSettingsClick: () -> Unit,
 ) {
     Row(
@@ -290,6 +296,8 @@ private fun HomeTopBar(
         ConnectionStatusDot(
             isConnected = isConnected,
             isServerUnreachable = isServerUnreachable,
+            error = error,
+            onRetry = onRetry,
         )
         Box(modifier = Modifier.width(MellowSpacing.Sp2))
         IconButton(onClick = onSettingsClick) {

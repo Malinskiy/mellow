@@ -30,6 +30,7 @@ data class SearchUiState(
     val topResult: SearchResult? = null,
     val isSearching: Boolean = false,
     val recentSearches: List<String> = emptyList(),
+    val error: String? = null,
 ) {
     val hasResults: Boolean
         get() = tracks.isNotEmpty() || albums.isNotEmpty() || artists.isNotEmpty()
@@ -70,29 +71,36 @@ class SearchViewModel @Inject constructor(
         }
         searchJob = viewModelScope.launch {
             delay(300)
-            _uiState.value = _uiState.value.copy(isSearching = true)
+            _uiState.value = _uiState.value.copy(isSearching = true, error = null)
 
-            val tracksDeferred = async { libraryRepository.search(serverId, query) }
-            val albumsDeferred = async { libraryRepository.searchAlbums(serverId, query) }
-            val artistsDeferred = async { libraryRepository.searchArtists(serverId, query) }
+            try {
+                val tracksDeferred = async { libraryRepository.search(serverId, query) }
+                val albumsDeferred = async { libraryRepository.searchAlbums(serverId, query) }
+                val artistsDeferred = async { libraryRepository.searchArtists(serverId, query) }
 
-            val tracks = tracksDeferred.await()
-            val albums = albumsDeferred.await()
-            val artists = artistsDeferred.await().map { artist ->
-                val count = libraryRepository.countArtistAlbums(artist.name)
-                artist.copy(albumCount = count)
+                val tracks = tracksDeferred.await()
+                val albums = albumsDeferred.await()
+                val artists = artistsDeferred.await().map { artist ->
+                    val count = libraryRepository.countArtistAlbums(artist.name)
+                    artist.copy(albumCount = count)
+                }
+
+                val queryLower = query.lowercase()
+                val topResult = pickTopResult(queryLower, tracks, albums, artists)
+
+                _uiState.value = _uiState.value.copy(
+                    tracks = tracks,
+                    albums = albums,
+                    artists = artists,
+                    topResult = topResult,
+                    isSearching = false,
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = e.message ?: "Search failed",
+                    isSearching = false,
+                )
             }
-
-            val queryLower = query.lowercase()
-            val topResult = pickTopResult(queryLower, tracks, albums, artists)
-
-            _uiState.value = _uiState.value.copy(
-                tracks = tracks,
-                albums = albums,
-                artists = artists,
-                topResult = topResult,
-                isSearching = false,
-            )
         }
     }
 
