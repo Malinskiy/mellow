@@ -35,4 +35,5 @@ interface LibraryRepository {
     suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit = {})
     suspend fun syncFavorites(serverId: String)
     suspend fun cleanupOrphans(serverId: String, onProgress: (SyncProgress) -> Unit = {})
+    suspend fun getInstantMix(serverId: String, trackId: String): List<Track>
 }

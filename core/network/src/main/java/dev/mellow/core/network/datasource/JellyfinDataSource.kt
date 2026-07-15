@@ -4,6 +4,7 @@ import dev.mellow.core.network.JellyfinClientWrapper
 import dev.mellow.core.network.NetworkPreferences
 import dev.mellow.core.network.createOkHttpClient
 import android.util.Log
+import org.jellyfin.sdk.api.client.extensions.instantMixApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.playlistsApi
@@ -222,6 +223,22 @@ class JellyfinDataSource @Inject constructor(
         } else {
             client.api.userLibraryApi.unmarkFavoriteItem(userId = userId, itemId = itemId)
         }
+    }
+
+    suspend fun getInstantMixFromSong(
+        itemId: UUID,
+        userId: UUID,
+        limit: Int = 50,
+    ): List<BaseItemDto> {
+        val response by client.api.instantMixApi.getInstantMixFromSong(
+            itemId = itemId,
+            userId = userId,
+            limit = limit,
+            fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS),
+            enableUserData = true,
+            enableImages = true,
+        )
+        return response.items.orEmpty()
     }
 
     suspend fun reportPlaybackStarted(itemId: UUID) {

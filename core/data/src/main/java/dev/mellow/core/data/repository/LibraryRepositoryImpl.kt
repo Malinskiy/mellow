@@ -456,4 +456,18 @@ class LibraryRepositoryImpl @Inject constructor(
             if (paged.items.size < pageSize) break
         }
     }
+
+    override suspend fun getInstantMix(serverId: String, trackId: String): List<Track> {
+        val server = serverDao.getActiveServer() ?: return emptyList()
+        val userId = UUID.fromString(server.userId)
+        val dtos = jellyfinDataSource.getInstantMixFromSong(
+            itemId = UUID.fromString(trackId),
+            userId = userId,
+        )
+        if (dtos.isEmpty()) return emptyList()
+        trackDao.upsertTracks(dtos.map { it.toTrackEntity(serverId) })
+        return dtos.mapNotNull { dto ->
+            trackDao.getTrackById(dto.id.toString())?.toModel()
+        }
+    }
 }

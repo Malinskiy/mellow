@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.SyncProgress
+import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
@@ -36,6 +37,7 @@ class MainViewModel @Inject constructor(
     private val syncPreferences: SyncPreferences,
     private val syncScheduler: SyncScheduler,
     private val jellyfinDataSource: JellyfinDataSource,
+    private val libraryRepository: LibraryRepository,
     private val downloadDao: DownloadDao,
     private val trackDao: TrackDao,
     private val lyricsDao: LyricsDao,
@@ -140,6 +142,16 @@ class MainViewModel @Inject constructor(
     fun toggleFavorite(itemId: String, currentlyFavorite: Boolean) {
         viewModelScope.launch {
             userRepository.setFavorite(itemId, !currentlyFavorite)
+        }
+    }
+
+    fun startMix(trackId: String) {
+        viewModelScope.launch {
+            val serverId = _serverId.value ?: return@launch
+            val tracks = libraryRepository.getInstantMix(serverId, trackId)
+            if (tracks.isNotEmpty()) {
+                player.playTracks(tracks)
+            }
         }
     }
 

@@ -1361,7 +1361,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 contextMenuState!!.menuData.artistId?.let { navController.navigate("artist/$it") }
                 contextMenuState = null
             },
-            onStartMix = {},
+            onStartMix = {
+                mainViewModel.startMix(contextMenuState!!.menuData.id)
+            },
             onToggleFavorite = {
                 val t = contextMenuState!!.menuData
                 mainViewModel.toggleFavorite(t.id, t.isFavorite)
