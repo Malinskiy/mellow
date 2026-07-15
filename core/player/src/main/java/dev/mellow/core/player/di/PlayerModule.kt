@@ -6,6 +6,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.mellow.core.network.NetworkPreferences
 import dev.mellow.core.player.cache.MellowCache
 import dev.mellow.core.player.cache.MellowDataSourceFactory
 import javax.inject.Singleton
@@ -21,7 +22,10 @@ object PlayerModule {
 
     @Provides
     @Singleton
-    fun provideMellowDataSourceFactory(cache: MellowCache): MellowDataSourceFactory =
-        MellowDataSourceFactory(cache)
+    fun provideMellowDataSourceFactory(
+        cache: MellowCache,
+        networkPreferences: NetworkPreferences,
+    ): MellowDataSourceFactory =
+        MellowDataSourceFactory(cache, networkPreferences)
 
 }

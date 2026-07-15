@@ -160,12 +160,16 @@ private fun LoginFlow(onLoggedIn: (String) -> Unit) {
         loginState.server?.let { server -> onLoggedIn(server.id) }
     }
 
+    val trustSelfSigned by loginViewModel.trustSelfSigned.collectAsState()
+
     LoginScreen(
         onSignIn = { serverUrl, username, password ->
             loginViewModel.signIn(serverUrl, username, password)
         },
         isLoading = loginState.isLoading,
         error = loginState.error,
+        trustSelfSigned = trustSelfSigned,
+        onTrustSelfSignedChange = loginViewModel::setTrustSelfSigned,
     )
 }
 

@@ -23,16 +23,22 @@ import javax.inject.Singleton
 class NetworkStateObserver @Inject constructor(
     @ApplicationContext private val context: Context,
     private val jellyfinClientWrapper: JellyfinClientWrapper,
+    private val networkPreferences: NetworkPreferences,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-    private val heartbeatClient = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
-        .build()
+    private val heartbeatClient by lazy {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+        if (networkPreferences.isTrustSelfSignedSync()) {
+            builder.trustSelfSignedCertificates()
+        }
+        builder.build()
+    }
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Offline)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()

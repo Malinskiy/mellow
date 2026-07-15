@@ -4,15 +4,17 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import okhttp3.OkHttpClient
+import dev.mellow.core.network.NetworkPreferences
+import dev.mellow.core.network.createOkHttpClient
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class MellowDataSourceFactory @Inject constructor(
     private val mellowCache: MellowCache,
+    networkPreferences: NetworkPreferences,
 ) {
-    private val okHttpClient = OkHttpClient()
+    private val okHttpClient = createOkHttpClient(networkPreferences.isTrustSelfSignedSync())
 
     private val networkDataSourceFactory: DataSource.Factory =
         OkHttpDataSource.Factory(okHttpClient)

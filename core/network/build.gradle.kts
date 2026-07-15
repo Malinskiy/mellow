@@ -30,6 +30,7 @@ dependencies {
     implementation(libs.slf4j.nop)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+    implementation(libs.datastore.preferences)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)

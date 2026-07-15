@@ -1,6 +1,8 @@
 package dev.mellow.core.network.datasource
 
 import dev.mellow.core.network.JellyfinClientWrapper
+import dev.mellow.core.network.NetworkPreferences
+import dev.mellow.core.network.createOkHttpClient
 import android.util.Log
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
@@ -36,6 +38,7 @@ data class PagedItems(
 @Singleton
 class JellyfinDataSource @Inject constructor(
     private val client: JellyfinClientWrapper,
+    private val networkPreferences: NetworkPreferences,
 ) {
     suspend fun authenticate(username: String, password: String): AuthResult {
         val response by client.api.userApi.authenticateUserByName(
@@ -287,7 +290,8 @@ class JellyfinDataSource @Inject constructor(
                 .get()
                 .build()
 
-            val response = okhttp3.OkHttpClient().newCall(request).execute()
+            val response = createOkHttpClient(networkPreferences.isTrustSelfSignedSync())
+                .newCall(request).execute()
             if (!response.isSuccessful) return@withContext emptyList()
 
             val body = response.body?.string() ?: return@withContext emptyList()
