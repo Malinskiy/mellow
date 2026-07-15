@@ -54,4 +54,7 @@ interface ArtistDao {
 
     @Query("SELECT id FROM artists WHERE serverId = :serverId AND imageTag IS NOT NULL")
     suspend fun getIdsWithImage(serverId: String): List<String>
+
+    @Query("SELECT * FROM artists WHERE isFavorite = 1 AND serverId = :serverId")
+    suspend fun getFavoriteArtistsSync(serverId: String): List<ArtistEntity>
 }

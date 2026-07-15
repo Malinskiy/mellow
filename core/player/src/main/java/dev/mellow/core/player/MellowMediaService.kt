@@ -144,9 +144,10 @@ class MellowMediaService : MediaLibraryService() {
             .build()
     }
 
-    private fun ArtistEntity.toBrowsableItem(): MediaItem {
+    private fun ArtistEntity.toBrowsableItem(groupTitle: String? = null): MediaItem {
         val extras = Bundle().apply {
             putInt(CONTENT_STYLE_BROWSABLE_HINT, CONTENT_STYLE_GRID_ITEM)
+            groupTitle?.let { putString(CONTENT_STYLE_GROUP_TITLE, it) }
         }
         return MediaItem.Builder()
             .setMediaId("artist:$id")
@@ -310,12 +311,12 @@ class MellowMediaService : MediaLibraryService() {
 
                 val items = when {
                     parentId == TAB_HOME -> {
-                        val recentAlbums = albumDao.getRecentlyPlayedAlbumsSync(serverId, limit = 12)
+                        val recentAlbums = albumDao.getRecentlyPlayedAlbumsSync(serverId, limit = HOME_ROW_SIZE)
                             .onlineFilter()
                         val recentItems = recentAlbums
                             .map { it.toBrowsableItem(groupTitle = "Recently Played") }
 
-                        val addedAlbums = albumDao.getRecentlyAddedAlbums(serverId, limit = 20)
+                        val addedAlbums = albumDao.getRecentlyAddedAlbums(serverId, limit = HOME_ROW_SIZE)
                             .onlineFilter()
                         val addedItems = addedAlbums
                             .map { it.toBrowsableItem(groupTitle = "Recently Added") }
@@ -331,21 +332,28 @@ class MellowMediaService : MediaLibraryService() {
                             .distinctBy { it.id }
                             .filter { it.id !in usedIds }
                             .shuffled()
-                            .take(12)
+                            .take(HOME_ROW_SIZE)
                             .map { it.toBrowsableItem(groupTitle = "Quick Picks") }
 
                         val favoriteTracks = trackDao.getFavoriteTracksSync(serverId)
                             .onlineFilter()
                             .shuffled()
-                            .take(5)
+                            .take(HOME_ROW_SIZE)
                             .map { it.toPlayableItem(groupTitle = "Favorite Tracks") }
 
                         recentItems + addedItems + quickPicks + favoriteTracks
                     }
                     parentId == TAB_FAVORITES -> {
-                        trackDao.getFavoriteTracksSync(serverId)
+                        val favAlbums = albumDao.getFavoriteAlbumsSync(serverId)
                             .onlineFilter()
-                            .map { it.toPlayableItem() }
+                            .map { it.toBrowsableItem(groupTitle = "Albums") }
+                        val favArtists = artistDao.getFavoriteArtistsSync(serverId)
+                            .onlineFilter()
+                            .map { it.toBrowsableItem(groupTitle = "Artists") }
+                        val favTracks = trackDao.getFavoriteTracksSync(serverId)
+                            .onlineFilter()
+                            .map { it.toPlayableItem(groupTitle = "Tracks") }
+                        favAlbums + favArtists + favTracks
                     }
                     parentId == LIBRARY_ALBUMS -> {
                         albumDao.getAllAlbumsByServer(serverId)
@@ -487,6 +495,7 @@ class MellowMediaService : MediaLibraryService() {
                 mediaId = TAB_FAVORITES,
                 title = "Favorites",
                 mediaType = MediaMetadata.MEDIA_TYPE_FOLDER_MIXED,
+                browsableHint = CONTENT_STYLE_GRID_ITEM,
                 playableHint = CONTENT_STYLE_GRID_ITEM,
             ),
         )
@@ -556,6 +565,7 @@ class MellowMediaService : MediaLibraryService() {
         private const val LIBRARY_ARTISTS = "library_artists"
         private const val LIBRARY_GENRES = "library_genres"
         private const val LIBRARY_SONGS = "library_songs"
+        private const val HOME_ROW_SIZE = 3
         private const val GENRE_SEPARATOR = "|||"
         private const val CONTENT_STYLE_BROWSABLE_HINT =
             "android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"
