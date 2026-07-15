@@ -3,7 +3,10 @@ package dev.mellow.core.database.dao
 import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Upsert
+import androidx.sqlite.db.SimpleSQLiteQuery
+import androidx.sqlite.db.SupportSQLiteQuery
 import dev.mellow.core.database.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -84,4 +87,42 @@ interface TrackDao {
 
     @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY sortName ASC LIMIT :limit OFFSET :offset")
     suspend fun getTracksByServerPaged(serverId: String, limit: Int, offset: Int): List<TrackEntity>
+
+    @RawQuery
+    suspend fun getInstantMixRaw(query: SupportSQLiteQuery): List<TrackEntity>
+}
+
+suspend fun TrackDao.getInstantMix(
+    serverId: String,
+    seedTrackId: String,
+    artistName: String?,
+    genres: List<String>,
+    downloadedOnly: Boolean = false,
+    limit: Int = 50,
+): List<TrackEntity> {
+    val sb = if (downloadedOnly) {
+        StringBuilder("SELECT t.* FROM tracks t INNER JOIN downloads d ON t.id = d.trackId AND d.status = 2 WHERE t.serverId = ? AND t.id != ?")
+    } else {
+        StringBuilder("SELECT * FROM tracks WHERE serverId = ? AND id != ?")
+    }
+    val args = mutableListOf<Any>(serverId, seedTrackId)
+    val col = if (downloadedOnly) "t." else ""
+
+    val conditions = mutableListOf<String>()
+    if (artistName != null) {
+        conditions.add("${col}artistName = ?")
+        args.add(artistName)
+    }
+    for (genre in genres) {
+        conditions.add("${col}genres LIKE '%' || ? || '%'")
+        args.add(genre)
+    }
+    if (conditions.isEmpty()) return emptyList()
+
+    sb.append(" AND (")
+    sb.append(conditions.joinToString(" OR "))
+    sb.append(") ORDER BY RANDOM() LIMIT ?")
+    args.add(limit)
+
+    return getInstantMixRaw(SimpleSQLiteQuery(sb.toString(), args.toTypedArray()))
 }

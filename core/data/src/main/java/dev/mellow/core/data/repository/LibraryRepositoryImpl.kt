@@ -12,6 +12,7 @@ import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.getInstantMix
 import dev.mellow.core.database.entity.SearchQueryEntity
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
@@ -458,16 +459,41 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getInstantMix(serverId: String, trackId: String): List<Track> {
-        val server = serverDao.getActiveServer() ?: return emptyList()
-        val userId = UUID.fromString(server.userId)
-        val dtos = jellyfinDataSource.getInstantMixFromSong(
-            itemId = UUID.fromString(trackId),
-            userId = userId,
-        )
-        if (dtos.isEmpty()) return emptyList()
-        trackDao.upsertTracks(dtos.map { it.toTrackEntity(serverId) })
-        return dtos.mapNotNull { dto ->
-            trackDao.getTrackById(dto.id.toString())?.toModel()
+        try {
+            val server = serverDao.getActiveServer()
+                ?: return offlineInstantMix(serverId, trackId, downloadedOnly = true)
+            val userId = UUID.fromString(server.userId)
+            val dtos = jellyfinDataSource.getInstantMixFromSong(
+                itemId = UUID.fromString(trackId),
+                userId = userId,
+            )
+            if (dtos.isNotEmpty()) {
+                trackDao.upsertTracks(dtos.map { it.toTrackEntity(serverId) })
+                return dtos.mapNotNull { dto ->
+                    trackDao.getTrackById(dto.id.toString())?.toModel()
+                }
+            }
+            // API returned empty — still online, can stream any local track
+            return offlineInstantMix(serverId, trackId, downloadedOnly = false)
+        } catch (_: Exception) {
+            Log.d(TAG, "InstantMix API unavailable, falling back to offline mix")
         }
+        // Network error — truly offline, only downloaded tracks are playable
+        return offlineInstantMix(serverId, trackId, downloadedOnly = true)
+    }
+
+    private suspend fun offlineInstantMix(
+        serverId: String,
+        trackId: String,
+        downloadedOnly: Boolean,
+    ): List<Track> {
+        val seed = trackDao.getTrackById(trackId) ?: return emptyList()
+        return trackDao.getInstantMix(
+            serverId = serverId,
+            seedTrackId = trackId,
+            artistName = seed.artistName,
+            genres = seed.genres,
+            downloadedOnly = downloadedOnly,
+        ).map { it.toModel() }
     }
 }
