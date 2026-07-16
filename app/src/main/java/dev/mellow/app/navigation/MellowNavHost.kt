@@ -40,7 +40,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.clip
+import dev.mellow.core.designsystem.component.MellowDialog
+import dev.mellow.core.designsystem.theme.MellowPalette
+import dev.mellow.core.designsystem.theme.MellowShapes
+import dev.mellow.core.designsystem.component.MellowRadioOption
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -1519,11 +1525,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
     if (trackInfoTrack != null) {
         val t = trackInfoTrack!!
-        AlertDialog(
+        MellowDialog(
             onDismissRequest = { trackInfoTrack = null },
-            containerColor = MellowTheme.colors.surfaceElevated,
-            title = { Text(t.name, color = MellowTheme.colors.foreground) },
-            text = {
+            title = t.name,
+            dismissLabel = "Close",
+            confirmLabel = null,
+            content = {
                 Column {
                     InfoRow("Artist", t.artistName ?: "Unknown")
                     InfoRow("Album", t.albumName ?: "Unknown")
@@ -1531,11 +1538,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     if (t.codec != null) InfoRow("Codec", t.codec!!.uppercase())
                     if (t.container != null) InfoRow("Format", t.container!!.uppercase())
                     InfoRow("Track #", "${t.trackNumber ?: "\u2014"}")
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { trackInfoTrack = null }) {
-                    Text("Close", color = MellowTheme.colors.foreground)
                 }
             },
         )
@@ -1643,33 +1645,66 @@ private fun StorageCapExceededDialog(
         Long.MAX_VALUE to "Unlimited",
     ).filter { it.first > capBytes }
 
-    androidx.compose.material3.AlertDialog(
+    var selectedOption by remember { mutableStateOf(options.firstOrNull()?.first) }
+
+    MellowDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Storage Cap Reached") },
-        text = {
+        title = "Storage Cap Reached",
+        description = "You've used $usedGb of your $currentCapGb limit. Increase the cap to continue downloading.",
+        dismissLabel = "Cancel",
+        confirmLabel = if (selectedOption != null) "Increase" else null,
+        onConfirm = if (selectedOption != null) {
+            { onIncreaseCap(selectedOption!!) }
+        } else null,
+        content = {
             Column {
-                Text("You've used $usedGb of your $currentCapGb limit. Increase the cap to continue downloading.")
+                val fraction = if (capBytes > 0 && capBytes != Long.MAX_VALUE) {
+                    (usedBytes.toFloat() / capBytes).coerceIn(0f, 1f)
+                } else 0f
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "$usedGb used",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MellowPalette.Stone500,
+                    )
+                    Text(
+                        "$currentCapGb limit",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MellowPalette.Stone500,
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(MellowShapes.Full)
+                        .background(MellowPalette.Stone800),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction)
+                            .height(4.dp)
+                            .clip(MellowShapes.Full)
+                            .background(MellowTheme.colors.warning),
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+
                 if (options.isNotEmpty()) {
-                    Spacer(Modifier.height(MellowSpacing.Sp4))
                     options.forEach { (bytes, label) ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onIncreaseCap(bytes) }
-                                .padding(vertical = MellowSpacing.Sp2),
-                        ) {
-                            androidx.compose.material3.RadioButton(selected = false, onClick = { onIncreaseCap(bytes) })
-                            Spacer(Modifier.width(MellowSpacing.Sp2))
-                            Text(label, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
-                        }
+                        MellowRadioOption(
+                            label = label,
+                            selected = selectedOption == bytes,
+                            onClick = { selectedOption = bytes },
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
 }

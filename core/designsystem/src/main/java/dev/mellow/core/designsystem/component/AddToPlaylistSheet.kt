@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 
 data class PlaylistPickerItem(
     val id: String,
@@ -153,21 +155,22 @@ private fun CreatePlaylistInlineDialog(
 ) {
     var playlistName by remember { mutableStateOf("") }
 
-    androidx.compose.material3.AlertDialog(
+    MellowDialog(
         onDismissRequest = onDismiss,
-        containerColor = MellowTheme.colors.surfaceElevated,
-        titleContentColor = MellowTheme.colors.foreground,
-        textContentColor = MellowTheme.colors.foreground,
-        title = { Text("New Playlist") },
-        text = {
-            androidx.compose.material3.TextField(
+        title = "New Playlist",
+        dismissLabel = "Cancel",
+        confirmLabel = "Create",
+        confirmEnabled = playlistName.isNotBlank(),
+        onConfirm = { onCreate(playlistName.trim()) },
+        content = {
+            TextField(
                 value = playlistName,
                 onValueChange = { playlistName = it },
                 placeholder = {
                     Text("Playlist name", color = MellowTheme.colors.muted)
                 },
                 singleLine = true,
-                colors = androidx.compose.material3.TextFieldDefaults.colors(
+                colors = TextFieldDefaults.colors(
                     focusedTextColor = MellowTheme.colors.foreground,
                     unfocusedTextColor = MellowTheme.colors.foreground,
                     focusedContainerColor = MellowTheme.colors.surface,
@@ -176,22 +179,6 @@ private fun CreatePlaylistInlineDialog(
                 ),
                 modifier = Modifier.fillMaxWidth(),
             )
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(
-                onClick = { onCreate(playlistName.trim()) },
-                enabled = playlistName.isNotBlank(),
-            ) {
-                Text(
-                    "Create",
-                    color = if (playlistName.isNotBlank()) MellowTheme.colors.foreground else MellowTheme.colors.muted,
-                )
-            }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("Cancel", color = MellowTheme.colors.muted)
-            }
         },
     )
 }

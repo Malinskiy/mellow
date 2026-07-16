@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
+import androidx.media3.exoplayer.scheduler.Requirements
 import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
@@ -12,6 +13,7 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.mellow.core.common.DownloadExecutor
+import dev.mellow.core.data.preferences.DownloadPreferences
 import dev.mellow.core.common.jellyfinStreamUrl
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.entity.DownloadEntity
@@ -35,6 +37,7 @@ class MellowDownloadManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dataSourceFactory: MellowDataSourceFactory,
     private val downloadDao: DownloadDao,
+    private val downloadPreferences: DownloadPreferences,
 ) : DownloadExecutor {
     private val executor = Executors.newFixedThreadPool(DOWNLOAD_THREAD_COUNT)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -70,6 +73,17 @@ class MellowDownloadManager @Inject constructor(
         DownloadManager(context, downloadIndex, downloaderFactory).apply {
             maxParallelDownloads = MAX_PARALLEL_DOWNLOADS
             addListener(downloadListener)
+        }.also { manager ->
+            scope.launch {
+                downloadPreferences.wifiOnly.collect { wifiOnly ->
+                    val requirements = if (wifiOnly) {
+                        Requirements(Requirements.NETWORK_UNMETERED)
+                    } else {
+                        Requirements(Requirements.NETWORK)
+                    }
+                    manager.requirements = requirements
+                }
+            }
         }
     }
 

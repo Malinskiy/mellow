@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import dev.mellow.core.designsystem.icon.PhosphorIcons
-import androidx.compose.material3.AlertDialog
+import dev.mellow.core.designsystem.component.MellowDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -180,13 +180,14 @@ private fun CreatePlaylistDialog(
 ) {
     var playlistName by remember { mutableStateOf("") }
 
-    AlertDialog(
+    MellowDialog(
         onDismissRequest = onDismiss,
-        containerColor = MellowTheme.colors.surfaceElevated,
-        titleContentColor = MellowTheme.colors.foreground,
-        textContentColor = MellowTheme.colors.foreground,
-        title = { Text("New Playlist") },
-        text = {
+        title = "New Playlist",
+        dismissLabel = "Cancel",
+        confirmLabel = "Create",
+        confirmEnabled = playlistName.isNotBlank(),
+        onConfirm = { onCreate(playlistName.trim()) },
+        content = {
             TextField(
                 value = playlistName,
                 onValueChange = { playlistName = it },
@@ -203,19 +204,6 @@ private fun CreatePlaylistDialog(
                 ),
                 modifier = Modifier.fillMaxWidth(),
             )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onCreate(playlistName.trim()) },
-                enabled = playlistName.isNotBlank(),
-            ) {
-                Text("Create", color = if (playlistName.isNotBlank()) MellowTheme.colors.foreground else MellowTheme.colors.muted)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = MellowTheme.colors.muted)
-            }
         },
     )
 }

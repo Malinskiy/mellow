@@ -29,7 +29,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import dev.mellow.core.designsystem.icon.PhosphorIcons
-import androidx.compose.material3.AlertDialog
+import dev.mellow.core.designsystem.component.MellowDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -827,18 +827,17 @@ private fun AlbumDownloadButton(
     var showRemoveDialog by remember { mutableStateOf(false) }
 
     if (showRemoveDialog) {
-        AlertDialog(
+        MellowDialog(
             onDismissRequest = { showRemoveDialog = false },
-            title = { Text("Remove Downloads") },
-            text = { Text("Remove all downloaded tracks for this album?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onRemoveDownloadsClick()
-                    showRemoveDialog = false
-                }) { Text("Remove") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRemoveDialog = false }) { Text("Cancel") }
+            title = "Remove Downloads",
+            description = "Remove all downloaded tracks for this album?",
+            dismissLabel = "Cancel",
+            confirmLabel = "Remove",
+            confirmColor = MaterialTheme.colorScheme.error,
+            confirmBackground = androidx.compose.ui.graphics.Color.Transparent,
+            onConfirm = {
+                onRemoveDownloadsClick()
+                showRemoveDialog = false
             },
         )
     }

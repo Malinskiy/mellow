@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import dev.mellow.core.designsystem.icon.PhosphorIcons
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
@@ -24,10 +23,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import dev.mellow.core.designsystem.component.MellowDialog
+import dev.mellow.core.designsystem.component.MellowRadioOption
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -313,18 +312,16 @@ private fun LogoutConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    MellowDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Log Out") },
-        text = { Text("You will be disconnected from this server. Your downloaded music and library data will be kept.") },
-        confirmButton = {
-            TextButton(onClick = {
-                onConfirm()
-                onDismiss()
-            }) { Text("Log Out", color = MellowPalette.Red500) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+        title = "Log Out",
+        description = "You will be disconnected from this server. Your downloaded music and library data will be kept.",
+        confirmLabel = "Log Out",
+        confirmColor = MellowTheme.colors.error,
+        confirmBackground = Color.Transparent,
+        onConfirm = {
+            onConfirm()
+            onDismiss()
         },
     )
 }
@@ -376,28 +373,22 @@ private fun DownloadQualityPickerDialog(
         "high" to "High (320 kbps MP3)",
         "medium" to "Medium (128 kbps Opus)",
     )
-    AlertDialog(
+    MellowDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Download Quality") },
-        text = {
+        title = "Download Quality",
+        content = {
             Column {
                 options.forEach { (value, label) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(value) }
-                            .padding(vertical = MellowSpacing.Sp2),
-                    ) {
-                        RadioButton(selected = value == currentQuality, onClick = { onSelect(value) })
-                        Spacer(Modifier.width(MellowSpacing.Sp2))
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                    }
+                    MellowRadioOption(
+                        label = label,
+                        selected = value == currentQuality,
+                        onClick = {
+                            onSelect(value)
+                            onDismiss()
+                        },
+                    )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
 }
@@ -416,28 +407,22 @@ private fun StorageCapPickerDialog(
         50 * gb to "50 GB",
         Long.MAX_VALUE to "Unlimited",
     )
-    AlertDialog(
+    MellowDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Storage Cap") },
-        text = {
+        title = "Storage Cap",
+        content = {
             Column {
                 options.forEach { (bytes, label) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(bytes) }
-                            .padding(vertical = MellowSpacing.Sp2),
-                    ) {
-                        RadioButton(selected = bytes == currentCap, onClick = { onSelect(bytes) })
-                        Spacer(Modifier.width(MellowSpacing.Sp2))
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                    }
+                    MellowRadioOption(
+                        label = label,
+                        selected = bytes == currentCap,
+                        onClick = {
+                            onSelect(bytes)
+                            onDismiss()
+                        },
+                    )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
 }
@@ -448,18 +433,16 @@ private fun ClearAllConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    MellowDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Clear All Downloads") },
-        text = { Text("This will remove all downloaded tracks and free up ${formatBytes(totalBytes)}.") },
-        confirmButton = {
-            TextButton(onClick = {
-                onConfirm()
-                onDismiss()
-            }) { Text("Clear All", color = MellowPalette.Red500) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+        title = "Clear All Downloads",
+        description = "This will remove all downloaded tracks and free up ${formatBytes(totalBytes)}.",
+        confirmLabel = "Clear All",
+        confirmColor = MellowTheme.colors.error,
+        confirmBackground = Color.Transparent,
+        onConfirm = {
+            onConfirm()
+            onDismiss()
         },
     )
 }
@@ -612,28 +595,22 @@ private fun SyncIntervalPickerDialog(
     onDismiss: () -> Unit,
 ) {
     val options = listOf(0 to "Manual only", 1 to "Every hour", 6 to "Every 6 hours", 12 to "Every 12 hours", 24 to "Every 24 hours")
-    AlertDialog(
+    MellowDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Auto-Sync Frequency") },
-        text = {
+        title = "Auto-Sync Frequency",
+        content = {
             Column {
                 options.forEach { (hours, label) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(hours) }
-                            .padding(vertical = MellowSpacing.Sp2),
-                    ) {
-                        RadioButton(selected = hours == currentInterval, onClick = { onSelect(hours) })
-                        Spacer(Modifier.width(MellowSpacing.Sp2))
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                    }
+                    MellowRadioOption(
+                        label = label,
+                        selected = hours == currentInterval,
+                        onClick = {
+                            onSelect(hours)
+                            onDismiss()
+                        },
+                    )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
 }
