@@ -40,4 +40,5 @@ mise.local.toml
 
 .marathon-snapshots/current/
 .marathon-snapshots/diffs/
+.marathon-snapshots/report.html
 kls_database.db

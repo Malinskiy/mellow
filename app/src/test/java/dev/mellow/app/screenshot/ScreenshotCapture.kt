@@ -3,8 +3,11 @@ package dev.mellow.app.screenshot
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowTheme
+import dev.mellow.core.designsystem.theme.WindowWidthClass
 import org.junit.Rule
 import java.io.File
 import java.io.FileOutputStream
@@ -14,18 +17,23 @@ abstract class ScreenshotCapture {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
+    abstract val deviceFolder: String
+    abstract val windowWidthClass: WindowWidthClass
+
     private val snapshotDir: File by lazy {
         var dir = File(System.getProperty("user.dir")!!)
         while (!File(dir, "settings.gradle.kts").exists()) {
             dir = dir.parentFile ?: break
         }
-        File(dir, ".marathon-snapshots/current/android/mobile").also { it.mkdirs() }
+        File(dir, ".marathon-snapshots/current/android/$deviceFolder").also { it.mkdirs() }
     }
 
     protected fun capture(targetId: String, content: @Composable () -> Unit) {
         composeTestRule.setContent {
-            MellowTheme(darkTheme = true) {
-                content()
+            CompositionLocalProvider(LocalWindowWidthClass provides windowWidthClass) {
+                MellowTheme(darkTheme = true) {
+                    content()
+                }
             }
         }
 
