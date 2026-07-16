@@ -164,7 +164,7 @@ fun LoginScreen(
             if (error != null) {
                 Text(
                     text = error,
-                    color = MellowPalette.Red500,
+                    color = MellowTheme.colors.error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(bottom = MellowSpacing.Sp3),
                 )

@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 
 enum class DownloadIconState { Idle, Downloading, Done }
 
-private val DoneGreen = Color(0xFF6EBB8A)
+
 
 @Composable
 fun AnimatedSongDownloadIcon(
@@ -138,7 +138,7 @@ fun AnimatedSongDownloadIcon(
         Icon(
             PhosphorIcons.CheckCircleFill,
             "Done",
-            tint = DoneGreen,
+            tint = MellowTheme.colors.success,
             modifier = Modifier
                 .size(16.dp)
                 .graphicsLayer {
@@ -191,7 +191,7 @@ fun AnimatedAlbumDownloadIndicator(
 
     val ringTrackColor = MellowPalette.Stone800
     val ringFillColor = when (state) {
-        DownloadIconState.Done -> DoneGreen
+        DownloadIconState.Done -> MellowTheme.colors.success
         else -> MellowPalette.Stone300
     }
     val smoothProgress by animateFloatAsState(
@@ -249,7 +249,7 @@ fun AnimatedAlbumDownloadIndicator(
         Icon(
             PhosphorIcons.CheckCircleFill,
             "Done",
-            tint = DoneGreen,
+            tint = MellowTheme.colors.success,
             modifier = Modifier
                 .size(18.dp)
                 .graphicsLayer {

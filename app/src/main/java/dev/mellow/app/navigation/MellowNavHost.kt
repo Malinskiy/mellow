@@ -104,6 +104,7 @@ import dev.mellow.feature.home.PlaylistItem
 import dev.mellow.feature.home.PlaylistsScreen
 import dev.mellow.feature.home.PlaylistsViewModel
 import dev.mellow.feature.library.AlbumDetailScreen
+import dev.mellow.feature.library.AlbumDownloadEvent
 import dev.mellow.feature.library.AlbumDetailTrack
 import dev.mellow.feature.library.AlbumDetailViewModel
 import dev.mellow.feature.library.AlbumItem
@@ -688,6 +689,30 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
                     val showDlIndicators = downloadState.overallStatus != AlbumDownloadState.Status.NONE
 
+                    var showStorageCapDialog by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+
+                    LaunchedEffect(Unit) {
+                        albumVm.downloadEvents.collect { event ->
+                            when (event) {
+                                is AlbumDownloadEvent.StorageCapExceeded ->
+                                    showStorageCapDialog = event.usedBytes to event.capBytes
+                            }
+                        }
+                    }
+
+                    if (showStorageCapDialog != null) {
+                        val (used, cap) = showStorageCapDialog!!
+                        StorageCapExceededDialog(
+                            usedBytes = used,
+                            capBytes = cap,
+                            onIncreaseCap = { newCap ->
+                                albumVm.updateStorageCap(newCap)
+                                albumVm.downloadAlbumForced()
+                                showStorageCapDialog = null
+                            },
+                            onDismiss = { showStorageCapDialog = null },
+                        )
+                    }
 
                     val mappedTracks = albumState.tracks.map { track ->
                         val dlState = trackDlStates[track.id]
@@ -1599,6 +1624,55 @@ private val PLATFORM_PREFIXES = listOf(
     "androidx.", "com.google.", "jakarta.", "javax.",
     "org.jetbrains.", "org.jspecify",
 )
+
+@Composable
+private fun StorageCapExceededDialog(
+    usedBytes: Long,
+    capBytes: Long,
+    onIncreaseCap: (Long) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val gb = 1024L * 1024 * 1024
+    val currentCapGb = if (capBytes == Long.MAX_VALUE) "Unlimited" else "${capBytes / gb} GB"
+    val usedGb = "%.1f GB".format(usedBytes.toDouble() / gb)
+
+    val options = listOf(
+        10L * gb to "10 GB",
+        20L * gb to "20 GB",
+        50L * gb to "50 GB",
+        Long.MAX_VALUE to "Unlimited",
+    ).filter { it.first > capBytes }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Storage Cap Reached") },
+        text = {
+            Column {
+                Text("You've used $usedGb of your $currentCapGb limit. Increase the cap to continue downloading.")
+                if (options.isNotEmpty()) {
+                    Spacer(Modifier.height(MellowSpacing.Sp4))
+                    options.forEach { (bytes, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onIncreaseCap(bytes) }
+                                .padding(vertical = MellowSpacing.Sp2),
+                        ) {
+                            androidx.compose.material3.RadioButton(selected = false, onClick = { onIncreaseCap(bytes) })
+                            Spacer(Modifier.width(MellowSpacing.Sp2))
+                            Text(label, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
 
 private fun formatTrackDuration(duration: Duration): String {
     val totalSeconds = duration.seconds

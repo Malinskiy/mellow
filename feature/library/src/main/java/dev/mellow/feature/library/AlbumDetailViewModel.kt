@@ -14,6 +14,7 @@ import dev.mellow.core.model.AlbumDownloadState
 import dev.mellow.core.model.DownloadState
 import dev.mellow.core.model.Track
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,11 +25,16 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+sealed interface AlbumDownloadEvent {
+    data class StorageCapExceeded(val usedBytes: Long, val capBytes: Long) : AlbumDownloadEvent
+}
 
 data class AlbumDetailUiState(
     val album: Album? = null,
@@ -65,6 +71,9 @@ class AlbumDetailViewModel @Inject constructor(
                 SharingStarted.WhileSubscribed(5_000),
                 AlbumDownloadState(albumId, 0, 0, 0L, 0L, AlbumDownloadState.Status.NONE),
             )
+
+    private val _downloadEvents = Channel<AlbumDownloadEvent>(Channel.BUFFERED)
+    val downloadEvents = _downloadEvents.receiveAsFlow()
 
     val liveProgress: StateFlow<Map<String, Float>> = downloadRepository.liveProgress
 
@@ -128,9 +137,36 @@ class AlbumDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val tracks = _uiState.value.tracks
             if (tracks.isEmpty()) return@launch
+
+            val cap = downloadPreferences.storageCap.first()
+            if (cap != Long.MAX_VALUE) {
+                val usedResult = downloadRepository.getTotalDownloadedBytes().first()
+                val used = (usedResult as? MellowResult.Success)?.data ?: 0L
+                if (used >= cap) {
+                    _downloadEvents.send(AlbumDownloadEvent.StorageCapExceeded(used, cap))
+                    return@launch
+                }
+            }
+
             val server = userRepository.getActiveServer() ?: return@launch
             val quality = downloadPreferences.downloadQuality.first()
             downloadRepository.downloadAlbum(albumId, tracks, server.id, quality)
+        }
+    }
+
+    fun downloadAlbumForced() {
+        viewModelScope.launch {
+            val tracks = _uiState.value.tracks
+            if (tracks.isEmpty()) return@launch
+            val server = userRepository.getActiveServer() ?: return@launch
+            val quality = downloadPreferences.downloadQuality.first()
+            downloadRepository.downloadAlbum(albumId, tracks, server.id, quality)
+        }
+    }
+
+    fun updateStorageCap(newCap: Long) {
+        viewModelScope.launch {
+            downloadPreferences.setStorageCap(newCap)
         }
     }
 

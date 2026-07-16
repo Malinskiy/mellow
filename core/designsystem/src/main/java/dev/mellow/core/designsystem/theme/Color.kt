@@ -15,9 +15,9 @@ object MellowPalette {
     val Stone900 = Color(0xFF1C1917)
     val Stone950 = Color(0xFF0C0A09)
 
-    val Amber500 = Color(0xFFF59E0B)
-    val Red500 = Color(0xFFEF4444)
-    val Green500 = Color(0xFF22C55E)
+    val Amber500 = Color(0xFFD4A054)
+    val Red500 = Color(0xFFC97070)
+    val Green500 = Color(0xFF6EBB8A)
 }
 
 data class MellowColorScheme(
@@ -31,6 +31,9 @@ data class MellowColorScheme(
     val accentStrong: Color,
     val favorite: Color,
     val online: Color,
+    val warning: Color,
+    val error: Color,
+    val success: Color,
 )
 
 val mellowDarkColorScheme = MellowColorScheme(
@@ -44,6 +47,9 @@ val mellowDarkColorScheme = MellowColorScheme(
     accentStrong = MellowPalette.Stone300,
     favorite = MellowPalette.Red500,
     online = MellowPalette.Green500,
+    warning = MellowPalette.Amber500,
+    error = MellowPalette.Red500,
+    success = MellowPalette.Green500,
 )
 
 val mellowLightColorScheme = MellowColorScheme(
@@ -57,4 +63,7 @@ val mellowLightColorScheme = MellowColorScheme(
     accentStrong = MellowPalette.Stone700,
     favorite = MellowPalette.Red500,
     online = MellowPalette.Green500,
+    warning = MellowPalette.Amber500,
+    error = MellowPalette.Red500,
+    success = MellowPalette.Green500,
 )

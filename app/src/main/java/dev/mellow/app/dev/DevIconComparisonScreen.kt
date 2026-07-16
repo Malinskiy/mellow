@@ -37,6 +37,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
 import dev.mellow.core.designsystem.component.AnimatedAlbumDownloadIndicator
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -56,8 +57,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.random.Random
-
-private val DoneGreen = Color(0xFF6EBB8A)
 
 @Composable
 fun DevIconComparisonScreen(onBack: () -> Unit) {
@@ -560,7 +559,7 @@ private fun AlbumDownloadDemo() {
                 AlbumDlState.Done -> "Downloaded"
             },
             style = MaterialTheme.typography.labelSmall,
-            color = if (state == AlbumDlState.Done) DoneGreen else MellowTheme.colors.muted,
+            color = if (state == AlbumDlState.Done) MellowTheme.colors.success else MellowTheme.colors.muted,
         )
         Spacer(Modifier.height(MellowSpacing.Sp4))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

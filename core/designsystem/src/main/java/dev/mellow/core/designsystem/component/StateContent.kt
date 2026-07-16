@@ -70,7 +70,7 @@ fun ErrorContent(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(MellowSpacing.Sp8),
         ) {
-            Icon(PhosphorIcons.WarningCircle, null, tint = MellowPalette.Red500, modifier = Modifier.size(48.dp))
+            Icon(PhosphorIcons.WarningCircle, null, tint = MellowTheme.colors.error, modifier = Modifier.size(48.dp))
             Spacer(Modifier.height(MellowSpacing.Sp4))
             Text(message, style = MaterialTheme.typography.bodyMedium, color = MellowTheme.colors.muted)
             Spacer(Modifier.height(MellowSpacing.Sp4))

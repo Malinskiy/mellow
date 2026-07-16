@@ -435,7 +435,7 @@ fun PlayerTrackInfo(
                     Icon(
                         PhosphorIcons.CheckCircle,
                         contentDescription = "Downloaded",
-                        tint = MellowPalette.Green500,
+                        tint = MellowTheme.colors.success,
                         modifier = Modifier.size(18.dp),
                     )
                 }

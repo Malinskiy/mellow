@@ -46,10 +46,10 @@ fun ConnectionCloudIcon(
     val hasError = error != null
 
     val targetColor = when {
-        hasError -> MellowPalette.Red500
-        isServerUnreachable -> MellowPalette.Amber500
-        !isConnected -> MellowPalette.Stone500
-        else -> MellowPalette.Green500
+        hasError -> MellowTheme.colors.error
+        isServerUnreachable -> MellowTheme.colors.warning
+        !isConnected -> MellowTheme.colors.muted
+        else -> MellowTheme.colors.online
     }
 
     val iconColor by animateColorAsState(
@@ -66,10 +66,10 @@ fun ConnectionCloudIcon(
     }
 
     val labelColor = when {
-        hasError -> MellowPalette.Red500
-        isServerUnreachable -> MellowPalette.Amber500
-        !isConnected -> MellowPalette.Stone500
-        else -> MellowPalette.Green500
+        hasError -> MellowTheme.colors.error
+        isServerUnreachable -> MellowTheme.colors.warning
+        !isConnected -> MellowTheme.colors.muted
+        else -> MellowTheme.colors.online
     }
 
     val currentFilterActive by rememberUpdatedState(isFilterActive)

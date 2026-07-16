@@ -198,13 +198,6 @@ fun SettingsScreen(
             value = formatStorageCap(storageCap),
             onClick = { showStorageCapPicker = true },
         )
-        SettingsToggleRow(
-            icon = PhosphorIcons.DownloadSimple,
-            title = "Auto-Cleanup",
-            subtitle = "Remove downloads not played in 30 days",
-            checked = autoCleanupDays > 0,
-            onCheckedChange = { enabled -> onAutoCleanupChange(if (enabled) 30 else 0) },
-        )
         ClearAllDownloadsRow(
             totalBytes = totalDownloadedBytes,
             onClick = { showClearConfirmation = true },
@@ -474,8 +467,8 @@ private fun ClearAllConfirmationDialog(
 @Composable
 private fun ConnectionStatusRow(connectionState: ConnectionState) {
     val (label, color) = when (connectionState) {
-        ConnectionState.Connected -> "Connected" to Color(0xFF22C55E)
-        ConnectionState.ServerUnreachable -> "Server Unreachable" to Color(0xFFF59E0B)
+        ConnectionState.Connected -> "Connected" to MellowTheme.colors.online
+        ConnectionState.ServerUnreachable -> "Server Unreachable" to MellowTheme.colors.warning
         ConnectionState.Offline -> "Offline" to MellowTheme.colors.muted
     }
     Row(
