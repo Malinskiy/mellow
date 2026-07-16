@@ -116,6 +116,10 @@ fun HomeScreen(
             .background(MellowTheme.colors.background),
     ) { contentPadding ->
         val toolbarTopPadding = contentPadding.calculateTopPadding()
+        val isEmpty = quickPicks.isEmpty() && recentlyPlayed.isEmpty() && recentlyAdded.isEmpty() && favoriteTracks.isEmpty() && genres.isEmpty()
+        if (isEmpty) {
+            dev.mellow.core.designsystem.component.EmptyContent("Add music to your Jellyfin library to get started")
+        } else {
         LazyColumn(
             contentPadding = PaddingValues(
                 top = (toolbarTopPadding - MellowSpacing.Sp5).coerceAtLeast(0.dp),
@@ -271,6 +275,7 @@ fun HomeScreen(
                     )
                 }
             }
+        }
         }
     }
 }

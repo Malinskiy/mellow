@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.model.Album
+import dev.mellow.core.model.Artist
 import dev.mellow.core.designsystem.component.ConnectionCloudIcon
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
@@ -79,13 +81,75 @@ fun SearchScreen(
 ) {
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
-    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
     LaunchedEffect(serverId) {
         if (serverId.isNotEmpty()) {
             viewModel.loadRecentSearches(serverId)
         }
     }
+
+    SearchContent(
+        query = uiState.query,
+        onQueryChanged = { viewModel.onQueryChanged(it, serverId) },
+        tracks = uiState.tracks,
+        albums = uiState.albums,
+        artists = uiState.artists,
+        topResult = uiState.topResult,
+        isSearching = uiState.isSearching,
+        hasResults = uiState.hasResults,
+        recentSearches = uiState.recentSearches,
+        searchError = uiState.error,
+        serverUrl = serverUrl,
+        isConnected = isConnected,
+        isServerUnreachable = isServerUnreachable,
+        error = error,
+        isFilterActive = isFilterActive,
+        onToggleFilter = onToggleFilter,
+        onPlayTracks = onPlayTracks,
+        onAlbumClick = onAlbumClick,
+        onArtistClick = onArtistClick,
+        onTrackMenuClick = onTrackMenuClick,
+        onSettingsClick = onSettingsClick,
+        genres = genres,
+        onGenreClick = onGenreClick,
+        onResultInteracted = viewModel::onResultInteracted,
+        onDeleteRecentSearch = viewModel::onDeleteRecentSearch,
+        onClearRecentSearches = viewModel::onClearRecentSearches,
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun SearchContent(
+    query: String = "",
+    onQueryChanged: (String) -> Unit = {},
+    tracks: List<Track> = emptyList(),
+    albums: List<Album> = emptyList(),
+    artists: List<Artist> = emptyList(),
+    topResult: SearchResult? = null,
+    isSearching: Boolean = false,
+    hasResults: Boolean = false,
+    recentSearches: List<String> = emptyList(),
+    searchError: String? = null,
+    serverUrl: String = "",
+    isConnected: Boolean = false,
+    isServerUnreachable: Boolean = false,
+    error: String? = null,
+    isFilterActive: Boolean = false,
+    onToggleFilter: () -> Unit = {},
+    onPlayTracks: (List<Track>, Int) -> Unit = { _, _ -> },
+    onAlbumClick: (String) -> Unit = {},
+    onArtistClick: (String) -> Unit = {},
+    onTrackMenuClick: (String) -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    genres: List<String> = emptyList(),
+    onGenreClick: (String) -> Unit = {},
+    onResultInteracted: () -> Unit = {},
+    onDeleteRecentSearch: (String) -> Unit = {},
+    onClearRecentSearches: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
     Column(
         modifier = modifier
@@ -108,7 +172,7 @@ fun SearchScreen(
             ConnectionCloudIcon(
                 isConnected = isConnected,
                 isServerUnreachable = isServerUnreachable,
-                error = error ?: uiState.error,
+                error = error ?: searchError,
                 isFilterActive = isFilterActive,
                 onToggleFilter = onToggleFilter,
             )
@@ -122,13 +186,13 @@ fun SearchScreen(
             }
         }
             TextField(
-            value = uiState.query,
-            onValueChange = { viewModel.onQueryChanged(it, serverId) },
+            value = query,
+            onValueChange = onQueryChanged,
             placeholder = { Text("Albums, artists, tracks…", color = MellowPalette.Stone600) },
             leadingIcon = { Icon(PhosphorIcons.MagnifyingGlass, null, tint = MellowTheme.colors.muted) },
             trailingIcon = {
-                if (uiState.query.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.onQueryChanged("", serverId) }) {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChanged("") }) {
                         Icon(PhosphorIcons.X, "Clear", tint = MellowTheme.colors.muted)
                     }
                 }
@@ -153,7 +217,7 @@ fun SearchScreen(
         Spacer(Modifier.height(MellowSpacing.Sp4))
 
         when {
-            uiState.isSearching -> {
+            isSearching -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -161,9 +225,8 @@ fun SearchScreen(
                     CircularProgressIndicator(color = MellowTheme.colors.foreground)
                 }
             }
-            uiState.hasResults -> {
+            hasResults -> {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    val topResult = uiState.topResult
                     if (topResult != null) {
                         item { SectionHeader("Top Result") }
                         item {
@@ -171,13 +234,13 @@ fun SearchScreen(
                                 result = topResult,
                                 serverUrl = serverUrl,
                                 onClick = {
-                                    viewModel.onResultInteracted()
+                                    onResultInteracted()
                                     when (topResult) {
                                         is SearchResult.ArtistResult -> onArtistClick(topResult.artist.id)
                                         is SearchResult.AlbumResult -> onAlbumClick(topResult.album.id)
                                         is SearchResult.TrackResult -> {
-                                            val idx = uiState.tracks.indexOfFirst { it.id == topResult.track.id }
-                                            if (idx >= 0) onPlayTracks(uiState.tracks, idx)
+                                            val idx = tracks.indexOfFirst { it.id == topResult.track.id }
+                                            if (idx >= 0) onPlayTracks(tracks, idx)
                                         }
                                     }
                                 },
@@ -185,10 +248,10 @@ fun SearchScreen(
                         }
                     }
 
-                    if (uiState.tracks.isNotEmpty()) {
+                    if (tracks.isNotEmpty()) {
                         item { SectionHeader("Tracks") }
                         itemsIndexed(
-                            uiState.tracks.take(5),
+                            tracks.take(5),
                             key = { _, track -> "track_${track.id}" },
                         ) { index, track ->
                             TrackRow(
@@ -196,16 +259,16 @@ fun SearchScreen(
                                 subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
                                 duration = formatDuration(track),
                                 imageUrl = trackImageUrl(serverUrl, track),
-                                onClick = { viewModel.onResultInteracted(); onPlayTracks(uiState.tracks, index) },
+                                onClick = { onResultInteracted(); onPlayTracks(tracks, index) },
                                 onMenuClick = { onTrackMenuClick(track.id) },
-                                showDivider = index < uiState.tracks.take(5).lastIndex,
+                                showDivider = index < tracks.take(5).lastIndex,
                             )
                         }
                     }
 
-                    if (uiState.albums.isNotEmpty()) {
+                    if (albums.isNotEmpty()) {
                         item { SectionHeader("Albums") }
-                        items(uiState.albums, key = { "album_${it.id}" }) { album ->
+                        items(albums, key = { "album_${it.id}" }) { album ->
                             ResultRow(
                                 title = album.name,
                                 subtitle = "${album.artistName ?: ""} · ${album.year ?: ""}",
@@ -213,14 +276,14 @@ fun SearchScreen(
                                     jellyfinImageUrl(serverUrl, album.imageId!!)
                                 } else null,
                                 typeTag = "Album",
-                                onClick = { viewModel.onResultInteracted(); onAlbumClick(album.id) },
+                                onClick = { onResultInteracted(); onAlbumClick(album.id) },
                             )
                         }
                     }
 
-                    if (uiState.artists.isNotEmpty()) {
+                    if (artists.isNotEmpty()) {
                         item { SectionHeader("Artists") }
-                        items(uiState.artists, key = { "artist_${it.id}" }) { artist ->
+                        items(artists, key = { "artist_${it.id}" }) { artist ->
                             ResultRow(
                                 title = artist.name,
                                 subtitle = if (artist.albumCount > 0) "${artist.albumCount} albums" else "Artist",
@@ -229,7 +292,7 @@ fun SearchScreen(
                                 } else null,
                                 typeTag = "Artist",
                                 isRound = true,
-                                onClick = { viewModel.onResultInteracted(); onArtistClick(artist.id) },
+                                onClick = { onResultInteracted(); onArtistClick(artist.id) },
                             )
                         }
                     }
@@ -237,7 +300,7 @@ fun SearchScreen(
                     item { Spacer(Modifier.height(MellowSpacing.Sp16)) }
                 }
             }
-            uiState.query.length >= 2 -> {
+            query.length >= 2 -> {
                 EmptyContent("No results found")
             }
             else -> {
@@ -245,10 +308,10 @@ fun SearchScreen(
                     Row(modifier = Modifier.fillMaxSize()) {
                         Column(modifier = Modifier.weight(1f)) {
                             RecentSearchesSection(
-                                recentSearches = uiState.recentSearches,
-                                onSearchClick = { viewModel.onQueryChanged(it, serverId) },
-                                onDeleteClick = { viewModel.onDeleteRecentSearch(it) },
-                                onClearAllClick = { viewModel.onClearRecentSearches() },
+                                recentSearches = recentSearches,
+                                onSearchClick = onQueryChanged,
+                                onDeleteClick = onDeleteRecentSearch,
+                                onClearAllClick = onClearRecentSearches,
                             )
                         }
                         Column(modifier = Modifier.weight(1f)) {
@@ -278,16 +341,16 @@ fun SearchScreen(
                         }
                     }
                 } else {
-                    if (uiState.recentSearches.isNotEmpty()) {
+                    if (recentSearches.isNotEmpty()) {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             item {
                                 RecentSearchesSection(
-                                    recentSearches = uiState.recentSearches,
-                                    onSearchClick = { viewModel.onQueryChanged(it, serverId) },
-                                    onDeleteClick = { viewModel.onDeleteRecentSearch(it) },
-                                    onClearAllClick = { viewModel.onClearRecentSearches() },
+                                    recentSearches = recentSearches,
+                                    onSearchClick = onQueryChanged,
+                                    onDeleteClick = onDeleteRecentSearch,
+                                    onClearAllClick = onClearRecentSearches,
                                 )
                             }
                         }

@@ -103,8 +103,9 @@ fun LibraryScreen(
     onGenreClick: (String) -> Unit = {},
     selectedGenre: String? = null,
     onClearGenre: () -> Unit = {},
+    initialTab: Int = 0,
 ) {
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(initialTab) }
     var isGridView by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(selectedGenre) {

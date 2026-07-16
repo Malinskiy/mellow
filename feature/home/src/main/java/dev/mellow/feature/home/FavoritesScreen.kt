@@ -39,6 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.model.Album
+import dev.mellow.core.model.Artist
+import dev.mellow.core.model.Track
 import androidx.compose.ui.Alignment
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
@@ -79,12 +82,59 @@ fun FavoritesScreen(
     val viewModel: FavoritesViewModel = hiltViewModel()
     val state by viewModel.uiState.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
     LaunchedEffect(serverId) {
         viewModel.loadFavorites(serverId)
     }
 
+    FavoritesContent(
+        tracks = state.tracks,
+        albums = state.albums,
+        artists = state.artists,
+        isLoading = state.isLoading,
+        error = state.error,
+        selectedTab = selectedTab,
+        onTabSelected = { selectedTab = it },
+        serverUrl = serverUrl,
+        isConnected = isConnected,
+        isServerUnreachable = isServerUnreachable,
+        isFilterActive = isFilterActive,
+        onToggleFilter = onToggleFilter,
+        onAlbumClick = onAlbumClick,
+        onArtistClick = onArtistClick,
+        onTrackClick = onTrackClick,
+        onTrackMenuClick = onTrackMenuClick,
+        onShuffleAll = onShuffleAll,
+        onSettingsClick = onSettingsClick,
+        onRetry = viewModel::retry,
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun FavoritesContent(
+    tracks: List<Track> = emptyList(),
+    albums: List<Album> = emptyList(),
+    artists: List<Artist> = emptyList(),
+    isLoading: Boolean = false,
+    error: String? = null,
+    selectedTab: Int = 0,
+    onTabSelected: (Int) -> Unit = {},
+    serverUrl: String? = null,
+    isConnected: Boolean = false,
+    isServerUnreachable: Boolean = false,
+    isFilterActive: Boolean = false,
+    onToggleFilter: () -> Unit = {},
+    onAlbumClick: (String) -> Unit = {},
+    onArtistClick: (String) -> Unit = {},
+    onTrackClick: (String) -> Unit = {},
+    onTrackMenuClick: (String) -> Unit = {},
+    onShuffleAll: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    onRetry: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
     val toolbarState = rememberCollapsibleToolbarState()
     CollapsibleToolbarLayout(
         state = toolbarState,
@@ -106,8 +156,8 @@ fun FavoritesScreen(
                     ConnectionCloudIcon(
                         isConnected = isConnected,
                         isServerUnreachable = isServerUnreachable,
-                        error = state.error,
-                        onRetry = viewModel::retry,
+                        error = error,
+                        onRetry = onRetry,
                         isFilterActive = isFilterActive,
                         onToggleFilter = onToggleFilter,
                     )
@@ -123,7 +173,7 @@ fun FavoritesScreen(
                 MellowTabBar(
                     tabs = TABS,
                     selectedIndex = selectedTab,
-                    onTabSelected = { selectedTab = it },
+                    onTabSelected = onTabSelected,
                     modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
                 )
             }
@@ -133,17 +183,17 @@ fun FavoritesScreen(
             .background(MellowTheme.colors.background),
     ) { contentPadding ->
         val topPadding = contentPadding.calculateTopPadding()
-        if (state.isLoading) {
+        if (isLoading) {
             LoadingContent()
         } else {
             Box(modifier = Modifier.fillMaxSize()) {
             when (selectedTab) {
                 0 -> {
-                    if (state.tracks.isEmpty()) {
+                    if (tracks.isEmpty()) {
                         EmptyContent("No favorite tracks yet")
                     } else {
                         AdaptiveTrackGrid(
-                            items = state.tracks,
+                            items = tracks,
                             key = { it.id },
                             contentPadding = PaddingValues(top = topPadding),
                             modifier = Modifier.fillMaxSize(),
@@ -165,7 +215,7 @@ fun FavoritesScreen(
                     }
                 }
                 1 -> {
-                    if (state.albums.isEmpty()) {
+                    if (albums.isEmpty()) {
                         EmptyContent("No favorite albums yet")
                     } else {
                         val albumGridMinSize = if (isExpanded) 220.dp else 160.dp
@@ -176,7 +226,7 @@ fun FavoritesScreen(
                             verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            items(state.albums, key = { it.id }) { album ->
+                            items(albums, key = { it.id }) { album ->
                                 AlbumCard(
                                     title = album.name,
                                     artist = album.artistName ?: "",
@@ -191,14 +241,14 @@ fun FavoritesScreen(
                     }
                 }
                 2 -> {
-                    if (state.artists.isEmpty()) {
+                    if (artists.isEmpty()) {
                         EmptyContent("No favorite artists yet")
                     } else {
                         LazyColumn(
                             contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            itemsIndexed(state.artists, key = { _, a -> a.id }) { _, artist ->
+                            itemsIndexed(artists, key = { _, a -> a.id }) { _, artist ->
                                 ArtistRow(
                                     name = artist.name,
                                     albumCount = artist.albumCount,
@@ -212,7 +262,7 @@ fun FavoritesScreen(
                     }
                 }
             }
-            val totalCount = state.tracks.size + state.albums.size + state.artists.size
+            val totalCount = tracks.size + albums.size + artists.size
             if (totalCount > 0) {
                 androidx.compose.material3.FloatingActionButton(
                     onClick = onShuffleAll,
