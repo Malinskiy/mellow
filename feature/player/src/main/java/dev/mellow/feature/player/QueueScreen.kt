@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
@@ -24,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -125,16 +127,26 @@ fun QueueScreen(
         } else {
             val hapticFeedback = LocalHapticFeedback.current
             val headerCount = (if (nowPlaying != null) 2 else 0) + 1
-            var localUpNext by remember { mutableStateOf(upNext) }
-            LaunchedEffect(upNext) { localUpNext = upNext }
+            var localEntries by remember {
+                mutableStateOf(upNext.mapIndexed { i, t -> i to t })
+            }
+            var isReordering by remember { mutableStateOf(false) }
+            var dragOriginalIndex by remember { mutableIntStateOf(-1) }
+            var dragCurrentIndex by remember { mutableIntStateOf(-1) }
+            LaunchedEffect(upNext) {
+                if (!isReordering) localEntries = upNext.mapIndexed { i, t -> i to t }
+            }
             val lazyListState = rememberLazyListState()
             val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
                 val fromIdx = from.index - headerCount
                 val toIdx = to.index - headerCount
-                localUpNext = localUpNext.toMutableList().apply {
+                if (dragOriginalIndex == -1) {
+                    dragOriginalIndex = fromIdx
+                }
+                dragCurrentIndex = toIdx
+                localEntries = localEntries.toMutableList().apply {
                     add(toIdx, removeAt(fromIdx))
                 }
-                onMoveTrack(fromIdx, toIdx)
             }
 
             val scrollIsolation = remember {
@@ -178,12 +190,12 @@ fun QueueScreen(
                     }
                 }
 
-                if (localUpNext.isNotEmpty()) {
+                if (localEntries.isNotEmpty()) {
                     item {
                         val label = if (currentAlbumName.isNotEmpty()) {
-                            "NEXT UP FROM: $currentAlbumName \u00B7 ${localUpNext.size} tracks"
+                            "NEXT UP FROM: $currentAlbumName \u00B7 ${localEntries.size} tracks"
                         } else {
-                            "UP NEXT \u00B7 ${localUpNext.size} tracks"
+                            "UP NEXT \u00B7 ${localEntries.size} tracks"
                         }
                         Text(
                             label.uppercase(),
@@ -197,8 +209,9 @@ fun QueueScreen(
                             ),
                         )
                     }
-                    itemsIndexed(localUpNext, key = { idx, t -> "${t.id}_$idx" }) { index, track ->
-                        ReorderableItem(reorderableState, key = "${track.id}_$index") { isDragging ->
+                    items(localEntries, key = { (origIdx, t) -> "${t.id}_$origIdx" }) { (origIdx, track) ->
+                        val index = localEntries.indexOfFirst { it.first == origIdx && it.second.id == track.id }
+                        ReorderableItem(reorderableState, key = "${track.id}_$origIdx") { isDragging ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -225,9 +238,16 @@ fun QueueScreen(
                                         .size(20.dp)
                                         .draggableHandle(
                                             onDragStarted = {
+                                                isReordering = true
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                             },
                                             onDragStopped = {
+                                                if (dragOriginalIndex >= 0 && dragCurrentIndex >= 0 && dragOriginalIndex != dragCurrentIndex) {
+                                                    onMoveTrack(dragOriginalIndex, dragCurrentIndex)
+                                                }
+                                                dragOriginalIndex = -1
+                                                dragCurrentIndex = -1
+                                                isReordering = false
                                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             },
                                         ),
@@ -238,8 +258,8 @@ fun QueueScreen(
                                     subtitle = "${track.artist} \u00B7 ${track.album}",
                                     duration = track.duration,
                                     imageUrl = track.imageUrl,
-                                    onClick = { onTrackClick(index) },
-                                    showDivider = index < localUpNext.lastIndex,
+                            onClick = { onTrackClick(index) },
+                                     showDivider = index < localEntries.lastIndex,
                                     modifier = Modifier.weight(1f),
                                 )
                                 IconButton(

@@ -1,6 +1,8 @@
 package dev.mellow.feature.player
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -355,9 +357,19 @@ fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: ()
         IconButton(onClick = onCollapse) {
             Icon(PhosphorIcons.CaretDown, "Collapse", tint = MellowTheme.colors.foreground)
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.weight(1f),
+        ) {
             Text("PLAYING FROM", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
-            Text(albumName.ifEmpty { "Unknown" }, style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.foreground)
+            Text(
+                albumName.ifEmpty { "Unknown" },
+                style = MaterialTheme.typography.labelMedium,
+                color = MellowTheme.colors.foreground,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         if (showQueueButton) {
             IconButton(onClick = onQueueClick) {
