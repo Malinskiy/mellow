@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -79,177 +80,269 @@ fun LoginScreen(
         unfocusedLabelColor = MellowTheme.colors.muted,
     )
 
+    val isCompactHeight = LocalConfiguration.current.screenHeightDp < 500
+
     @Suppress("DEPRECATION")
     CompositionLocalProvider(LocalAutofillHighlightColor provides Color.Transparent) {
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MellowTheme.colors.background),
-        contentAlignment = Alignment.TopCenter,
+        contentAlignment = Alignment.Center,
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 400.dp)
-                .fillMaxHeight()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = MellowSpacing.Sp6),
-        ) {
-            Spacer(Modifier.height(80.dp))
-
-            Text(
-                text = "Mellow",
-                style = MaterialTheme.typography.displayLarge,
-                color = MellowTheme.colors.foreground,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-            Text(
-                text = "Connect to your Jellyfin server",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MellowTheme.colors.muted,
+        if (isCompactHeight) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(top = MellowSpacing.Sp2),
-            )
-
-            Spacer(Modifier.height(MellowSpacing.Sp12))
-
-            Text("Server address", style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.muted)
-            Spacer(Modifier.height(MellowSpacing.Sp2))
-            OutlinedTextField(
-                value = serverUrl,
-                onValueChange = { serverUrl = it },
-                placeholder = { Text("https://jellyfin.example.com", color = MellowPalette.Stone600) },
-                shape = MellowShapes.Medium,
-                colors = textFieldColors,
-                singleLine = true,
-                enabled = !isLoading,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(MellowSpacing.Sp5))
-
-            Text("Username", style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.muted)
-            Spacer(Modifier.height(MellowSpacing.Sp2))
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                placeholder = { Text("Username", color = MellowPalette.Stone600) },
-                shape = MellowShapes.Medium,
-                colors = textFieldColors,
-                singleLine = true,
-                enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(MellowSpacing.Sp5))
-
-            Text("Password", style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.muted)
-            Spacer(Modifier.height(MellowSpacing.Sp2))
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                placeholder = { Text("Password", color = MellowPalette.Stone600) },
-                shape = MellowShapes.Medium,
-                colors = textFieldColors,
-                singleLine = true,
-                enabled = !isLoading,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            if (error != null) {
-                Text(
-                    text = error,
-                    color = MellowTheme.colors.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = MellowSpacing.Sp3),
-                )
-            }
-
-            Button(
-                onClick = { onSignIn(serverUrl, username, password) },
-                enabled = !isLoading && serverUrl.isNotBlank() && username.isNotBlank(),
-                shape = MellowShapes.Medium,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MellowPalette.Stone200,
-                    contentColor = MellowPalette.Stone950,
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = MellowSpacing.Sp6),
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = MellowPalette.Stone950,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(20.dp),
-                    )
-                } else {
-                    Text("Sign In", style = MaterialTheme.typography.labelLarge)
-                }
-            }
-
-            TextButton(
-                onClick = { showAdvancedSettings = !showAdvancedSettings },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = MellowSpacing.Sp3),
-            ) {
-                Text("Advanced Settings", color = MellowTheme.colors.muted)
-                Spacer(Modifier.size(MellowSpacing.Sp2))
-                Icon(
-                    PhosphorIcons.CaretDown,
-                    contentDescription = null,
-                    tint = MellowTheme.colors.muted,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                     modifier = Modifier
-                        .size(16.dp)
-                        .rotate(caretRotation),
-                )
-            }
-
-            AnimatedVisibility(visible = showAdvancedSettings) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onTrustSelfSignedChange(!trustSelfSigned) }
-                        .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(end = MellowSpacing.Sp8),
                 ) {
-                    Icon(
-                        PhosphorIcons.WarningCircle,
-                        contentDescription = null,
-                        tint = MellowTheme.colors.muted,
-                        modifier = Modifier.size(22.dp),
+                    Text(
+                        text = "Mellow",
+                        style = MaterialTheme.typography.displayMedium,
+                        color = MellowTheme.colors.foreground,
                     )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = MellowSpacing.Sp3),
-                    ) {
-                        Text(
-                            "Trust self-signed certificates",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MellowTheme.colors.foreground,
-                        )
-                        Text(
-                            "Allow connections to servers with self-signed SSL certificates",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MellowTheme.colors.muted,
-                        )
-                    }
-                    Switch(
-                        checked = trustSelfSigned,
-                        onCheckedChange = onTrustSelfSignedChange,
+                    Text(
+                        text = "Connect to your Jellyfin server",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MellowTheme.colors.muted,
+                        modifier = Modifier.padding(top = MellowSpacing.Sp2),
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .widthIn(max = 400.dp)
+                        .padding(vertical = MellowSpacing.Sp4),
+                ) {
+                    LoginForm(
+                        serverUrl = serverUrl,
+                        onServerUrlChange = { serverUrl = it },
+                        username = username,
+                        onUsernameChange = { username = it },
+                        password = password,
+                        onPasswordChange = { password = it },
+                        isLoading = isLoading,
+                        error = error,
+                        textFieldColors = textFieldColors,
+                        onSignIn = { onSignIn(serverUrl, username, password) },
+                        showAdvancedSettings = showAdvancedSettings,
+                        onToggleAdvancedSettings = { showAdvancedSettings = !showAdvancedSettings },
+                        caretRotation = caretRotation,
+                        trustSelfSigned = trustSelfSigned,
+                        onTrustSelfSignedChange = onTrustSelfSignedChange,
                     )
                 }
             }
+        } else {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .widthIn(max = 400.dp)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = MellowSpacing.Sp6),
+            ) {
+                Spacer(Modifier.weight(1f))
 
-            Spacer(Modifier.height(MellowSpacing.Sp12))
+                Text(
+                    text = "Mellow",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = MellowTheme.colors.foreground,
+                )
+                Text(
+                    text = "Connect to your Jellyfin server",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MellowTheme.colors.muted,
+                    modifier = Modifier.padding(top = MellowSpacing.Sp2),
+                )
+
+                Spacer(Modifier.height(MellowSpacing.Sp12))
+
+                LoginForm(
+                    serverUrl = serverUrl,
+                    onServerUrlChange = { serverUrl = it },
+                    username = username,
+                    onUsernameChange = { username = it },
+                    password = password,
+                    onPasswordChange = { password = it },
+                    isLoading = isLoading,
+                    error = error,
+                    textFieldColors = textFieldColors,
+                    onSignIn = { onSignIn(serverUrl, username, password) },
+                    showAdvancedSettings = showAdvancedSettings,
+                    onToggleAdvancedSettings = { showAdvancedSettings = !showAdvancedSettings },
+                    caretRotation = caretRotation,
+                    trustSelfSigned = trustSelfSigned,
+                    onTrustSelfSignedChange = onTrustSelfSignedChange,
+                )
+
+                Spacer(Modifier.weight(1f))
+            }
         }
     }
+    }
+}
+
+@Composable
+private fun LoginForm(
+    serverUrl: String,
+    onServerUrlChange: (String) -> Unit,
+    username: String,
+    onUsernameChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    isLoading: Boolean,
+    error: String?,
+    textFieldColors: androidx.compose.material3.TextFieldColors,
+    onSignIn: () -> Unit,
+    showAdvancedSettings: Boolean,
+    onToggleAdvancedSettings: () -> Unit,
+    caretRotation: Float,
+    trustSelfSigned: Boolean,
+    onTrustSelfSignedChange: (Boolean) -> Unit,
+) {
+    Text("Server address", style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.muted)
+    Spacer(Modifier.height(MellowSpacing.Sp2))
+    OutlinedTextField(
+        value = serverUrl,
+        onValueChange = onServerUrlChange,
+        placeholder = { Text("https://jellyfin.example.com", color = MellowPalette.Stone600) },
+        shape = MellowShapes.Medium,
+        colors = textFieldColors,
+        singleLine = true,
+        enabled = !isLoading,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(Modifier.height(MellowSpacing.Sp4))
+
+    Text("Username", style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.muted)
+    Spacer(Modifier.height(MellowSpacing.Sp2))
+    OutlinedTextField(
+        value = username,
+        onValueChange = onUsernameChange,
+        placeholder = { Text("Username", color = MellowPalette.Stone600) },
+        shape = MellowShapes.Medium,
+        colors = textFieldColors,
+        singleLine = true,
+        enabled = !isLoading,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(Modifier.height(MellowSpacing.Sp4))
+
+    Text("Password", style = MaterialTheme.typography.labelMedium, color = MellowTheme.colors.muted)
+    Spacer(Modifier.height(MellowSpacing.Sp2))
+    OutlinedTextField(
+        value = password,
+        onValueChange = onPasswordChange,
+        placeholder = { Text("Password", color = MellowPalette.Stone600) },
+        shape = MellowShapes.Medium,
+        colors = textFieldColors,
+        singleLine = true,
+        enabled = !isLoading,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(Modifier.height(MellowSpacing.Sp5))
+
+    if (error != null) {
+        Text(
+            text = error,
+            color = MellowTheme.colors.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(bottom = MellowSpacing.Sp3),
+        )
+    }
+
+    Button(
+        onClick = onSignIn,
+        enabled = !isLoading && serverUrl.isNotBlank() && username.isNotBlank(),
+        shape = MellowShapes.Medium,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MellowPalette.Stone200,
+            contentColor = MellowPalette.Stone950,
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                color = MellowPalette.Stone950,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(20.dp),
+            )
+        } else {
+            Text("Sign In", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+
+    TextButton(
+        onClick = onToggleAdvancedSettings,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = MellowSpacing.Sp3),
+    ) {
+        Text("Advanced Settings", color = MellowTheme.colors.muted)
+        Spacer(Modifier.size(MellowSpacing.Sp2))
+        Icon(
+            PhosphorIcons.CaretDown,
+            contentDescription = null,
+            tint = MellowTheme.colors.muted,
+            modifier = Modifier
+                .size(16.dp)
+                .rotate(caretRotation),
+        )
+    }
+
+    AnimatedVisibility(visible = showAdvancedSettings) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onTrustSelfSignedChange(!trustSelfSigned) }
+                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+        ) {
+            Icon(
+                PhosphorIcons.WarningCircle,
+                contentDescription = null,
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(22.dp),
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = MellowSpacing.Sp3),
+            ) {
+                Text(
+                    "Trust self-signed certificates",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MellowTheme.colors.foreground,
+                )
+                Text(
+                    "Allow connections to servers with self-signed SSL certificates",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MellowTheme.colors.muted,
+                )
+            }
+            Switch(
+                checked = trustSelfSigned,
+                onCheckedChange = onTrustSelfSignedChange,
+            )
+        }
     }
 }
