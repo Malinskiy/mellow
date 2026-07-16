@@ -15,6 +15,7 @@ import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.data.ArtworkPreCacher
 import dev.mellow.core.data.SyncProgress
@@ -42,9 +43,10 @@ class LibrarySyncWorker @AssistedInject constructor(
             setForeground(createForegroundInfo("Syncing library…", 0, 0))
             ensureConnected()
 
-            val homeImageIds = libraryRepository.syncHomeScreenPriority(serverId) { progress ->
+            val homeImageIdsResult = libraryRepository.syncHomeScreenPriority(serverId) { progress ->
                 setForegroundAsync(createForegroundInfo(progress))
             }
+            val homeImageIds = (homeImageIdsResult as? MellowResult.Success)?.data ?: emptySet()
             prefetchImages(homeImageIds)
 
             libraryRepository.syncLibrary(serverId) { progress ->

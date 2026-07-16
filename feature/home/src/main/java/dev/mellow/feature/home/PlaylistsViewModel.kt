@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.repository.PlaylistRepository
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.model.Playlist
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +43,8 @@ class PlaylistsViewModel @Inject constructor(
         loadedServerId = serverId
 
         playlistRepository.observePlaylists(serverId)
-            .onEach { playlists ->
+            .onEach { result ->
+                val playlists = (result as? MellowResult.Success)?.data ?: return@onEach
                 _uiState.value = PlaylistsUiState(playlists = playlists, isLoading = false)
             }
             .catch { e ->

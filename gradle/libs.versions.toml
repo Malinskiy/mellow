@@ -60,6 +60,9 @@ mockk = "1.14.2"
 # Logging
 slf4j = "2.0.16"
 
+# Licenses
+aboutLibraries = "12.1.0"
+
 # Tooling
 desugar-jdk = "2.1.5"
 reorderable = "3.1.0"
@@ -151,6 +154,9 @@ compose-ui-test = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
 
+# Licenses
+aboutlibraries-core = { module = "com.mikepenz:aboutlibraries-core", version.ref = "aboutLibraries" }
+
 # Tooling
 desugar-jdk = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar-jdk" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
@@ -167,6 +173,7 @@ android-testing = ["junit-ext", "espresso-core", "compose-ui-test"]
 coil = ["coil-compose", "coil-network-okhttp"]
 
 [plugins]
+aboutLibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutLibraries" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

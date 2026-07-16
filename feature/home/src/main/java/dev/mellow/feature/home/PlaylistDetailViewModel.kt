@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.model.Playlist
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,12 +41,15 @@ class PlaylistDetailViewModel @Inject constructor(
 
     private fun loadPlaylist() {
         viewModelScope.launch {
-            val playlist = playlistRepository.getPlaylistById(playlistId)
-            _uiState.value = _uiState.value.copy(playlist = playlist)
+            when (val result = playlistRepository.getPlaylistById(playlistId)) {
+                is MellowResult.Success -> _uiState.value = _uiState.value.copy(playlist = result.data)
+                else -> {}
+            }
         }
 
         playlistRepository.observePlaylistTracks(playlistId)
-            .onEach { tracks ->
+            .onEach { result ->
+                val tracks = (result as? MellowResult.Success)?.data ?: return@onEach
                 _uiState.value = _uiState.value.copy(tracks = tracks, isLoading = false)
             }
             .launchIn(viewModelScope)

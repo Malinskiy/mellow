@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.preferences.DownloadPreferences
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.repository.DownloadRepository
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
@@ -53,6 +54,12 @@ class AlbumDetailViewModel @Inject constructor(
 
     val albumDownloadState: StateFlow<AlbumDownloadState> =
         downloadRepository.observeAlbumDownloads(albumId)
+            .map { result ->
+                when (result) {
+                    is MellowResult.Success -> result.data
+                    else -> AlbumDownloadState(albumId, 0, 0, 0L, 0L, AlbumDownloadState.Status.NONE)
+                }
+            }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5_000),
@@ -70,7 +77,13 @@ class AlbumDetailViewModel @Inject constructor(
             } else {
                 combine(
                     trackIds.map { id ->
-                        downloadRepository.observeDownload(id).map { state -> id to state }
+                        downloadRepository.observeDownload(id).map { result ->
+                            val state = when (result) {
+                                is MellowResult.Success -> result.data
+                                else -> null
+                            }
+                            id to state
+                        }
                     },
                 ) { pairs -> pairs.toMap() }
             }
@@ -83,17 +96,31 @@ class AlbumDetailViewModel @Inject constructor(
 
     private fun loadAlbumDetail() {
         libraryRepository.observeAlbum(albumId)
-            .onEach { album ->
-                if (album != null) {
-                    _uiState.value = _uiState.value.copy(album = album, isLoading = false)
-                } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "Album not found")
+            .onEach { result ->
+                when (result) {
+                    is MellowResult.Success -> {
+                        val album = result.data
+                        if (album != null) {
+                            _uiState.value = _uiState.value.copy(album = album, isLoading = false)
+                        } else {
+                            _uiState.value = _uiState.value.copy(isLoading = false, error = "Album not found")
+                        }
+                    }
+                    is MellowResult.Error -> {
+                        _uiState.value = _uiState.value.copy(isLoading = false, error = result.exception.message)
+                    }
+                    else -> {}
                 }
             }
             .launchIn(viewModelScope)
 
         libraryRepository.getAlbumTracks(albumId)
-            .onEach { tracks -> _uiState.value = _uiState.value.copy(tracks = tracks) }
+            .onEach { result ->
+                when (result) {
+                    is MellowResult.Success -> _uiState.value = _uiState.value.copy(tracks = result.data)
+                    else -> {}
+                }
+            }
             .launchIn(viewModelScope)
     }
 

@@ -1,6 +1,7 @@
 package dev.mellow.core.data.repository
 
 import android.util.Log
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.mapper.toAlbumEntity
 import dev.mellow.core.data.mapper.toArtistEntity
@@ -21,6 +22,7 @@ import dev.mellow.core.network.datasource.JellyfinDataSource
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.Instant
@@ -58,186 +60,274 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun getAlbums(serverId: String): Flow<List<Album>> =
-        albumDao.observeAlbumsByServer(serverId).map { entities -> entities.map { it.toModel() } }
+    override fun getAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
+        albumDao.observeAlbumsByServer(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
+            .catch { emit(MellowResult.Error(it)) }
 
-    override fun getArtists(serverId: String): Flow<List<Artist>> =
-        artistDao.observeArtistsByServer(serverId).map { entities -> entities.map { it.toModel() } }
+    override fun getArtists(serverId: String): Flow<MellowResult<List<Artist>>> =
+        artistDao.observeArtistsByServer(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Artist>> }
+            .catch { emit(MellowResult.Error(it)) }
 
-    override fun getAlbumTracks(albumId: String): Flow<List<Track>> =
-        trackDao.getTracksByAlbum(albumId).map { entities -> entities.map { it.toModel() } }
+    override fun getAlbumTracks(albumId: String): Flow<MellowResult<List<Track>>> =
+        trackDao.getTracksByAlbum(albumId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
+            .catch { emit(MellowResult.Error(it)) }
 
-    override fun getArtistAlbums(artistName: String): Flow<List<Album>> =
-        albumDao.getAlbumsByArtistName(artistName, artistNameVariant(artistName)).map { entities -> entities.map { it.toModel() } }
+    override fun getArtistAlbums(artistName: String): Flow<MellowResult<List<Album>>> =
+        albumDao.getAlbumsByArtistName(artistName, artistNameVariant(artistName))
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
+            .catch { emit(MellowResult.Error(it)) }
 
-    override suspend fun getAlbum(albumId: String): Album? =
-        albumDao.getAlbumById(albumId)?.toModel()
-
-    override fun observeAlbum(albumId: String): Flow<Album?> =
-        albumDao.observeAlbumById(albumId).map { it?.toModel() }
-
-    override suspend fun getArtist(artistId: String): Artist? =
-        artistDao.getArtistById(artistId)?.toModel()
-
-    override fun observeArtist(artistId: String): Flow<Artist?> =
-        artistDao.observeArtistById(artistId).map { it?.toModel() }
-
-    override fun getArtistTracks(artistName: String): Flow<List<Track>> =
-        trackDao.getTracksByArtistName(artistName, artistNameVariant(artistName)).map { entities -> entities.map { it.toModel() } }
-
-    override suspend fun countArtistAlbums(artistName: String): Int =
-        albumDao.countAlbumsByArtistName(artistName, artistNameVariant(artistName))
-
-    override suspend fun countArtistTracks(artistName: String): Int =
-        trackDao.countTracksByArtistName(artistName, artistNameVariant(artistName))
-
-    override fun getRecentTracks(serverId: String): Flow<List<Track>> =
-        trackDao.observeRecentTracks(serverId).map { entities -> entities.map { it.toModel() } }
-
-    override suspend fun search(serverId: String, query: String): List<Track> =
-        trackDao.search(serverId, query).map { it.toModel() }
-
-    override suspend fun searchAlbums(serverId: String, query: String): List<Album> =
-        albumDao.search(serverId, query).map { it.toModel() }
-
-    override suspend fun searchArtists(serverId: String, query: String): List<Artist> =
-        artistDao.search(serverId, query).map { it.toModel() }
-
-    override fun getRecentSearches(serverId: String): Flow<List<String>> =
-        searchQueryDao.getRecentSearches(serverId).map { entities ->
-            entities.map { it.queryText }
+    override suspend fun getAlbum(albumId: String): MellowResult<Album?> =
+        try {
+            MellowResult.Success(albumDao.getAlbumById(albumId)?.toModel())
+        } catch (e: Exception) {
+            MellowResult.Error(e)
         }
 
-    override suspend fun saveRecentSearch(serverId: String, query: String) {
-        searchQueryDao.upsert(
-            SearchQueryEntity(
-                serverId = serverId,
-                queryText = query,
-                searchedAt = System.currentTimeMillis(),
-            ),
-        )
+    override fun observeAlbum(albumId: String): Flow<MellowResult<Album?>> =
+        albumDao.observeAlbumById(albumId)
+            .map { MellowResult.Success(it?.toModel()) as MellowResult<Album?> }
+            .catch { emit(MellowResult.Error(it)) }
+
+    override suspend fun getArtist(artistId: String): MellowResult<Artist?> =
+        try {
+            MellowResult.Success(artistDao.getArtistById(artistId)?.toModel())
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override fun observeArtist(artistId: String): Flow<MellowResult<Artist?>> =
+        artistDao.observeArtistById(artistId)
+            .map { MellowResult.Success(it?.toModel()) as MellowResult<Artist?> }
+            .catch { emit(MellowResult.Error(it)) }
+
+    override fun getArtistTracks(artistName: String): Flow<MellowResult<List<Track>>> =
+        trackDao.getTracksByArtistName(artistName, artistNameVariant(artistName))
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
+            .catch { emit(MellowResult.Error(it)) }
+
+    override suspend fun countArtistAlbums(artistName: String): MellowResult<Int> =
+        try {
+            MellowResult.Success(albumDao.countAlbumsByArtistName(artistName, artistNameVariant(artistName)))
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun countArtistTracks(artistName: String): MellowResult<Int> =
+        try {
+            MellowResult.Success(trackDao.countTracksByArtistName(artistName, artistNameVariant(artistName)))
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override fun getRecentTracks(serverId: String): Flow<MellowResult<List<Track>>> =
+        trackDao.observeRecentTracks(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
+            .catch { emit(MellowResult.Error(it)) }
+
+    override suspend fun search(serverId: String, query: String): MellowResult<List<Track>> =
+        try {
+            MellowResult.Success(trackDao.search(serverId, query).map { it.toModel() })
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun searchAlbums(serverId: String, query: String): MellowResult<List<Album>> =
+        try {
+            MellowResult.Success(albumDao.search(serverId, query).map { it.toModel() })
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun searchArtists(serverId: String, query: String): MellowResult<List<Artist>> =
+        try {
+            MellowResult.Success(artistDao.search(serverId, query).map { it.toModel() })
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override fun getRecentSearches(serverId: String): Flow<MellowResult<List<String>>> =
+        searchQueryDao.getRecentSearches(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.queryText }) as MellowResult<List<String>> }
+            .catch { emit(MellowResult.Error(it)) }
+
+    override suspend fun saveRecentSearch(serverId: String, query: String): MellowResult<Unit> {
+        return try {
+            searchQueryDao.upsert(
+                SearchQueryEntity(
+                    serverId = serverId,
+                    queryText = query,
+                    searchedAt = System.currentTimeMillis(),
+                ),
+            )
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
-    override suspend fun deleteRecentSearch(serverId: String, query: String) {
-        searchQueryDao.delete(serverId, query)
+    override suspend fun deleteRecentSearch(serverId: String, query: String): MellowResult<Unit> {
+        return try {
+            searchQueryDao.delete(serverId, query)
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
-    override suspend fun clearRecentSearches(serverId: String) {
-        searchQueryDao.clearAll(serverId)
+    override suspend fun clearRecentSearches(serverId: String): MellowResult<Unit> {
+        return try {
+            searchQueryDao.clearAll(serverId)
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
-    override fun getFavoriteTracks(serverId: String): Flow<List<Track>> =
-        trackDao.getFavoriteTracks(serverId).map { entities -> entities.map { it.toModel() } }
+    override fun getFavoriteTracks(serverId: String): Flow<MellowResult<List<Track>>> =
+        trackDao.getFavoriteTracks(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
+            .catch { emit(MellowResult.Error(it)) }
 
-    override fun getFavoriteAlbums(serverId: String): Flow<List<Album>> =
-        albumDao.getFavoriteAlbums(serverId).map { entities -> entities.map { it.toModel() } }
+    override fun getFavoriteAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
+        albumDao.getFavoriteAlbums(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
+            .catch { emit(MellowResult.Error(it)) }
 
-    override fun getFavoriteArtists(serverId: String): Flow<List<Artist>> =
-        artistDao.getFavoriteArtists(serverId).map { entities -> entities.map { it.toModel() } }
+    override fun getFavoriteArtists(serverId: String): Flow<MellowResult<List<Artist>>> =
+        artistDao.getFavoriteArtists(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Artist>> }
+            .catch { emit(MellowResult.Error(it)) }
 
-    override fun getRecentlyPlayedAlbums(serverId: String): Flow<List<Album>> =
-        albumDao.getRecentlyPlayedAlbums(serverId).map { entities -> entities.map { it.toModel() } }
+    override fun getRecentlyPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
+        albumDao.getRecentlyPlayedAlbums(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
+            .catch { emit(MellowResult.Error(it)) }
 
-    override fun getMostPlayedAlbums(serverId: String): Flow<List<Album>> =
-        albumDao.getMostPlayedAlbums(serverId).map { entities -> entities.map { it.toModel() } }
+    override fun getMostPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
+        albumDao.getMostPlayedAlbums(serverId)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
+            .catch { emit(MellowResult.Error(it)) }
 
     override suspend fun syncHomeScreenPriority(
         serverId: String,
         onProgress: (SyncProgress) -> Unit,
-    ): Set<String> {
-        val server = serverDao.getActiveServer() ?: return emptySet()
-        val userId = UUID.fromString(server.userId)
-        val imageIds = mutableSetOf<String>()
+    ): MellowResult<Set<String>> {
+        return try {
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(emptySet())
+            val userId = UUID.fromString(server.userId)
+            val imageIds = mutableSetOf<String>()
 
-        onProgress(SyncProgress("home", 0, 4))
+            onProgress(SyncProgress("home", 0, 4))
 
-        coroutineScope {
-            val recentAlbums = async { jellyfinDataSource.getRecentlyAddedAlbums(userId, 50) }
-            val recentTracks = async { jellyfinDataSource.getRecentlyPlayedItems(userId, 200) }
-            val favAlbums = async { jellyfinDataSource.getFavoriteAlbums(userId) }
-            val favTracks = async { jellyfinDataSource.getFavoriteTracks(userId) }
+            coroutineScope {
+                val recentAlbums = async { jellyfinDataSource.getRecentlyAddedAlbums(userId, 50) }
+                val recentTracks = async { jellyfinDataSource.getRecentlyPlayedItems(userId, 200) }
+                val favAlbums = async { jellyfinDataSource.getFavoriteAlbums(userId) }
+                val favTracks = async { jellyfinDataSource.getFavoriteTracks(userId) }
 
-            val albums = recentAlbums.await()
-            albumDao.upsertAlbums(albums.map { it.toAlbumEntity(serverId) })
-            albums.forEach { it.id.toString().let(imageIds::add) }
-            onProgress(SyncProgress("home", 1, 4))
+                val albums = recentAlbums.await()
+                albumDao.upsertAlbums(albums.map { it.toAlbumEntity(serverId) })
+                albums.forEach { it.id.toString().let(imageIds::add) }
+                onProgress(SyncProgress("home", 1, 4))
 
-            val tracks = recentTracks.await()
-            trackDao.upsertTracks(tracks.map { it.toTrackEntity(serverId) })
-            tracks.forEach { dto ->
-                dto.albumId?.toString()?.let(imageIds::add)
+                val tracks = recentTracks.await()
+                trackDao.upsertTracks(tracks.map { it.toTrackEntity(serverId) })
+                tracks.forEach { dto ->
+                    dto.albumId?.toString()?.let(imageIds::add)
+                }
+                onProgress(SyncProgress("home", 2, 4))
+
+                val fAlbums = favAlbums.await()
+                albumDao.upsertAlbums(fAlbums.map { it.toAlbumEntity(serverId) })
+                fAlbums.forEach { it.id.toString().let(imageIds::add) }
+                onProgress(SyncProgress("home", 3, 4))
+
+                val fTracks = favTracks.await()
+                trackDao.upsertTracks(fTracks.map { it.toTrackEntity(serverId) })
+                fTracks.forEach { dto ->
+                    dto.albumId?.toString()?.let(imageIds::add)
+                }
+                onProgress(SyncProgress("home", 4, 4))
             }
-            onProgress(SyncProgress("home", 2, 4))
 
-            val fAlbums = favAlbums.await()
-            albumDao.upsertAlbums(fAlbums.map { it.toAlbumEntity(serverId) })
-            fAlbums.forEach { it.id.toString().let(imageIds::add) }
-            onProgress(SyncProgress("home", 3, 4))
+            Log.d(TAG, "Home screen priority sync: ${imageIds.size} unique image IDs")
+            MellowResult.Success(imageIds)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+    }
 
-            val fTracks = favTracks.await()
-            trackDao.upsertTracks(fTracks.map { it.toTrackEntity(serverId) })
-            fTracks.forEach { dto ->
-                dto.albumId?.toString()?.let(imageIds::add)
+    override suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit): MellowResult<Unit> {
+        return try {
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
+            val userId = UUID.fromString(server.userId)
+
+            val lastSyncMs = syncPreferences.lastSyncTimestamp.first()
+
+            if (lastSyncMs == 0L) {
+                Log.d(TAG, "First sync — full")
+                fullSync(serverId, userId, onProgress)
+            } else {
+                Log.d(TAG, "Incremental sync since ${Instant.ofEpochMilli(lastSyncMs)}")
+                incrementalSync(serverId, userId, lastSyncMs, onProgress)
             }
-            onProgress(SyncProgress("home", 4, 4))
-        }
 
-        Log.d(TAG, "Home screen priority sync: ${imageIds.size} unique image IDs")
-        return imageIds
+            onProgress(SyncProgress("favorites", 0, 0))
+            syncFavoritesDiff(serverId, userId)
+            syncRecentlyPlayed(serverId, userId)
+
+            syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
+            syncPreferences.incrementSyncCount()
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
-    override suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit) {
-        val server = serverDao.getActiveServer() ?: return
-        val userId = UUID.fromString(server.userId)
+    override suspend fun cleanupOrphans(serverId: String, onProgress: (SyncProgress) -> Unit): MellowResult<Unit> {
+        return try {
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
+            val userId = UUID.fromString(server.userId)
 
-        val lastSyncMs = syncPreferences.lastSyncTimestamp.first()
-
-        if (lastSyncMs == 0L) {
-            Log.d(TAG, "First sync — full")
-            fullSync(serverId, userId, onProgress)
-        } else {
-            Log.d(TAG, "Incremental sync since ${Instant.ofEpochMilli(lastSyncMs)}")
-            incrementalSync(serverId, userId, lastSyncMs, onProgress)
+            onProgress(SyncProgress("albums", 0, 0))
+            detectOrphanedAlbums(serverId, userId)
+            onProgress(SyncProgress("artists", 0, 0))
+            detectOrphanedArtists(serverId, userId)
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
         }
-
-        onProgress(SyncProgress("favorites", 0, 0))
-        syncFavoritesDiff(serverId, userId)
-        syncRecentlyPlayed(serverId, userId)
-
-        syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
-        syncPreferences.incrementSyncCount()
     }
 
-    override suspend fun cleanupOrphans(serverId: String, onProgress: (SyncProgress) -> Unit) {
-        val server = serverDao.getActiveServer() ?: return
-        val userId = UUID.fromString(server.userId)
+    override suspend fun syncFavorites(serverId: String): MellowResult<Unit> {
+        return try {
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
+            val userId = UUID.fromString(server.userId)
 
-        onProgress(SyncProgress("albums", 0, 0))
-        detectOrphanedAlbums(serverId, userId)
-        onProgress(SyncProgress("artists", 0, 0))
-        detectOrphanedArtists(serverId, userId)
-    }
+            val favAlbums = jellyfinDataSource.getFavoriteAlbums(userId)
+            Log.d(TAG, "syncFavorites: ${favAlbums.size} albums from API")
+            if (favAlbums.isNotEmpty()) {
+                albumDao.upsertAlbums(favAlbums.map { it.toAlbumEntity(serverId) })
+            }
 
-    override suspend fun syncFavorites(serverId: String) {
-        val server = serverDao.getActiveServer() ?: return
-        val userId = UUID.fromString(server.userId)
+            val favArtists = jellyfinDataSource.getFavoriteArtists(userId)
+            Log.d(TAG, "syncFavorites: ${favArtists.size} artists from API")
+            if (favArtists.isNotEmpty()) {
+                artistDao.upsertArtists(favArtists.map { it.toArtistEntity(serverId) })
+            }
 
-        val favAlbums = jellyfinDataSource.getFavoriteAlbums(userId)
-        Log.d(TAG, "syncFavorites: ${favAlbums.size} albums from API")
-        if (favAlbums.isNotEmpty()) {
-            albumDao.upsertAlbums(favAlbums.map { it.toAlbumEntity(serverId) })
-        }
-
-        val favArtists = jellyfinDataSource.getFavoriteArtists(userId)
-        Log.d(TAG, "syncFavorites: ${favArtists.size} artists from API")
-        if (favArtists.isNotEmpty()) {
-            artistDao.upsertArtists(favArtists.map { it.toArtistEntity(serverId) })
-        }
-
-        val favTracks = jellyfinDataSource.getFavoriteTracks(userId)
-        Log.d(TAG, "syncFavorites: ${favTracks.size} tracks from API")
-        if (favTracks.isNotEmpty()) {
-            trackDao.upsertTracks(favTracks.map { it.toTrackEntity(serverId) })
+            val favTracks = jellyfinDataSource.getFavoriteTracks(userId)
+            Log.d(TAG, "syncFavorites: ${favTracks.size} tracks from API")
+            if (favTracks.isNotEmpty()) {
+                trackDao.upsertTracks(favTracks.map { it.toTrackEntity(serverId) })
+            }
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
         }
     }
 
@@ -458,10 +548,10 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getInstantMix(serverId: String, trackId: String): List<Track> {
-        try {
+    override suspend fun getInstantMix(serverId: String, trackId: String): MellowResult<List<Track>> {
+        return try {
             val server = serverDao.getActiveServer()
-                ?: return offlineInstantMix(serverId, trackId, downloadedOnly = true)
+                ?: return MellowResult.Success(offlineInstantMix(serverId, trackId, downloadedOnly = true))
             val userId = UUID.fromString(server.userId)
             val dtos = jellyfinDataSource.getInstantMixFromSong(
                 itemId = UUID.fromString(trackId),
@@ -469,17 +559,24 @@ class LibraryRepositoryImpl @Inject constructor(
             )
             if (dtos.isNotEmpty()) {
                 trackDao.upsertTracks(dtos.map { it.toTrackEntity(serverId) })
-                return dtos.mapNotNull { dto ->
-                    trackDao.getTrackById(dto.id.toString())?.toModel()
-                }
+                MellowResult.Success(
+                    dtos.mapNotNull { dto ->
+                        trackDao.getTrackById(dto.id.toString())?.toModel()
+                    },
+                )
+            } else {
+                // API returned empty — still online, can stream any local track
+                MellowResult.Success(offlineInstantMix(serverId, trackId, downloadedOnly = false))
             }
-            // API returned empty — still online, can stream any local track
-            return offlineInstantMix(serverId, trackId, downloadedOnly = false)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             Log.d(TAG, "InstantMix API unavailable, falling back to offline mix")
+            // Network error — truly offline, only downloaded tracks are playable
+            try {
+                MellowResult.Success(offlineInstantMix(serverId, trackId, downloadedOnly = true))
+            } catch (fallbackError: Exception) {
+                MellowResult.Error(fallbackError)
+            }
         }
-        // Network error — truly offline, only downloaded tracks are playable
-        return offlineInstantMix(serverId, trackId, downloadedOnly = true)
     }
 
     private suspend fun offlineInstantMix(

@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.ui.platform.LocalContext
+import com.mikepenz.aboutlibraries.Libs
+import com.mikepenz.aboutlibraries.util.withContext
 import dev.mellow.app.dev.DevIconComparisonScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -122,6 +124,7 @@ import dev.mellow.feature.player.QueueScreen
 import dev.mellow.feature.player.QueueTrack
 import dev.mellow.feature.search.SearchScreen
 import dev.mellow.feature.search.SearchViewModel
+import dev.mellow.feature.settings.LicensesScreen
 import dev.mellow.feature.settings.LoginScreen
 import dev.mellow.feature.settings.LoginViewModel
 import dev.mellow.feature.settings.SettingsScreen
@@ -638,10 +641,33 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onDevToolsClick = {
                             navController.navigate("dev_tools")
                         },
+                        onLicensesClick = {
+                            navController.navigate("licenses")
+                        },
+                        onLogout = mainViewModel::logout,
                     )
                 }
                 composable("dev_tools") {
                     DevIconComparisonScreen(onBack = { navController.popBackStack() })
+                }
+                composable(
+                    "licenses",
+                    enterTransition = { slideIntoContainer(SlideDirection.Start, tween(200)) },
+                    popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(200)) },
+                ) {
+                    val context = LocalContext.current
+                    val (community, platform) = remember {
+                        val all = Libs.Builder().withContext(context).build().libraries + MANUAL_LIBRARIES
+                        all.partition { library ->
+                            val group = library.uniqueId.substringBefore(":")
+                            !PLATFORM_PREFIXES.any { group.startsWith(it) }
+                        }
+                    }
+                    LicensesScreen(
+                        communityLibraries = community,
+                        platformLibraries = platform,
+                        onBack = { navController.popBackStack() },
+                    )
                 }
                 composable(
                     "album/{albumId}?source={source}",
@@ -1545,6 +1571,34 @@ private fun TabScreenTopBar(
         }
     }
 }
+
+private val MANUAL_LIBRARIES = listOf(
+    com.mikepenz.aboutlibraries.entity.Library(
+        uniqueId = "phosphor-icons:core",
+        artifactVersion = null,
+        name = "Phosphor Icons",
+        description = "A flexible icon family for interfaces, diagrams, presentations and more.",
+        website = "https://phosphoricons.com",
+        developers = kotlinx.collections.immutable.persistentListOf(),
+        organization = null,
+        scm = null,
+        licenses = kotlinx.collections.immutable.persistentSetOf(
+            com.mikepenz.aboutlibraries.entity.License(
+                name = "MIT License",
+                url = "https://github.com/phosphor-icons/core/blob/main/LICENSE",
+                spdxId = "MIT",
+                hash = "phosphor-mit",
+            ),
+        ),
+        funding = kotlinx.collections.immutable.persistentSetOf(),
+        tag = null,
+    ),
+)
+
+private val PLATFORM_PREFIXES = listOf(
+    "androidx.", "com.google.", "jakarta.", "javax.",
+    "org.jetbrains.", "org.jspecify",
+)
 
 private fun formatTrackDuration(duration: Duration): String {
     val totalSeconds = duration.seconds

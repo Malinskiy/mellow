@@ -1,6 +1,6 @@
 package dev.mellow.core.data.repository
 
-import android.util.Log
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.mapper.toModel
 import dev.mellow.core.data.mapper.toPlaylistEntity
 import dev.mellow.core.data.mapper.toTrackEntity
@@ -13,6 +13,7 @@ import dev.mellow.core.model.Playlist
 import dev.mellow.core.model.Track
 import dev.mellow.core.network.datasource.JellyfinDataSource
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 import javax.inject.Inject
@@ -26,36 +27,40 @@ class PlaylistRepositoryImpl @Inject constructor(
     private val jellyfinDataSource: JellyfinDataSource,
 ) : PlaylistRepository {
 
-    companion object {
-        private const val TAG = "PlaylistRepository"
-    }
+    override fun observePlaylists(serverId: String): Flow<MellowResult<List<Playlist>>> =
+        playlistDao.observePlaylists(serverId).map { entities ->
+            MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Playlist>>
+        }.catch { emit(MellowResult.Error(it)) }
 
-    override fun observePlaylists(serverId: String): Flow<List<Playlist>> =
-        playlistDao.observePlaylists(serverId).map { entities -> entities.map { it.toModel() } }
+    override fun observePlaylistTracks(playlistId: String): Flow<MellowResult<List<Track>>> =
+        playlistDao.getPlaylistTracks(playlistId).map { entities ->
+            MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>>
+        }.catch { emit(MellowResult.Error(it)) }
 
-    override fun observePlaylistTracks(playlistId: String): Flow<List<Track>> =
-        playlistDao.getPlaylistTracks(playlistId).map { entities -> entities.map { it.toModel() } }
-
-    override suspend fun getPlaylistById(id: String): Playlist? =
-        playlistDao.getPlaylistById(id)?.toModel()
-
-    override suspend fun syncPlaylists(serverId: String) {
+    override suspend fun getPlaylistById(id: String): MellowResult<Playlist?> =
         try {
-            val server = serverDao.getActiveServer() ?: return
+            MellowResult.Success(playlistDao.getPlaylistById(id)?.toModel())
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun syncPlaylists(serverId: String): MellowResult<Unit> {
+        return try {
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
             val userId = UUID.fromString(server.userId)
             val items = jellyfinDataSource.getPlaylists(userId)
             if (items.isNotEmpty()) {
                 playlistDao.upsertPlaylists(items.map { it.toPlaylistEntity(serverId) })
             }
-            Log.d(TAG, "syncPlaylists: ${items.size} playlists synced")
+            MellowResult.Success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to sync playlists", e)
+            MellowResult.Error(e)
         }
     }
 
-    override suspend fun syncPlaylistTracks(playlistId: String, serverId: String) {
-        try {
-            val server = serverDao.getActiveServer() ?: return
+    override suspend fun syncPlaylistTracks(playlistId: String, serverId: String): MellowResult<Unit> {
+        return try {
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
             val userId = UUID.fromString(server.userId)
             val items = jellyfinDataSource.getPlaylistItems(
                 playlistId = UUID.fromString(playlistId),
@@ -75,17 +80,19 @@ class PlaylistRepositoryImpl @Inject constructor(
                     },
                 )
             }
-            Log.d(TAG, "syncPlaylistTracks: ${items.size} tracks synced for $playlistId")
+            MellowResult.Success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to sync playlist tracks for $playlistId", e)
+            MellowResult.Error(e)
         }
     }
 
-    override suspend fun createPlaylist(name: String, serverId: String): String? {
+    override suspend fun createPlaylist(name: String, serverId: String): MellowResult<String> {
         return try {
-            val server = serverDao.getActiveServer() ?: return null
+            val server = serverDao.getActiveServer()
+                ?: return MellowResult.Error(IllegalStateException("No active server"))
             val userId = UUID.fromString(server.userId)
-            val newId = jellyfinDataSource.createPlaylist(name, userId) ?: return null
+            val newId = jellyfinDataSource.createPlaylist(name, userId)
+                ?: return MellowResult.Error(IllegalStateException("Failed to create playlist"))
 
             playlistDao.upsert(
                 PlaylistEntity(
@@ -101,50 +108,57 @@ class PlaylistRepositoryImpl @Inject constructor(
                     lastSynced = System.currentTimeMillis(),
                 ),
             )
-            Log.d(TAG, "createPlaylist: created '$name' with id=$newId")
-            newId
+            MellowResult.Success(newId)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create playlist '$name'", e)
-            null
+            MellowResult.Error(e)
         }
     }
 
-    override suspend fun addTrackToPlaylist(playlistId: String, trackId: String, serverId: String) {
-        val existingTracks = playlistDao.getPlaylistById(playlistId)?.trackCount ?: 0
-        playlistDao.insertPlaylistTracks(
-            listOf(
-                PlaylistTrackCrossRef(
-                    playlistId = playlistId,
-                    trackId = trackId,
-                    position = existingTracks,
-                    addedAt = System.currentTimeMillis(),
+    override suspend fun addTrackToPlaylist(
+        playlistId: String,
+        trackId: String,
+        serverId: String,
+    ): MellowResult<Unit> {
+        return try {
+            val existingTracks = playlistDao.getPlaylistById(playlistId)?.trackCount ?: 0
+            playlistDao.insertPlaylistTracks(
+                listOf(
+                    PlaylistTrackCrossRef(
+                        playlistId = playlistId,
+                        trackId = trackId,
+                        position = existingTracks,
+                        addedAt = System.currentTimeMillis(),
+                    ),
                 ),
-            ),
-        )
+            )
 
-        try {
-            val server = serverDao.getActiveServer() ?: return
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
             val userId = UUID.fromString(server.userId)
             jellyfinDataSource.addToPlaylist(
                 playlistId = UUID.fromString(playlistId),
                 trackIds = listOf(UUID.fromString(trackId)),
                 userId = userId,
             )
+            MellowResult.Success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to add track $trackId to playlist $playlistId on server", e)
+            MellowResult.Error(e)
         }
     }
 
-    override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String) {
-        playlistDao.removeTrackFromPlaylist(playlistId, trackId)
+    override suspend fun removeTrackFromPlaylist(
+        playlistId: String,
+        trackId: String,
+    ): MellowResult<Unit> {
+        return try {
+            playlistDao.removeTrackFromPlaylist(playlistId, trackId)
 
-        try {
             jellyfinDataSource.removeFromPlaylist(
                 playlistId = playlistId,
                 entryIds = listOf(trackId),
             )
+            MellowResult.Success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to remove track $trackId from playlist $playlistId on server", e)
+            MellowResult.Error(e)
         }
     }
 }

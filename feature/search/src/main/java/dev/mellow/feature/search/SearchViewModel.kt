@@ -3,6 +3,7 @@ package dev.mellow.feature.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
@@ -53,8 +54,11 @@ class SearchViewModel @Inject constructor(
         currentServerId = serverId
         recentSearchesJob?.cancel()
         recentSearchesJob = viewModelScope.launch {
-            libraryRepository.getRecentSearches(serverId).collect { searches ->
-                _uiState.value = _uiState.value.copy(recentSearches = searches)
+            libraryRepository.getRecentSearches(serverId).collect { result ->
+                when (result) {
+                    is MellowResult.Success -> _uiState.value = _uiState.value.copy(recentSearches = result.data)
+                    else -> {}
+                }
             }
         }
     }
@@ -78,10 +82,15 @@ class SearchViewModel @Inject constructor(
                 val albumsDeferred = async { libraryRepository.searchAlbums(serverId, query) }
                 val artistsDeferred = async { libraryRepository.searchArtists(serverId, query) }
 
-                val tracks = tracksDeferred.await()
-                val albums = albumsDeferred.await()
-                val artists = artistsDeferred.await().map { artist ->
-                    val count = libraryRepository.countArtistAlbums(artist.name)
+                val tracksResult = tracksDeferred.await()
+                val albumsResult = albumsDeferred.await()
+                val artistsResult = artistsDeferred.await()
+
+                val tracks = (tracksResult as? MellowResult.Success)?.data ?: emptyList()
+                val albums = (albumsResult as? MellowResult.Success)?.data ?: emptyList()
+                val artistsRaw = (artistsResult as? MellowResult.Success)?.data ?: emptyList()
+                val artists = artistsRaw.map { artist ->
+                    val count = (libraryRepository.countArtistAlbums(artist.name) as? MellowResult.Success)?.data ?: 0
                     artist.copy(albumCount = count)
                 }
 

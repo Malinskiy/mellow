@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.preferences.DisplayPreferences
 import dev.mellow.core.data.preferences.DownloadPreferences
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.repository.DownloadRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -39,6 +41,7 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DownloadPreferences.DEFAULT_AUTO_CLEANUP_DAYS)
 
     val totalDownloadedBytes: StateFlow<Long> = downloadRepository.getTotalDownloadedBytes()
+        .map { result -> (result as? MellowResult.Success)?.data ?: 0L }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 
     fun setDownloadQuality(quality: String) {

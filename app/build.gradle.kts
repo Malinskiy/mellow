@@ -1,5 +1,8 @@
+import com.mikepenz.aboutlibraries.plugin.DuplicateMode
+import com.mikepenz.aboutlibraries.plugin.DuplicateRule
 import java.io.FileInputStream
 import java.util.Properties
+import java.util.regex.Pattern
 
 plugins {
     alias(libs.plugins.android.application)
@@ -7,6 +10,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.aboutLibraries)
 }
 
 android {
@@ -73,6 +77,17 @@ android {
     }
 }
 
+aboutLibraries {
+    library {
+        duplicationMode = DuplicateMode.MERGE
+        duplicationRule = DuplicateRule.SIMPLE
+        exclusionPatterns.addAll(
+            Pattern.compile("org\\.jetbrains\\.compose\\..*"),
+            Pattern.compile("org\\.jetbrains\\.androidx\\..*"),
+        )
+    }
+}
+
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
@@ -103,6 +118,7 @@ dependencies {
     implementation(libs.bundles.coil)
     implementation(libs.work.runtime.ktx)
     implementation(libs.work.hilt)
+    implementation(libs.aboutlibraries.core)
 
     coreLibraryDesugaring(libs.desugar.jdk)
 

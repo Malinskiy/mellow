@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.repository.UserRepository
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.model.Server
 import dev.mellow.core.network.NetworkPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,11 +42,17 @@ class LoginViewModel @Inject constructor(
     fun signIn(serverUrl: String, username: String, password: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            try {
-                val server = userRepository.authenticate(serverUrl, username, password)
-                _uiState.value = _uiState.value.copy(isLoading = false, server = server)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message ?: "Authentication failed")
+            when (val result = userRepository.authenticate(serverUrl, username, password)) {
+                is MellowResult.Success -> {
+                    _uiState.value = _uiState.value.copy(isLoading = false, server = result.data)
+                }
+                is MellowResult.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = result.exception.message ?: "Authentication failed",
+                    )
+                }
+                else -> {}
             }
         }
     }

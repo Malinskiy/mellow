@@ -1,5 +1,6 @@
 package dev.mellow.core.data.repository
 
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.ServerDao
@@ -25,36 +26,44 @@ class UserRepositoryImpl @Inject constructor(
     private val artistDao: ArtistDao,
 ) : UserRepository {
 
-    override suspend fun authenticate(serverUrl: String, username: String, password: String): Server {
-        jellyfinClient.connect(serverUrl, DeviceInfo(id = UUID.randomUUID().toString(), name = "Mellow"))
-        val result = jellyfinDataSource.authenticate(username, password)
-        jellyfinClient.authenticate(result.accessToken)
+    override suspend fun authenticate(serverUrl: String, username: String, password: String): MellowResult<Server> {
+        return try {
+            jellyfinClient.connect(serverUrl, DeviceInfo(id = UUID.randomUUID().toString(), name = "Mellow"))
+            val result = jellyfinDataSource.authenticate(username, password)
+            jellyfinClient.authenticate(result.accessToken)
 
-        val server = Server(
-            id = result.serverId,
-            name = result.serverName,
-            url = serverUrl,
-            userId = result.userId,
-            accessToken = result.accessToken,
-        )
-
-        serverDao.deactivateAll()
-        serverDao.upsert(
-            ServerEntity(
-                id = server.id,
-                name = server.name,
-                url = server.url,
-                userId = server.userId,
-                accessToken = server.accessToken,
-                isActive = true,
-                lastConnected = System.currentTimeMillis(),
+            val server = Server(
+                id = result.serverId,
+                name = result.serverName,
+                url = serverUrl,
+                userId = result.userId,
+                accessToken = result.accessToken,
             )
-        )
-        return server
+
+            serverDao.deactivateAll()
+            serverDao.upsert(
+                ServerEntity(
+                    id = server.id,
+                    name = server.name,
+                    url = server.url,
+                    userId = server.userId,
+                    accessToken = server.accessToken,
+                    isActive = true,
+                    lastConnected = System.currentTimeMillis(),
+                )
+            )
+            MellowResult.Success(server)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
-    override suspend fun getServers(): List<Server> =
-        serverDao.getServers().map { it.toModel() }
+    override suspend fun getServers(): MellowResult<List<Server>> =
+        try {
+            MellowResult.Success(serverDao.getServers().map { it.toModel() })
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
 
     suspend fun getActiveServer(): Server? =
         serverDao.getActiveServer()?.toModel()
@@ -69,28 +78,58 @@ class UserRepositoryImpl @Inject constructor(
         return true
     }
 
-    override suspend fun setFavorite(itemId: String, isFavorite: Boolean) {
-        val server = serverDao.getActiveServer() ?: return
-        jellyfinDataSource.setFavorite(
-            userId = UUID.fromString(server.userId),
-            itemId = UUID.fromString(itemId),
-            isFavorite = isFavorite,
-        )
-        trackDao.setFavorite(itemId, isFavorite)
-        albumDao.setFavorite(itemId, isFavorite)
-        artistDao.setFavorite(itemId, isFavorite)
+    override suspend fun setFavorite(itemId: String, isFavorite: Boolean): MellowResult<Unit> {
+        return try {
+            val server = serverDao.getActiveServer()
+                ?: return MellowResult.Error(IllegalStateException("No active server"))
+            jellyfinDataSource.setFavorite(
+                userId = UUID.fromString(server.userId),
+                itemId = UUID.fromString(itemId),
+                isFavorite = isFavorite,
+            )
+            trackDao.setFavorite(itemId, isFavorite)
+            albumDao.setFavorite(itemId, isFavorite)
+            artistDao.setFavorite(itemId, isFavorite)
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
-    override suspend fun reportPlaybackStarted(itemId: String) {
-        jellyfinDataSource.reportPlaybackStarted(UUID.fromString(itemId))
+    override suspend fun reportPlaybackStarted(itemId: String): MellowResult<Unit> {
+        return try {
+            jellyfinDataSource.reportPlaybackStarted(UUID.fromString(itemId))
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
-    override suspend fun reportPlaybackProgress(itemId: String, positionMs: Long) {
-        jellyfinDataSource.reportPlaybackProgress(UUID.fromString(itemId), positionMs * 10_000)
+    override suspend fun reportPlaybackProgress(itemId: String, positionMs: Long): MellowResult<Unit> {
+        return try {
+            jellyfinDataSource.reportPlaybackProgress(UUID.fromString(itemId), positionMs * 10_000)
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
-    override suspend fun reportPlaybackStopped(itemId: String, positionMs: Long) {
-        jellyfinDataSource.reportPlaybackStopped(UUID.fromString(itemId), positionMs * 10_000)
+    override suspend fun reportPlaybackStopped(itemId: String, positionMs: Long): MellowResult<Unit> {
+        return try {
+            jellyfinDataSource.reportPlaybackStopped(UUID.fromString(itemId), positionMs * 10_000)
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+    }
+
+    override suspend fun logout(): MellowResult<Unit> {
+        return try {
+            serverDao.deactivateAll()
+            MellowResult.Success(Unit)
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
     }
 
     private fun ServerEntity.toModel() = Server(

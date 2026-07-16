@@ -3,6 +3,7 @@ package dev.mellow.feature.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
@@ -52,25 +53,43 @@ class LibraryViewModel @Inject constructor(
         loadedServerId = serverId
 
         libraryRepository.getAlbums(serverId)
-            .onEach { albums ->
-                unfilteredAlbums = albums
-                emitFiltered()
+            .onEach { result ->
+                when (result) {
+                    is MellowResult.Success -> {
+                        unfilteredAlbums = result.data
+                        emitFiltered()
+                    }
+                    is MellowResult.Error -> _uiState.value = _uiState.value.copy(error = result.exception.message, isLoading = false)
+                    else -> {}
+                }
             }
             .catch { e -> _uiState.value = _uiState.value.copy(error = e.message, isLoading = false) }
             .launchIn(viewModelScope)
 
         libraryRepository.getArtists(serverId)
-            .onEach { artists ->
-                unfilteredArtists = artists
-                emitFiltered()
+            .onEach { result ->
+                when (result) {
+                    is MellowResult.Success -> {
+                        unfilteredArtists = result.data
+                        emitFiltered()
+                    }
+                    is MellowResult.Error -> _uiState.value = _uiState.value.copy(error = result.exception.message, isLoading = false)
+                    else -> {}
+                }
             }
             .catch { e -> _uiState.value = _uiState.value.copy(error = e.message, isLoading = false) }
             .launchIn(viewModelScope)
 
         libraryRepository.getRecentTracks(serverId)
-            .onEach { tracks ->
-                unfilteredTracks = tracks
-                emitFiltered()
+            .onEach { result ->
+                when (result) {
+                    is MellowResult.Success -> {
+                        unfilteredTracks = result.data
+                        emitFiltered()
+                    }
+                    is MellowResult.Error -> _uiState.value = _uiState.value.copy(error = result.exception.message, isLoading = false)
+                    else -> {}
+                }
             }
             .catch { e -> _uiState.value = _uiState.value.copy(error = e.message, isLoading = false) }
             .launchIn(viewModelScope)
@@ -95,9 +114,12 @@ class LibraryViewModel @Inject constructor(
             )
             return
         }
-        val dlAlbumIds = cachedDlAlbumIds ?: downloadRepository.getDownloadedAlbumIds().also { cachedDlAlbumIds = it }
-        val dlArtistNames = cachedDlArtistNames ?: downloadRepository.getDownloadedArtistNames().also { cachedDlArtistNames = it }
-        val dlTrackIds = cachedDlTrackIds ?: downloadRepository.getDownloadedTrackIds().also { cachedDlTrackIds = it }
+        val dlAlbumIds = cachedDlAlbumIds
+            ?: ((downloadRepository.getDownloadedAlbumIds() as? MellowResult.Success)?.data ?: emptySet()).also { cachedDlAlbumIds = it }
+        val dlArtistNames = cachedDlArtistNames
+            ?: ((downloadRepository.getDownloadedArtistNames() as? MellowResult.Success)?.data ?: emptySet()).also { cachedDlArtistNames = it }
+        val dlTrackIds = cachedDlTrackIds
+            ?: ((downloadRepository.getDownloadedTrackIds() as? MellowResult.Success)?.data ?: emptySet()).also { cachedDlTrackIds = it }
         _uiState.value = _uiState.value.copy(
             albums = unfilteredAlbums.filter { it.id in dlAlbumIds },
             artists = unfilteredArtists.filter { it.name in dlArtistNames },

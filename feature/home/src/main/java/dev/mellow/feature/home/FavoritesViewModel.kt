@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,7 +61,10 @@ class FavoritesViewModel @Inject constructor(
             libraryRepository.getFavoriteTracks(serverId),
             libraryRepository.getFavoriteAlbums(serverId),
             libraryRepository.getFavoriteArtists(serverId),
-        ) { tracks, albums, artists ->
+        ) { tracksResult, albumsResult, artistsResult ->
+            val tracks = (tracksResult as? MellowResult.Success)?.data ?: emptyList()
+            val albums = (albumsResult as? MellowResult.Success)?.data ?: emptyList()
+            val artists = (artistsResult as? MellowResult.Success)?.data ?: emptyList()
             unfilteredFavTracks = tracks
             unfilteredFavAlbums = albums
             unfilteredFavArtists = artists
@@ -102,9 +106,18 @@ class FavoritesViewModel @Inject constructor(
             )
             return
         }
-        val dlAlbumIds = cachedDlAlbumIds ?: downloadRepository.getDownloadedAlbumIds().also { cachedDlAlbumIds = it }
-        val dlArtistNames = cachedDlArtistNames ?: downloadRepository.getDownloadedArtistNames().also { cachedDlArtistNames = it }
-        val dlTrackIds = cachedDlTrackIds ?: downloadRepository.getDownloadedTrackIds().also { cachedDlTrackIds = it }
+        val dlAlbumIds = cachedDlAlbumIds ?: run {
+            ((downloadRepository.getDownloadedAlbumIds() as? MellowResult.Success)?.data ?: emptySet())
+                .also { cachedDlAlbumIds = it }
+        }
+        val dlArtistNames = cachedDlArtistNames ?: run {
+            ((downloadRepository.getDownloadedArtistNames() as? MellowResult.Success)?.data ?: emptySet())
+                .also { cachedDlArtistNames = it }
+        }
+        val dlTrackIds = cachedDlTrackIds ?: run {
+            ((downloadRepository.getDownloadedTrackIds() as? MellowResult.Success)?.data ?: emptySet())
+                .also { cachedDlTrackIds = it }
+        }
         _uiState.value = FavoritesUiState(
             tracks = unfilteredFavTracks.filter { it.id in dlTrackIds },
             albums = unfilteredFavAlbums.filter { it.id in dlAlbumIds },

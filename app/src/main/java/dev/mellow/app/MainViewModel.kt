@@ -3,6 +3,7 @@ package dev.mellow.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.preferences.DisplayPreferences
 import dev.mellow.core.data.preferences.SyncPreferences
@@ -128,6 +129,15 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun logout() {
+        viewModelScope.launch {
+            userRepository.logout()
+            _serverId.value = null
+            _serverUrl.value = null
+            _authState.value = AuthState.LOGGED_OUT
+        }
+    }
+
     fun syncNow() {
         val id = _serverId.value ?: return
         syncScheduler.syncNow(id)
@@ -162,9 +172,14 @@ class MainViewModel @Inject constructor(
     fun startMix(trackId: String) {
         viewModelScope.launch {
             val serverId = _serverId.value ?: return@launch
-            val tracks = libraryRepository.getInstantMix(serverId, trackId)
-            if (tracks.isNotEmpty()) {
-                player.playTracks(tracks)
+            when (val result = libraryRepository.getInstantMix(serverId, trackId)) {
+                is MellowResult.Success -> {
+                    if (result.data.isNotEmpty()) {
+                        player.playTracks(result.data)
+                    }
+                }
+                is MellowResult.Error -> {}
+                is MellowResult.Loading -> {}
             }
         }
     }

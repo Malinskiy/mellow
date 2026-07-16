@@ -78,11 +78,14 @@ fun SettingsScreen(
     lowPowerMode: Boolean = false,
     onLowPowerModeChange: (Boolean) -> Unit = {},
     onDevToolsClick: () -> Unit = {},
+    onLicensesClick: () -> Unit = {},
+    onLogout: () -> Unit = {},
 ) {
     var showIntervalPicker by remember { mutableStateOf(false) }
     var showQualityPicker by remember { mutableStateOf(false) }
     var showStorageCapPicker by remember { mutableStateOf(false) }
     var showClearConfirmation by remember { mutableStateOf(false) }
+    var showLogoutConfirmation by remember { mutableStateOf(false) }
 
     if (showIntervalPicker) {
         SyncIntervalPickerDialog(
@@ -125,6 +128,13 @@ fun SettingsScreen(
         )
     }
 
+    if (showLogoutConfirmation) {
+        LogoutConfirmationDialog(
+            onConfirm = onLogout,
+            onDismiss = { showLogoutConfirmation = false },
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -162,13 +172,9 @@ fun SettingsScreen(
 
         SettingsSection("Server")
         SettingsRow(PhosphorIcons.HardDrives, "Jellyfin Server", serverUrl.ifEmpty { "Not connected" })
-        HorizontalDivider(color = MellowTheme.colors.border)
-
-        SettingsSection("Playback")
-        SettingsRow(PhosphorIcons.PlayCircle, "Audio Quality", "Original / FLAC")
-        SettingsRow(PhosphorIcons.PlayCircle, "Transcoding", "When needed · 320 kbps")
-        SettingsRow(PhosphorIcons.PlayCircle, "Gapless Playback", "Enabled")
-        SettingsRow(PhosphorIcons.PlayCircle, "ReplayGain", "Album mode")
+        if (serverUrl.isNotEmpty()) {
+            LogoutRow(onClick = { showLogoutConfirmation = true })
+        }
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Downloads & Offline")
@@ -206,8 +212,6 @@ fun SettingsScreen(
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("Appearance")
-        SettingsRow(PhosphorIcons.Palette, "Theme", "Dark")
-        SettingsRow(PhosphorIcons.Palette, "Dynamic Colors", "From album art")
         SettingsToggleRow(
             icon = PhosphorIcons.Palette,
             title = "Low Power Mode",
@@ -215,11 +219,6 @@ fun SettingsScreen(
             checked = lowPowerMode,
             onCheckedChange = onLowPowerModeChange,
         )
-        HorizontalDivider(color = MellowTheme.colors.border)
-
-        SettingsSection("Android Auto")
-        SettingsRow(PhosphorIcons.Car, "Content Tabs", "Recent, Albums, Artists, Playlists")
-        SettingsRow(PhosphorIcons.Car, "Grid Size", "Large artwork")
         HorizontalDivider(color = MellowTheme.colors.border)
 
         SettingsSection("About")
@@ -233,7 +232,7 @@ fun SettingsScreen(
                 Toast.makeText(context, "Developer mode enabled", Toast.LENGTH_SHORT).show()
             }
         })
-        SettingsRow(PhosphorIcons.Info, "Licenses", "")
+        SettingsRow(PhosphorIcons.Info, "Licenses", "", onClick = onLicensesClick)
         if (showDevTools) {
             SettingsRow(PhosphorIcons.Info, "Dev Tools", "Icon comparison", onClick = onDevToolsClick)
         }
@@ -290,6 +289,51 @@ private fun StorageBar(usedBytes: Long, capBytes: Long) {
             trackColor = MellowTheme.colors.surface,
         )
     }
+}
+
+@Composable
+private fun LogoutRow(onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
+    ) {
+        Icon(
+            PhosphorIcons.SignOut,
+            null,
+            tint = MellowPalette.Red500,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            "Log Out",
+            style = MaterialTheme.typography.titleMedium,
+            color = MellowPalette.Red500,
+            modifier = Modifier.padding(horizontal = MellowSpacing.Sp3),
+        )
+    }
+}
+
+@Composable
+private fun LogoutConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Log Out") },
+        text = { Text("You will be disconnected from this server. Your downloaded music and library data will be kept.") },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm()
+                onDismiss()
+            }) { Text("Log Out", color = MellowPalette.Red500) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable
@@ -616,13 +660,13 @@ private fun SettingsRow(
     icon: ImageVector,
     title: String,
     value: String,
-    onClick: () -> Unit = {},
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
         Icon(icon, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(22.dp))
@@ -636,7 +680,9 @@ private fun SettingsRow(
                 Text(value, style = MaterialTheme.typography.bodySmall, color = MellowTheme.colors.muted)
             }
         }
-        Icon(PhosphorIcons.CaretRight, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
+        if (onClick != null) {
+            Icon(PhosphorIcons.CaretRight, null, tint = MellowTheme.colors.muted, modifier = Modifier.size(20.dp))
+        }
     }
 }
 

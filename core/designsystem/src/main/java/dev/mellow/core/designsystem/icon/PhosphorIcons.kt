@@ -1,3 +1,8 @@
+/*
+ * Icon paths from Phosphor Icons (https://phosphoricons.com)
+ * Copyright (c) 2023 Phosphor Icons — MIT License
+ * https://github.com/phosphor-icons/core/blob/main/LICENSE
+ */
 package dev.mellow.core.designsystem.icon
 
 import androidx.compose.ui.graphics.Color
@@ -226,6 +231,11 @@ object PhosphorIcons {
     val ShareNetwork: ImageVector = phosphorIcon(
         "ShareNetwork",
         "M176,160a39.89,39.89,0,0,0-28.62,12.09l-46.1-29.63a39.8,39.8,0,0,0,0-28.92l46.1-29.63a40,40,0,1,0-8.66-13.45l-46.1,29.63a40,40,0,1,0,0,55.82l46.1,29.63A40,40,0,1,0,176,160Zm0-128a24,24,0,1,1-24,24A24,24,0,0,1,176,32ZM64,152a24,24,0,1,1,24-24A24,24,0,0,1,64,152Zm112,72a24,24,0,1,1,24-24A24,24,0,0,1,176,224Z",
+    )
+
+    val SignOut: ImageVector = phosphorIcon(
+        "SignOut",
+        "M120,216a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H56V208h56A8,8,0,0,1,120,216Zm109.66-93.66-40-40a8,8,0,0,0-11.32,11.32L204.69,120H112a8,8,0,0,0,0,16h92.69l-26.35,26.34a8,8,0,0,0,11.32,11.32l40-40A8,8,0,0,0,229.66,122.34Z",
     )
 
     val Shuffle: ImageVector = phosphorIcon(

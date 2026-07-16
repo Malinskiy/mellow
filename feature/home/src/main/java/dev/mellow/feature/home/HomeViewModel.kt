@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.model.Album
+import dev.mellow.core.common.MellowResult
 import dev.mellow.core.model.Track
 import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,7 +69,13 @@ class HomeViewModel @Inject constructor(
             libraryRepository.getRecentlyPlayedAlbums(serverId),
             libraryRepository.getMostPlayedAlbums(serverId),
             libraryRepository.getFavoriteAlbums(serverId),
-        ) { albums, favTracks, recentlyPlayedAlbums, mostPlayedAlbums, favoriteAlbums ->
+        ) { albumsResult, favTracksResult, recentlyPlayedResult, mostPlayedResult, favoriteAlbumsResult ->
+            val albums = (albumsResult as? MellowResult.Success)?.data ?: emptyList()
+            val favTracks = (favTracksResult as? MellowResult.Success)?.data ?: emptyList()
+            val recentlyPlayedAlbums = (recentlyPlayedResult as? MellowResult.Success)?.data ?: emptyList()
+            val mostPlayedAlbums = (mostPlayedResult as? MellowResult.Success)?.data ?: emptyList()
+            val favoriteAlbums = (favoriteAlbumsResult as? MellowResult.Success)?.data ?: emptyList()
+
             val recentlyAdded = albums
                 .sortedByDescending { it.dateAdded }
                 .take(20)
@@ -145,8 +152,14 @@ class HomeViewModel @Inject constructor(
         val state = unfilteredHome
         if (state.isLoading) { _uiState.value = state; return }
         if (!_downloadedOnly.value) { _uiState.value = state; return }
-        val dlAlbumIds = cachedDlAlbumIds ?: downloadRepository.getDownloadedAlbumIds().also { cachedDlAlbumIds = it }
-        val dlTrackIds = cachedDlTrackIds ?: downloadRepository.getDownloadedTrackIds().also { cachedDlTrackIds = it }
+        val dlAlbumIds = cachedDlAlbumIds ?: run {
+            ((downloadRepository.getDownloadedAlbumIds() as? MellowResult.Success)?.data ?: emptySet())
+                .also { cachedDlAlbumIds = it }
+        }
+        val dlTrackIds = cachedDlTrackIds ?: run {
+            ((downloadRepository.getDownloadedTrackIds() as? MellowResult.Success)?.data ?: emptySet())
+                .also { cachedDlTrackIds = it }
+        }
         _uiState.value = state.copy(
             quickPicks = state.quickPicks.filter { it.id in dlAlbumIds },
             recentlyPlayed = state.recentlyPlayed.filter { it.id in dlAlbumIds },
