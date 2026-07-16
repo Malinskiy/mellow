@@ -35,6 +35,17 @@ object ScreenshotData {
         HomeAlbumItem("a12", "The Slow Rush", "Tame Impala", "a12"),
     )
 
+    val recentlyAddedAlbums = listOf(
+        HomeAlbumItem("ra1", "Funeral", "Arcade Fire", "ra1"),
+        HomeAlbumItem("ra2", "Sound of Silver", "LCD Soundsystem", "ra2"),
+        HomeAlbumItem("ra3", "For Emma, Forever Ago", "Bon Iver", "ra3"),
+        HomeAlbumItem("ra4", "Yankee Hotel Foxtrot", "Wilco", "ra4"),
+        HomeAlbumItem("ra5", "Is This It", "The Strokes", "ra5"),
+        HomeAlbumItem("ra6", "Turn on the Bright Lights", "Interpol", "ra6"),
+        HomeAlbumItem("ra7", "The Suburbs", "Arcade Fire", "ra7"),
+        HomeAlbumItem("ra8", "Merriweather Post Pavilion", "Animal Collective", "ra8"),
+    )
+
     val homeTracks = listOf(
         HomeTrackItem("t1", "Everything In Its Right Place", "Radiohead", "Kid A", "4:11", "a3", "a3"),
         HomeTrackItem("t2", "Let Down", "Radiohead", "OK Computer", "4:59", "a1", "a1"),

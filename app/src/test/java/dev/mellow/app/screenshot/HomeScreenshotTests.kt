@@ -17,8 +17,8 @@ abstract class HomeScreenshotTests : ScreenshotCapture() {
     fun homePopulated() = capture("home-populated") {
         HomeScreen(
             quickPicks = ScreenshotData.homeAlbums.take(6),
-            recentlyPlayed = ScreenshotData.homeAlbums.drop(6),
-            recentlyAdded = ScreenshotData.homeAlbums.take(4),
+            recentlyPlayed = ScreenshotData.homeAlbums.drop(6).take(4),
+            recentlyAdded = ScreenshotData.recentlyAddedAlbums,
             favoriteTracks = ScreenshotData.homeTracks,
             genres = ScreenshotData.genres,
         )
