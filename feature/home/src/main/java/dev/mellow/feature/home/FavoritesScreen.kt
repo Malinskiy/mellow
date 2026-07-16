@@ -184,6 +184,7 @@ fun FavoritesScreen(
                                         jellyfinImageUrl(serverUrl, album.imageId!!)
                                     } else null,
                                     onClick = { onAlbumClick(album.id) },
+                                    sharedElementKey = "album_art_favorites_${album.id}",
                                 )
                             }
                         }

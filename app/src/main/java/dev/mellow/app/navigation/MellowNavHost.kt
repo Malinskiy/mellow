@@ -558,6 +558,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable(MellowNavDestination.Favorites.route) {
+                    CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val favVm: FavoritesViewModel = hiltViewModel()
                     val favState by favVm.uiState.collectAsState()
                     val effectiveFavFilter by mainViewModel.downloadedOnly.collectAsState()
@@ -568,7 +569,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         serverUrl = serverUrl,
                         isConnected = connectionState is ConnectionState.Connected,
                         isServerUnreachable = connectionState is ConnectionState.ServerUnreachable,
-                        onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
+                        onAlbumClick = { albumId -> navController.navigate("album/$albumId?source=favorites") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                         onSettingsClick = { navController.navigate("settings") },
                         onTrackClick = { trackId ->
@@ -591,6 +592,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             }
                         },
                     )
+                    }
                 }
                 composable(
                     "settings",
