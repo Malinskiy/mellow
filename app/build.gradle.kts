@@ -4,6 +4,10 @@ import java.io.FileInputStream
 import java.util.Properties
 import java.util.regex.Pattern
 
+fun gitDescribe(): String = providers.exec {
+    commandLine("git", "describe", "--tags", "--always", "--dirty")
+}.standardOutput.asText.get().trim()
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -21,8 +25,8 @@ android {
         applicationId = "com.malinskiy.mellow"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = (System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1)
+        versionName = (System.getenv("VERSION_NAME") ?: gitDescribe())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
