@@ -43,6 +43,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: write
     steps:
