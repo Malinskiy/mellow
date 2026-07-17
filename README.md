@@ -31,13 +31,21 @@ Every open-source Jellyfin music client I've tried has the same gaps: background
 
 Mellow was developed and tested using [Emu](https://emu.marathonlabs.io/?utm_source=github&utm_medium=mellow&utm_campaign=emu-dogfooding), an Android emulator companion tool.
 
-<video src="docs/emu-demo.mp4" autoplay muted loop playsinline width="720"></video>
+<p align="center">
+  <a href="https://blog.marathonlabs.io/blog/dogfooding-emu-building-mellow/">
+    <img src="docs/emu-poster.png" width="720" alt="Mellow running in Emu — click for demo video" />
+  </a>
+</p>
 
-[Try Emu →](https://emu.marathonlabs.io/?utm_source=github&utm_medium=mellow&utm_campaign=emu-dogfooding)
+▶️ [Watch the demo](https://blog.marathonlabs.io/blog/dogfooding-emu-building-mellow/) · [Try Emu](https://emu.marathonlabs.io/?utm_source=github&utm_medium=mellow&utm_campaign=emu-dogfooding)
 
 Emu provides device mirroring, MCP tools for automation, Android Auto projection, battery/network mocking, and quality video recording — all of which were used daily while building this app.
 
-<video src="docs/aa-demo.mp4" autoplay muted loop playsinline width="720"></video>
+<p align="center">
+  <a href="https://blog.marathonlabs.io/blog/dogfooding-emu-building-mellow/">
+    <img src="docs/aa-poster.png" width="720" alt="Mellow Android Auto in Emu — click for demo video" />
+  </a>
+</p>
 
 The Android Auto implementation was tested entirely through Emu's built-in AA projection (no DHU or real car needed). Offline mode was verified by toggling network profiles. Battery-aware animations were tested by setting battery level to any value on demand. [See the full demo videos in the blog post.](https://blog.marathonlabs.io/blog/dogfooding-emu-building-mellow/)
 
