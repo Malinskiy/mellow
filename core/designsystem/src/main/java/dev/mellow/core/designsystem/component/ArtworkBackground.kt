@@ -103,7 +103,10 @@ fun ArtworkBackground(
             }
             resolvedMode == BackgroundMode.Blur && imageUrl != null -> {
                 AsyncImage(
-                    model = imageUrl,
+                    model = coil3.request.ImageRequest.Builder(
+                        androidx.compose.ui.platform.LocalContext.current,
+                    ).data(imageUrl).memoryCacheKey(imageUrl)
+                        .placeholderMemoryCacheKey(imageUrl).build(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

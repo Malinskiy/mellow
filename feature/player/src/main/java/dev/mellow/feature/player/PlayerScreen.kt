@@ -53,6 +53,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -138,7 +140,10 @@ fun PlayerScreen(
                                 .padding(horizontal = MellowSpacing.Sp8),
                         ) {
                             AsyncImage(
-                                model = albumImageUrl,
+                                model = albumImageUrl?.let {
+                                    ImageRequest.Builder(LocalContext.current).data(it)
+                                        .memoryCacheKey(it).placeholderMemoryCacheKey(it).build()
+                                },
                                 contentDescription = "Album art",
                                 contentScale = ContentScale.Crop,
                                 modifier = artModifier
@@ -183,7 +188,10 @@ fun PlayerScreen(
                         ) {
                             NowPlayingCollapseButton(onCollapse)
                             AsyncImage(
-                                model = albumImageUrl,
+                                model = albumImageUrl?.let {
+                                    ImageRequest.Builder(LocalContext.current).data(it)
+                                        .memoryCacheKey(it).placeholderMemoryCacheKey(it).build()
+                                },
                                 contentDescription = "Album art",
                                 contentScale = ContentScale.Crop,
                                 modifier = artModifier
@@ -408,7 +416,10 @@ private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, artModifier: 
             .padding(horizontal = MellowSpacing.Sp8),
     ) {
         AsyncImage(
-            model = albumImageUrl,
+            model = albumImageUrl?.let {
+                ImageRequest.Builder(LocalContext.current).data(it)
+                    .memoryCacheKey(it).placeholderMemoryCacheKey(it).build()
+            },
             contentDescription = "Album art",
             contentScale = ContentScale.Crop,
             modifier = artModifier

@@ -248,7 +248,11 @@ private fun LyricsTopBar(
 
         if (albumImageUrl != null) {
             AsyncImage(
-                model = albumImageUrl,
+                model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                    .data(albumImageUrl)
+                    .memoryCacheKey(albumImageUrl)
+                    .placeholderMemoryCacheKey(albumImageUrl)
+                    .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
