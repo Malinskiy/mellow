@@ -405,6 +405,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onGenreClick = { genre ->
                             navController.navigate("library?genre=${android.net.Uri.encode(genre)}")
                         },
+                        isLoading = homeState.isLoading,
                     )
                     }
                 }
