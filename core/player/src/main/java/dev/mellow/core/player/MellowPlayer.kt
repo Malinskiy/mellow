@@ -249,6 +249,54 @@ class MellowPlayer @Inject constructor(
         }
     }
 
+    private fun updateStateFromMediaItem(mediaItem: MediaItem, idx: Int) {
+        val meta = mediaItem.mediaMetadata
+        val placeholder = Track(
+            id = mediaItem.mediaId,
+            name = meta.title?.toString() ?: "",
+            albumId = null,
+            albumName = meta.albumTitle?.toString(),
+            artistId = null,
+            artistName = meta.artist?.toString(),
+            trackNumber = meta.trackNumber,
+            discNumber = meta.discNumber,
+            duration = Duration.ZERO,
+            genres = emptyList(),
+            imageId = null,
+            isFavorite = false,
+            playCount = 0,
+            lastPlayedAt = 0L,
+            normalizationGain = null,
+        )
+        _state.value = _state.value.copy(
+            currentTrack = placeholder,
+            currentIndex = idx,
+            error = null,
+        )
+        positionUpdateCount = 0
+    }
+
+    private fun rebuildQueueFromController(ctrl: MediaController, idx: Int) {
+        val mediaIds = (0 until ctrl.mediaItemCount).map { i ->
+            ctrl.getMediaItemAt(i).mediaId
+        }
+        reportingScope.launch {
+            val newQueue = mediaIds.mapNotNull { id ->
+                trackDao.getTrackById(id)?.toModel()
+            }
+            currentQueue = newQueue
+            val resolved = newQueue.getOrNull(idx)
+            if (resolved != null) {
+                _state.value = _state.value.copy(
+                    currentTrack = resolved,
+                    currentIndex = idx,
+                    queue = newQueue,
+                )
+                playbackReporter.reportStarted(resolved.id)
+            }
+        }
+    }
+
     private fun Track.toMediaItem(): MediaItem {
         val streamUri = Uri.parse(jellyfinStreamUrl(serverUrl, id, apiKey))
         val artItemId = albumId ?: id
@@ -295,25 +343,8 @@ class MellowPlayer @Inject constructor(
                 positionUpdateCount = 0
                 reportingScope.launch { playbackReporter.reportStarted(track.id) }
             } else if (mediaItem != null) {
-                val mediaIds = (0 until ctrl.mediaItemCount).map { i ->
-                    ctrl.getMediaItemAt(i).mediaId
-                }
-                reportingScope.launch {
-                    val newQueue = mediaIds.mapNotNull { id ->
-                        trackDao.getTrackById(id)?.toModel()
-                    }
-                    currentQueue = newQueue
-                    val resolved = newQueue.getOrNull(idx)
-                    _state.value = _state.value.copy(
-                        currentTrack = resolved,
-                        currentIndex = idx,
-                        queue = newQueue,
-                        error = null,
-                    )
-                    if (resolved != null) {
-                        playbackReporter.reportStarted(resolved.id)
-                    }
-                }
+                updateStateFromMediaItem(mediaItem, idx)
+                rebuildQueueFromController(ctrl, idx)
             }
         }
 
