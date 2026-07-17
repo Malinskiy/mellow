@@ -94,6 +94,7 @@ fun HomeScreen(
     onTrackMenuClick: (String) -> Unit = {},
     onGenreClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
@@ -117,7 +118,9 @@ fun HomeScreen(
     ) { contentPadding ->
         val toolbarTopPadding = contentPadding.calculateTopPadding()
         val isEmpty = quickPicks.isEmpty() && recentlyPlayed.isEmpty() && recentlyAdded.isEmpty() && favoriteTracks.isEmpty() && genres.isEmpty()
-        if (isEmpty) {
+        if (isLoading) {
+            dev.mellow.core.designsystem.component.LoadingContent()
+        } else if (isEmpty) {
             dev.mellow.core.designsystem.component.EmptyContent("Add music to your Jellyfin library to get started")
         } else {
         LazyColumn(

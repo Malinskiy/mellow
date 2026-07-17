@@ -17,6 +17,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 
 @Stable
@@ -80,7 +82,8 @@ fun CollapsibleToolbarLayout(
             modifier = Modifier
                 .fillMaxWidth()
                 .onSizeChanged { state.heightPx = it.height.toFloat() }
-                .graphicsLayer { translationY = state.offsetY },
+                .graphicsLayer { translationY = state.offsetY }
+                .pointerInput(Unit) { detectTapGestures {} },
         ) {
             toolbar()
         }
