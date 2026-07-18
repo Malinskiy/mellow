@@ -8,7 +8,9 @@
         android:pivotX="223.5"
         android:pivotY="223.5"
         android:scaleX="0.65"
-        android:scaleY="0.65">
+        android:scaleY="0.65"
+        android:translateX="6.8"
+        android:translateY="-9.8">
     <group
         android:translateX="0"
         android:translateY="447"
