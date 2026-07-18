@@ -76,6 +76,7 @@ fun SettingsScreen(
     onClearAllDownloads: () -> Unit = {},
     lowPowerMode: Boolean = false,
     onLowPowerModeChange: (Boolean) -> Unit = {},
+    appVersion: String = "",
     onDevToolsClick: () -> Unit = {},
     onLicensesClick: () -> Unit = {},
     onLogout: () -> Unit = {},
@@ -217,7 +218,7 @@ fun SettingsScreen(
         var devTapCount by remember { mutableIntStateOf(0) }
         var showDevTools by remember { mutableStateOf(false) }
         val context = LocalContext.current
-        SettingsRow(PhosphorIcons.Info, "Version", "0.1.0", onClick = {
+        SettingsRow(PhosphorIcons.Info, "Version", appVersion, onClick = {
             devTapCount++
             if (devTapCount >= 7 && !showDevTools) {
                 showDevTools = true

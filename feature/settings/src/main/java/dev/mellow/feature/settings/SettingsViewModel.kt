@@ -13,12 +13,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import javax.inject.Named
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val downloadPreferences: DownloadPreferences,
     private val displayPreferences: DisplayPreferences,
     private val downloadRepository: DownloadRepository,
+    @Named("appVersion") val appVersion: String,
 ) : ViewModel() {
 
     val lowPowerMode: StateFlow<Boolean> = displayPreferences.lowPowerMode

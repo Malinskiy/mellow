@@ -10,12 +10,14 @@ import org.jellyfin.sdk.model.ClientInfo
 import org.jellyfin.sdk.model.DeviceInfo
 import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Singleton
 class JellyfinClientWrapper @Inject constructor(
     @ApplicationContext private val context: Context,
     private val networkPreferences: NetworkPreferences,
+    @Named("appVersion") private val appVersion: String,
 ) {
     private var _api: ApiClient? = null
     val api: ApiClient get() = requireNotNull(_api) { "API client not initialized. Call connect() first." }
@@ -24,7 +26,7 @@ class JellyfinClientWrapper @Inject constructor(
         val okHttpClient = createOkHttpClient(networkPreferences.isTrustSelfSignedSync())
         val factory = OkHttpFactory(okHttpClient)
         return createJellyfin {
-            clientInfo = ClientInfo("Mellow", "0.1.0")
+            clientInfo = ClientInfo("Mellow", appVersion)
             this.context = this@JellyfinClientWrapper.context
             apiClientFactory = factory
             socketConnectionFactory = factory

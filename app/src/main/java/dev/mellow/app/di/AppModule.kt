@@ -7,8 +7,10 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.mellow.app.BuildConfig
 import dev.mellow.core.common.DownloadExecutor
 import dev.mellow.core.player.download.MellowDownloadManager
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -18,6 +20,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideContext(@ApplicationContext context: Context): Context = context
+
+    @Provides
+    @Named("appVersion")
+    fun provideAppVersion(): String = BuildConfig.VERSION_NAME
 }
 
 @Module
