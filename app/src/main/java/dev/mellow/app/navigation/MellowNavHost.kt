@@ -621,6 +621,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     val lowPowerMode by settingsVm.lowPowerMode.collectAsState()
 
                     SettingsScreen(
+                        appVersion = settingsVm.appVersion,
                         onBack = { navController.popBackStack() },
                         serverUrl = serverUrl ?: "",
                         connectionState = connectionState,
