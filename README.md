@@ -63,6 +63,17 @@ Hilt · Room · Coil · WorkManager · jellyfin-sdk-kotlin
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Android Auto
+
+Since Mellow is installed outside the Play Store, you need to enable unknown sources in Android Auto:
+
+1. Open the **Android Auto** app on your phone
+2. Tap **Settings** → scroll to **Version** → tap it **10 times** to enable developer mode
+3. Tap the **⋮** overflow menu (top-right) → **Developer settings**
+4. Enable **Unknown sources**
+
+Without this, Android Auto will not show sideloaded apps in the car display.
+
 ## Screenshot tests
 
 168 screenshot test cases across 4 device configurations (Pixel 10 portrait/landscape, Pixel Tablet portrait/landscape). Run via Robolectric with native graphics rendering:
