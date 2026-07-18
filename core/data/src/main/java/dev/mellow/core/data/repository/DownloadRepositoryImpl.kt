@@ -97,7 +97,7 @@ class DownloadRepositoryImpl @Inject constructor(
                 lastSynced = System.currentTimeMillis(),
             )
             downloadDao.upsert(entity)
-            downloadExecutor.startDownload(track.id, server.url, server.accessToken)
+            downloadExecutor.startDownload(track.id, server.url, server.accessToken, quality)
             MellowResult.Success(Unit)
         } catch (e: Exception) {
             MellowResult.Error(e)
@@ -132,7 +132,7 @@ class DownloadRepositoryImpl @Inject constructor(
             }
             downloadDao.upsertAll(entities)
             tracks.forEach { track ->
-                downloadExecutor.startDownload(track.id, server.url, server.accessToken)
+                downloadExecutor.startDownload(track.id, server.url, server.accessToken, quality)
             }
             MellowResult.Success(Unit)
         } catch (e: Exception) {

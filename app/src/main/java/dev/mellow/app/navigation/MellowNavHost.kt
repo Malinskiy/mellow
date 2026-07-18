@@ -1184,7 +1184,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         sheetState.collapse()
                         navController.navigate(MellowNavDestination.Library.route)
                     },
-                    codec = track.codec,
+                    codec = playbackState.playbackCodec ?: track.codec,
                     sidePanelContent = {
                         val pState = playbackState
                         val currentIdx = pState.currentIndex

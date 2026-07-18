@@ -150,10 +150,10 @@ class MellowDownloadManager @Inject constructor(
         )
     }
 
-    override fun startDownload(trackId: String, serverUrl: String, apiKey: String) {
+    override fun startDownload(trackId: String, serverUrl: String, apiKey: String, quality: String) {
         // Ensure DownloadManager is initialized and listening
         downloadManager
-        val uri = Uri.parse(jellyfinStreamUrl(serverUrl, trackId, apiKey))
+        val uri = Uri.parse(jellyfinStreamUrl(serverUrl, trackId, apiKey, quality))
         val request = DownloadRequest.Builder(trackId, uri)
             .setCustomCacheKey(trackId)
             .build()

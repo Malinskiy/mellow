@@ -10,6 +10,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkStateObserver
 import androidx.media3.session.MediaController
@@ -46,6 +47,7 @@ data class PlaybackState(
     val error: String? = null,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = 0,
+    val playbackCodec: String? = null,
 )
 
 data class PositionState(
@@ -381,6 +383,15 @@ class MellowPlayer @Inject constructor(
             }
         }
 
+        override fun onTracksChanged(tracks: Tracks) {
+            val codec = tracks.groups
+                .flatMap { group -> (0 until group.length).map { group.getTrackFormat(it) } }
+                .firstOrNull { it.sampleMimeType?.startsWith("audio/") == true }
+                ?.sampleMimeType
+                ?.let { mimeToCodec(it) }
+            _state.value = _state.value.copy(playbackCodec = codec)
+        }
+
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             _state.value = _state.value.copy(shuffleEnabled = shuffleModeEnabled)
         }
@@ -442,6 +453,16 @@ class MellowPlayer @Inject constructor(
         controller?.removeListener(playerListener)
         controller?.release()
         controller = null
+    }
+
+    private fun mimeToCodec(mime: String): String = when (mime) {
+        "audio/mpeg" -> "mp3"
+        "audio/flac" -> "flac"
+        "audio/opus" -> "opus"
+        "audio/mp4a-latm" -> "aac"
+        "audio/vorbis" -> "vorbis"
+        "audio/raw" -> "pcm"
+        else -> mime.removePrefix("audio/")
     }
 
     companion object {
