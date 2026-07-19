@@ -56,7 +56,15 @@ Kotlin · Jetpack Compose · Material 3 · Media3 (ExoPlayer)
 Hilt · Room · Coil · WorkManager · jellyfin-sdk-kotlin
 ```
 
-## Build
+## Install
+
+Download the latest APK from [GitHub Releases](https://github.com/Malinskiy/mellow/releases/latest):
+
+1. Download `app-release.apk` from the latest release
+2. Transfer the APK to your Android device (or download directly on device)
+3. Open the APK and install — you may need to allow installation from unknown sources in your device settings
+
+## Build from source
 
 ```bash
 ./gradlew assembleDebug
