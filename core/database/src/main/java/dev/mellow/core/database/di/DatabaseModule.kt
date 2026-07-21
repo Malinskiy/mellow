@@ -30,6 +30,7 @@ object DatabaseModule {
                 Migrations.MIGRATION_5_6,
                 Migrations.MIGRATION_6_7,
                 Migrations.MIGRATION_7_8,
+                Migrations.MIGRATION_8_9,
             )
             .build()
 
@@ -41,6 +42,9 @@ object DatabaseModule {
 
     @Provides
     fun provideArtistDao(db: MellowDatabase) = db.artistDao()
+
+    @Provides
+    fun provideArtistAliasDao(db: MellowDatabase) = db.artistAliasDao()
 
     @Provides
     fun provideTrackDao(db: MellowDatabase) = db.trackDao()

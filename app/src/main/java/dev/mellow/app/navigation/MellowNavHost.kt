@@ -77,7 +77,6 @@ import androidx.navigation.navArgument
 import dev.mellow.app.AuthState
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
-import dev.mellow.core.data.repository.LibraryRepositoryImpl
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.MellowBottomNavBar
@@ -234,7 +233,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 artist = track.artistName ?: "",
                 album = track.albumName ?: "",
                 albumId = track.albumId,
-                artistId = track.artistId,
+                artistId = track.resolvedArtistId ?: track.artistId,
                             imageUrl = if (serverUrl != null) {
                                 val imgId = track.imageId ?: track.albumId
                                 if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
@@ -440,7 +439,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         if (serverId.isNotEmpty()) libraryVm.loadLibrary(serverId)
                     }
 
-                    val albumCountByArtist = state.albums.groupingBy { it.artistName ?: "" }.eachCount()
+                    val albumCountByArtist = state.albums.groupingBy { it.resolvedArtistId ?: it.artistId ?: "" }.eachCount()
 
                     val filteredAlbums = remember(state.albums, selectedGenre) {
                         if (selectedGenre != null) {
@@ -466,9 +465,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             else -> state.artists
                         }
                         sorted.map { artist ->
-                            val count = albumCountByArtist[artist.name]
-                                ?: albumCountByArtist[LibraryRepositoryImpl.artistNameVariant(artist.name)]
-                                ?: 0
+                            val count = albumCountByArtist[artist.id] ?: 0
                             ArtistItem(artist.id, artist.name, count, artist.imageId)
                         }
                     }
@@ -866,7 +863,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             albumState.tracks.forEach { mainViewModel.player.addToQueue(it) }
                         },
                         onGoToArtist = {
-                            val artist = albumState.album?.artistId
+                            val artist = albumState.album?.resolvedArtistId ?: albumState.album?.artistId
                             if (artist != null) navController.navigate("artist/$artist")
                         },
                     )

@@ -68,7 +68,7 @@ class ArtistDetailViewModel @Inject constructor(
                 .mapNotNull { (it as? MellowResult.Success)?.data }
                 .first()
 
-            libraryRepository.getArtistAlbums(artist.name)
+            libraryRepository.getArtistAlbumsById(artist.id)
                 .onEach { result ->
                     when (result) {
                         is MellowResult.Success -> _uiState.value = _uiState.value.copy(albums = result.data)
@@ -77,7 +77,7 @@ class ArtistDetailViewModel @Inject constructor(
                 }
                 .launchIn(viewModelScope)
 
-            libraryRepository.getArtistTracks(artist.name)
+            libraryRepository.getArtistTracksById(artist.id)
                 .onEach { result ->
                     when (result) {
                         is MellowResult.Success -> _uiState.value = _uiState.value.copy(topTracks = result.data)
@@ -86,7 +86,7 @@ class ArtistDetailViewModel @Inject constructor(
                 }
                 .launchIn(viewModelScope)
 
-            when (val trackCountResult = libraryRepository.countArtistTracks(artist.name)) {
+            when (val trackCountResult = libraryRepository.countArtistTracksById(artist.id)) {
                 is MellowResult.Success -> _uiState.value = _uiState.value.copy(totalTrackCount = trackCountResult.data)
                 else -> {}
             }

@@ -11,14 +11,14 @@ interface LibraryRepository {
     fun getAlbums(serverId: String): Flow<MellowResult<List<Album>>>
     fun getArtists(serverId: String): Flow<MellowResult<List<Artist>>>
     fun getAlbumTracks(albumId: String): Flow<MellowResult<List<Track>>>
-    fun getArtistAlbums(artistName: String): Flow<MellowResult<List<Album>>>
+    fun getArtistAlbumsById(artistId: String): Flow<MellowResult<List<Album>>>
     suspend fun getAlbum(albumId: String): MellowResult<Album?>
     fun observeAlbum(albumId: String): Flow<MellowResult<Album?>>
     suspend fun getArtist(artistId: String): MellowResult<Artist?>
     fun observeArtist(artistId: String): Flow<MellowResult<Artist?>>
-    fun getArtistTracks(artistName: String): Flow<MellowResult<List<Track>>>
-    suspend fun countArtistAlbums(artistName: String): MellowResult<Int>
-    suspend fun countArtistTracks(artistName: String): MellowResult<Int>
+    fun getArtistTracksById(artistId: String): Flow<MellowResult<List<Track>>>
+    suspend fun countArtistAlbumsById(artistId: String): MellowResult<Int>
+    suspend fun countArtistTracksById(artistId: String): MellowResult<Int>
     fun getRecentTracks(serverId: String): Flow<MellowResult<List<Track>>>
     suspend fun search(serverId: String, query: String): MellowResult<List<Track>>
     suspend fun searchAlbums(serverId: String, query: String): MellowResult<List<Album>>

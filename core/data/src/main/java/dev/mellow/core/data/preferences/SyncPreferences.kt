@@ -105,8 +105,8 @@ class SyncPreferences @Inject constructor(
         private val TRACK_REVISION = intPreferencesKey("track_data_revision")
         const val DEFAULT_SYNC_INTERVAL_HOURS = 6
         // bump per-table when its mapper logic changes to force full re-sync for that table only
-        const val CURRENT_ALBUM_REVISION = 2
-        const val CURRENT_ARTIST_REVISION = 0
-        const val CURRENT_TRACK_REVISION = 0
+        const val CURRENT_ALBUM_REVISION = 3
+        const val CURRENT_ARTIST_REVISION = 2
+        const val CURRENT_TRACK_REVISION = 1
     }
 }
