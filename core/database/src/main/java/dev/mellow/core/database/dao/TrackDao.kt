@@ -37,6 +37,22 @@ interface TrackDao {
     @Upsert
     suspend fun upsertTracks(tracks: List<TrackEntity>)
 
+    @Query("""
+        UPDATE tracks SET artistId = (
+            SELECT ar.id FROM artists ar
+            WHERE ar.name = tracks.artistName AND ar.serverId = tracks.serverId
+            LIMIT 1
+        )
+        WHERE serverId = :serverId
+        AND artistName IS NOT NULL
+        AND artistId != (
+            SELECT ar2.id FROM artists ar2
+            WHERE ar2.name = tracks.artistName AND ar2.serverId = tracks.serverId
+            LIMIT 1
+        )
+    """)
+    suspend fun resolveArtistIds(serverId: String)
+
     @Query("UPDATE tracks SET isFavorite = :isFavorite WHERE id = :trackId")
     suspend fun setFavorite(trackId: String, isFavorite: Boolean)
 

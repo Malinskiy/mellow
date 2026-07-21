@@ -10,13 +10,12 @@ abstract class HomeScreenshotTests : ScreenshotCapture() {
 
     @Test
     fun homeEmpty() = capture("home-empty") {
-        HomeScreen(windowWidthClass = windowWidthClass)
+        HomeScreen()
     }
 
     @Test
     fun homePopulated() = capture("home-populated") {
         HomeScreen(
-            windowWidthClass = windowWidthClass,
             quickPicks = ScreenshotData.homeAlbums.take(6),
             recentlyPlayed = ScreenshotData.homeAlbums.drop(6).take(4),
             recentlyAdded = ScreenshotData.recentlyAddedAlbums,

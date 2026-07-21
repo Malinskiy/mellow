@@ -40,6 +40,22 @@ interface AlbumDao {
     @Upsert
     suspend fun upsertAlbums(albums: List<AlbumEntity>)
 
+    @Query("""
+        UPDATE albums SET artistId = (
+            SELECT ar.id FROM artists ar
+            WHERE ar.name = albums.artistName AND ar.serverId = albums.serverId
+            LIMIT 1
+        )
+        WHERE serverId = :serverId
+        AND artistName IS NOT NULL
+        AND artistId != (
+            SELECT ar2.id FROM artists ar2
+            WHERE ar2.name = albums.artistName AND ar2.serverId = albums.serverId
+            LIMIT 1
+        )
+    """)
+    suspend fun resolveArtistIds(serverId: String)
+
     @Query("UPDATE albums SET isFavorite = :isFavorite WHERE id = :albumId")
     suspend fun setFavorite(albumId: String, isFavorite: Boolean)
 

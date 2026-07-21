@@ -104,6 +104,7 @@ class LibraryRepositoryImpl @Inject constructor(
             .map { MellowResult.Success(it?.toModel()) as MellowResult<Artist?> }
             .catch { emit(MellowResult.Error(it)) }
 
+
     override fun getArtistTracks(artistName: String): Flow<MellowResult<List<Track>>> =
         trackDao.getTracksByArtistName(artistName, artistNameVariant(artistName))
             .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
@@ -272,15 +273,31 @@ class LibraryRepositoryImpl @Inject constructor(
                 Log.d(TAG, "First sync — full")
                 fullSync(serverId, userId, onProgress)
             } else {
-                Log.d(TAG, "Incremental sync since ${Instant.ofEpochMilli(lastSyncMs)}")
-                incrementalSync(serverId, userId, lastSyncMs, onProgress)
+                val albumsOutdated = syncPreferences.albumRevision.first() < SyncPreferences.CURRENT_ALBUM_REVISION
+                val artistsOutdated = syncPreferences.artistRevision.first() < SyncPreferences.CURRENT_ARTIST_REVISION
+                val tracksOutdated = syncPreferences.trackRevision.first() < SyncPreferences.CURRENT_TRACK_REVISION
+
+                if (albumsOutdated || artistsOutdated || tracksOutdated) {
+                    Log.d(TAG, "Data revision outdated (albums=$albumsOutdated, artists=$artistsOutdated, tracks=$tracksOutdated)")
+                }
+
+                val since = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastSyncMs), ZoneOffset.UTC)
+                if (albumsOutdated) syncAllAlbums(serverId, userId, onProgress) else syncAlbumsIncremental(serverId, userId, since, onProgress)
+                if (artistsOutdated) syncAllArtists(serverId, userId, onProgress) else syncArtistsIncremental(serverId, userId, since, onProgress)
+                if (tracksOutdated) syncAllTracks(serverId, userId, onProgress) else syncTracksIncremental(serverId, userId, since, onProgress)
             }
+
+            albumDao.resolveArtistIds(serverId)
+            trackDao.resolveArtistIds(serverId)
 
             onProgress(SyncProgress("favorites", 0, 0))
             syncFavoritesDiff(serverId, userId)
             syncRecentlyPlayed(serverId, userId)
 
             syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
+            syncPreferences.setAlbumRevision(SyncPreferences.CURRENT_ALBUM_REVISION)
+            syncPreferences.setArtistRevision(SyncPreferences.CURRENT_ARTIST_REVISION)
+            syncPreferences.setTrackRevision(SyncPreferences.CURRENT_TRACK_REVISION)
             syncPreferences.incrementSyncCount()
             MellowResult.Success(Unit)
         } catch (e: Exception) {
@@ -337,18 +354,6 @@ class LibraryRepositoryImpl @Inject constructor(
         syncAllTracks(serverId, userId, onProgress)
     }
 
-    private suspend fun incrementalSync(
-        serverId: String,
-        userId: UUID,
-        lastSyncMs: Long,
-        onProgress: (SyncProgress) -> Unit,
-    ) {
-        val since = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastSyncMs), ZoneOffset.UTC)
-
-        syncAlbumsIncremental(serverId, userId, since, onProgress)
-        syncArtistsIncremental(serverId, userId, since, onProgress)
-        syncTracksIncremental(serverId, userId, since, onProgress)
-    }
 
     private suspend fun syncAlbumsIncremental(
         serverId: String,
