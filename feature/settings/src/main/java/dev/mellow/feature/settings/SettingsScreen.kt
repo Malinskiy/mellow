@@ -280,6 +280,8 @@ private fun StorageBar(usedBytes: Long, capBytes: Long) {
                 .clip(MellowShapes.Full),
             color = MellowTheme.colors.accentStrong,
             trackColor = MellowTheme.colors.surface,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
         )
     }
 }

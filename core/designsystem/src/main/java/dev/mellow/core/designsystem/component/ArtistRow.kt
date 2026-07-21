@@ -31,6 +31,7 @@ fun ArtistRow(
     imageUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showChevron: Boolean = true,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -78,11 +79,13 @@ fun ArtistRow(
             )
         }
 
-        Icon(
-            imageVector = PhosphorIcons.CaretRight,
-            contentDescription = null,
-            tint = MellowTheme.colors.muted,
-            modifier = Modifier.size(20.dp),
-        )
+        if (showChevron) {
+            Icon(
+                imageVector = PhosphorIcons.CaretRight,
+                contentDescription = null,
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }

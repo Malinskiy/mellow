@@ -197,7 +197,7 @@ fun FavoritesContent(
                             key = { it.id },
                             contentPadding = PaddingValues(top = topPadding),
                             modifier = Modifier.fillMaxSize(),
-                        ) { _, track ->
+                        ) { _, track, _ ->
                             TrackRow(
                                 title = track.name,
                                 subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
@@ -218,7 +218,7 @@ fun FavoritesContent(
                     if (albums.isEmpty()) {
                         EmptyContent("No favorite albums yet")
                     } else {
-                        val albumGridMinSize = if (isExpanded) 220.dp else 160.dp
+                        val albumGridMinSize = if (isExpanded) 180.dp else 160.dp
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = albumGridMinSize),
                             contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
@@ -244,20 +244,22 @@ fun FavoritesContent(
                     if (artists.isEmpty()) {
                         EmptyContent("No favorite artists yet")
                     } else {
-                        LazyColumn(
+                        AdaptiveTrackGrid(
+                            items = artists,
+                            key = { it.id },
                             contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
                             modifier = Modifier.fillMaxSize(),
-                        ) {
-                            itemsIndexed(artists, key = { _, a -> a.id }) { _, artist ->
-                                ArtistRow(
-                                    name = artist.name,
-                                    albumCount = artist.albumCount,
-                                    imageUrl = if (serverUrl != null && artist.imageId != null) {
-                                        jellyfinImageUrl(serverUrl, artist.imageId!!)
-                                    } else null,
-                                    onClick = { onArtistClick(artist.id) },
-                                )
-                            }
+                            columnFirst = false,
+                        ) { _, artist, columns ->
+                            ArtistRow(
+                                name = artist.name,
+                                albumCount = artist.albumCount,
+                                imageUrl = if (serverUrl != null && artist.imageId != null) {
+                                    jellyfinImageUrl(serverUrl, artist.imageId!!)
+                                } else null,
+                                onClick = { onArtistClick(artist.id) },
+                                showChevron = columns == 1,
+                            )
                         }
                     }
                 }

@@ -393,19 +393,22 @@ private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbum
 
 @Composable
 private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit, topPadding: Dp = 0.dp) {
-    LazyColumn(
+    AdaptiveTrackGrid(
+        items = artists,
+        key = { it.id.ifEmpty { it.name } },
         contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
-    ) {
-        items(artists, key = { it.id.ifEmpty { it.name } }) { artist ->
-            ArtistRow(
-                name = artist.name,
-                albumCount = artist.albumCount,
-                imageUrl = if (serverUrl != null && artist.imageId != null) {
-                    jellyfinImageUrl(serverUrl, artist.imageId)
-                } else null,
-                onClick = { onArtistClick(artist.id) },
-            )
-        }
+        modifier = Modifier.fillMaxSize(),
+        columnFirst = false,
+    ) { _, artist, columns ->
+        ArtistRow(
+            name = artist.name,
+            albumCount = artist.albumCount,
+            imageUrl = if (serverUrl != null && artist.imageId != null) {
+                jellyfinImageUrl(serverUrl, artist.imageId)
+            } else null,
+            onClick = { onArtistClick(artist.id) },
+            showChevron = columns == 1,
+        )
     }
 }
 
@@ -422,7 +425,7 @@ private fun TracksPanel(
         key = { it.id },
         contentPadding = PaddingValues(top = topPadding),
         modifier = Modifier.fillMaxSize(),
-    ) { _, track ->
+    ) { _, track, _ ->
         TrackRow(
             title = track.title,
             subtitle = "${track.artist} · ${track.album}",
