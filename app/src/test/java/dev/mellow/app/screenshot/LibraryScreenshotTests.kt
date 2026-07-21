@@ -99,10 +99,11 @@ abstract class LibraryScreenshotTests : ScreenshotCapture() {
 
     @Test
     fun albumDetailSplitScreen() = capture("album-detail-split-screen") {
+        val paneWidth = if (windowWidthClass != WindowWidthClass.Compact) 420.dp else 200.dp
         AlbumDetailComponent(
             onBack = {},
             layout = AlbumDetailLayout.SplitScreen,
-            splitPaneWidth = 420.dp,
+            splitPaneWidth = paneWidth,
             albumName = "OK Computer",
             artistName = "Radiohead",
             year = 1997,
