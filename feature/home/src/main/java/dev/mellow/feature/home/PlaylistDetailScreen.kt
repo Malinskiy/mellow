@@ -134,7 +134,7 @@ fun PlaylistDetailScreen(
                     items = tracks,
                     key = { it.id },
                     contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
-                ) { _, track ->
+                ) { _, track, _ ->
                     TrackRow(
                         title = track.title,
                         subtitle = track.artistName,

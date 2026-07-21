@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -72,12 +73,10 @@ import dev.mellow.core.designsystem.component.TrackRow
 import androidx.compose.ui.text.style.TextOverflow
 import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
-import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
-import dev.mellow.core.designsystem.theme.WindowWidthClass
 import dev.mellow.core.model.AlbumDownloadState
 
 enum class TrackDownloadIndicator {
@@ -99,10 +98,23 @@ data class AlbumDetailTrack(
     val downloadProgress: Float = 0f,
 )
 
+enum class AlbumDetailLayout {
+    Stacked,
+    SplitScreen,
+}
+
+enum class DetailChrome {
+    FullScreen,
+    Pane,
+}
+
 @Composable
-fun AlbumDetailScreen(
+fun AlbumDetailComponent(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    layout: AlbumDetailLayout = AlbumDetailLayout.Stacked,
+    chrome: DetailChrome = DetailChrome.FullScreen,
+    splitPaneWidth: Dp = 420.dp,
     albumId: String = "",
     sharedElementSource: String = "library",
     albumName: String = "",
@@ -138,16 +150,15 @@ fun AlbumDetailScreen(
     val tracksLoading = tracks.isEmpty() && (isSyncing || expectedTrackCount > 0)
     val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
     val showDownloadIndicators = downloadStatus != AlbumDownloadState.Status.NONE
-    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
-    if (isExpanded) {
+    if (layout == AlbumDetailLayout.SplitScreen) {
+        val leftPaneModifier = Modifier.width(splitPaneWidth)
         Row(
             modifier = modifier
                 .fillMaxSize()
                 .background(MellowTheme.colors.background),
         ) {
             Box(
-                modifier = Modifier
-                    .width(420.dp)
+                modifier = leftPaneModifier
                     .fillMaxHeight(),
             ) {
                 ArtworkBackground(
@@ -163,7 +174,7 @@ fun AlbumDetailScreen(
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.statusBars),
                 ) {
-                    val isMedium = LocalWindowWidthClass.current == WindowWidthClass.Medium
+                    val isMedium = splitPaneWidth.value < 500f
                     val sharedTransitionScope = LocalSharedTransitionScope.current
                     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
                     val sharedElementKey = "album_art_${sharedElementSource}_$albumId"
@@ -307,12 +318,7 @@ fun AlbumDetailScreen(
                     }
                 }
             }
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .width(1.dp)
-                    .background(MellowTheme.colors.border)
-            )
+
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -391,7 +397,7 @@ fun AlbumDetailScreen(
                             key = { it.id },
                             contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
                             modifier = Modifier.weight(1f),
-                        ) { index, track ->
+                        ) { index, track, _ ->
                                 val isNotDownloadedOffline = isOffline &&
                                     showDownloadIndicators &&
                                     track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED

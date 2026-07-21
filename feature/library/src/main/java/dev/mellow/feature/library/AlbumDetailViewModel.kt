@@ -53,24 +53,36 @@ class AlbumDetailViewModel @Inject constructor(
     private val userRepository: UserRepositoryImpl,
 ) : ViewModel() {
 
-    private val albumId: String = savedStateHandle["albumId"] ?: ""
+    private val _albumId = MutableStateFlow(savedStateHandle.get<String>("albumId") ?: "")
+
+    fun setAlbumId(id: String) {
+        if (id.isNotEmpty() && id != _albumId.value) {
+            _uiState.value = AlbumDetailUiState()
+            _albumId.value = id
+        }
+    }
 
     private val _uiState = MutableStateFlow(AlbumDetailUiState())
     val uiState: StateFlow<AlbumDetailUiState> = _uiState.asStateFlow()
 
-    val albumDownloadState: StateFlow<AlbumDownloadState> =
-        downloadRepository.observeAlbumDownloads(albumId)
-            .map { result ->
-                when (result) {
-                    is MellowResult.Success -> result.data
-                    else -> AlbumDownloadState(albumId, 0, 0, 0L, 0L, AlbumDownloadState.Status.NONE)
+    val albumDownloadState: StateFlow<AlbumDownloadState> = _albumId
+        .flatMapLatest { id ->
+            if (id.isEmpty()) {
+                flowOf(AlbumDownloadState("", 0, 0, 0L, 0L, AlbumDownloadState.Status.NONE))
+            } else {
+                downloadRepository.observeAlbumDownloads(id).map { result ->
+                    when (result) {
+                        is MellowResult.Success -> result.data
+                        else -> AlbumDownloadState(id, 0, 0, 0L, 0L, AlbumDownloadState.Status.NONE)
+                    }
                 }
             }
-            .stateIn(
-                viewModelScope,
-                SharingStarted.WhileSubscribed(5_000),
-                AlbumDownloadState(albumId, 0, 0, 0L, 0L, AlbumDownloadState.Status.NONE),
-            )
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            AlbumDownloadState("", 0, 0, 0L, 0L, AlbumDownloadState.Status.NONE),
+        )
 
     private val _downloadEvents = Channel<AlbumDownloadEvent>(Channel.BUFFERED)
     val downloadEvents = _downloadEvents.receiveAsFlow()
@@ -100,13 +112,14 @@ class AlbumDetailViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     init {
-        loadAlbumDetail()
-    }
-
-    private fun loadAlbumDetail() {
-        libraryRepository.observeAlbum(albumId)
+        _albumId
+            .flatMapLatest { id ->
+                if (id.isEmpty()) flowOf(null)
+                else libraryRepository.observeAlbum(id)
+            }
             .onEach { result ->
                 when (result) {
+                    null -> {}
                     is MellowResult.Success -> {
                         val album = result.data
                         if (album != null) {
@@ -123,9 +136,14 @@ class AlbumDetailViewModel @Inject constructor(
             }
             .launchIn(viewModelScope)
 
-        libraryRepository.getAlbumTracks(albumId)
+        _albumId
+            .flatMapLatest { id ->
+                if (id.isEmpty()) flowOf(null)
+                else libraryRepository.getAlbumTracks(id)
+            }
             .onEach { result ->
                 when (result) {
+                    null -> _uiState.value = _uiState.value.copy(tracks = emptyList())
                     is MellowResult.Success -> _uiState.value = _uiState.value.copy(tracks = result.data)
                     else -> {}
                 }
@@ -150,7 +168,7 @@ class AlbumDetailViewModel @Inject constructor(
 
             val server = userRepository.getActiveServer() ?: return@launch
             val quality = downloadPreferences.downloadQuality.first()
-            downloadRepository.downloadAlbum(albumId, tracks, server.id, quality)
+            downloadRepository.downloadAlbum(_albumId.value, tracks, server.id, quality)
         }
     }
 
@@ -160,7 +178,7 @@ class AlbumDetailViewModel @Inject constructor(
             if (tracks.isEmpty()) return@launch
             val server = userRepository.getActiveServer() ?: return@launch
             val quality = downloadPreferences.downloadQuality.first()
-            downloadRepository.downloadAlbum(albumId, tracks, server.id, quality)
+            downloadRepository.downloadAlbum(_albumId.value, tracks, server.id, quality)
         }
     }
 
@@ -172,11 +190,16 @@ class AlbumDetailViewModel @Inject constructor(
 
     fun removeAlbumDownloads() {
         viewModelScope.launch {
-            downloadRepository.removeAlbumDownloads(albumId)
+            downloadRepository.removeAlbumDownloads(_albumId.value)
         }
     }
 
     fun retry() {
-        loadAlbumDetail()
+        val currentId = _albumId.value
+        if (currentId.isNotEmpty()) {
+            _uiState.value = AlbumDetailUiState()
+            _albumId.value = ""
+            _albumId.value = currentId
+        }
     }
 }

@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -60,26 +59,32 @@ import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
+import androidx.compose.ui.unit.Dp
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
-import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
-import dev.mellow.core.designsystem.theme.WindowWidthClass
 
 data class ArtistTrack(val id: String, val title: String, val duration: String, val albumName: String, val imageUrl: String? = null)
 
 data class ArtistAlbum(val id: String, val name: String, val year: Int?, val imageId: String?)
 
+enum class ArtistDetailLayout {
+    Stacked,
+    SplitScreen,
+}
+
 @Composable
 fun ArtistDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    layout: ArtistDetailLayout = ArtistDetailLayout.Stacked,
+    splitPaneWidth: Dp = 380.dp,
     artistName: String = "",
     artistImageUrl: String? = null,
     albumCount: Int = 0,
@@ -103,7 +108,6 @@ fun ArtistDetailScreen(
     onAddAllToQueue: () -> Unit = {},
 ) {
     var showMoreMenu by remember { mutableStateOf(false) }
-    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
     Box(
         modifier = modifier
@@ -114,9 +118,10 @@ fun ArtistDetailScreen(
             isLoading -> LoadingContent(message = "Loading artist…")
             error != null -> ErrorContent(message = error, onRetry = onRetry)
             else -> {
-                if (isExpanded) {
+                if (layout == ArtistDetailLayout.SplitScreen) {
                     ArtistDetailExpanded(
                         onBack = onBack,
+                        splitPaneWidth = splitPaneWidth,
                         artistName = artistName,
                         artistImageUrl = artistImageUrl,
                         albumCount = albumCount,
@@ -193,12 +198,15 @@ fun ArtistDetailScreen(
                                 SectionHeader("Discography", modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp4))
                             }
 
-                            item {
-                                LazyRow(
-                                    contentPadding = PaddingValues(horizontal = MellowSpacing.Sp4),
+                            items(albums.chunked(2), key = { it.first().id }) { row ->
+                                Row(
                                     horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                                    modifier = Modifier.padding(
+                                        horizontal = MellowSpacing.Sp4,
+                                        vertical = MellowSpacing.Sp2,
+                                    ),
                                 ) {
-                                    items(albums, key = { it.id }) { album ->
+                                    row.forEach { album ->
                                         AlbumCard(
                                             title = album.name,
                                             artist = album.year?.toString() ?: "",
@@ -206,9 +214,10 @@ fun ArtistDetailScreen(
                                                 jellyfinImageUrl(serverUrl, album.imageId)
                                             } else null,
                                             onClick = { onAlbumClick(album.id) },
-                                            modifier = Modifier.size(width = 150.dp, height = 200.dp),
+                                            modifier = Modifier.weight(1f),
                                         )
                                     }
+                                    if (row.size < 2) Spacer(Modifier.weight(1f))
                                 }
                             }
                         }
@@ -295,6 +304,7 @@ private val ARTIST_TABS = listOf("Top Tracks", "Discography")
 @Composable
 private fun ArtistDetailExpanded(
     onBack: () -> Unit,
+    splitPaneWidth: Dp,
     artistName: String,
     artistImageUrl: String?,
     albumCount: Int,
@@ -317,7 +327,7 @@ private fun ArtistDetailExpanded(
     Row(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
-                .width(380.dp)
+                .width(splitPaneWidth)
                 .fillMaxHeight(),
         ) {
             ArtworkBackground(
@@ -354,7 +364,7 @@ private fun ArtistDetailExpanded(
                     modifier = Modifier
                         .weight(1f)
                         .then(
-                            if (LocalWindowWidthClass.current == WindowWidthClass.Medium) {
+                            if (splitPaneWidth.value < 500f) {
                                 Modifier.padding(bottom = LocalMiniPlayerPadding.current)
                             } else {
                                 Modifier
@@ -423,13 +433,6 @@ private fun ArtistDetailExpanded(
             }
         }
 
-        Box(
-            Modifier
-                .fillMaxHeight()
-                .width(1.dp)
-                .background(MellowTheme.colors.border)
-        )
-
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -450,7 +453,7 @@ private fun ArtistDetailExpanded(
                         key = { it.id },
                         contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + LocalMiniPlayerPadding.current),
                         modifier = Modifier.fillMaxSize(),
-                    ) { index, track ->
+                    ) { index, track, _ ->
                         TrackRow(
                             title = track.title,
                             subtitle = track.albumName,
@@ -464,7 +467,6 @@ private fun ArtistDetailExpanded(
                     }
                 }
                 1 -> {
-                    // Discography grid
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(4),
                         contentPadding = PaddingValues(
@@ -484,8 +486,8 @@ private fun ArtistDetailExpanded(
                                     jellyfinImageUrl(serverUrl, album.imageId)
                                 } else null,
                                 onClick = { onAlbumClick(album.id) },
-                            )
-                        }
+                        )
+                    }
                     }
                 }
             }

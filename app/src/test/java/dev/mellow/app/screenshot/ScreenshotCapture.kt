@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import dev.mellow.core.designsystem.theme.FoldableState
+import dev.mellow.core.designsystem.theme.LocalFoldableState
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.designsystem.theme.WindowWidthClass
@@ -19,6 +21,7 @@ abstract class ScreenshotCapture {
 
     abstract val deviceFolder: String
     abstract val windowWidthClass: WindowWidthClass
+    open val foldableState: FoldableState = FoldableState()
 
     private val snapshotDir: File by lazy {
         var dir = File(System.getProperty("user.dir")!!)
@@ -30,7 +33,10 @@ abstract class ScreenshotCapture {
 
     protected fun capture(targetId: String, content: @Composable () -> Unit) {
         composeTestRule.setContent {
-            CompositionLocalProvider(LocalWindowWidthClass provides windowWidthClass) {
+            CompositionLocalProvider(
+                LocalWindowWidthClass provides windowWidthClass,
+                LocalFoldableState provides foldableState,
+            ) {
                 MellowTheme(darkTheme = true) {
                     content()
                 }
