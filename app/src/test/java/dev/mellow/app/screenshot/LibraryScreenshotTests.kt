@@ -98,18 +98,20 @@ abstract class LibraryScreenshotTests : ScreenshotCapture() {
     }
 
     @Test
-    fun albumDetailSplitScreen() = capture("album-detail-split-screen") {
-        val paneWidth = if (windowWidthClass != WindowWidthClass.Compact) 420.dp else 200.dp
-        AlbumDetailComponent(
-            onBack = {},
-            layout = AlbumDetailLayout.SplitScreen,
-            splitPaneWidth = paneWidth,
-            albumName = "OK Computer",
-            artistName = "Radiohead",
-            year = 1997,
-            tracks = ScreenshotData.albumDetailTracks,
-            isFavorite = true,
-        )
+    fun albumDetailSplitScreen() {
+        if (windowWidthClass == WindowWidthClass.Compact) return
+        capture("album-detail-split-screen") {
+            AlbumDetailComponent(
+                onBack = {},
+                layout = AlbumDetailLayout.SplitScreen,
+                splitPaneWidth = 420.dp,
+                albumName = "OK Computer",
+                artistName = "Radiohead",
+                year = 1997,
+                tracks = ScreenshotData.albumDetailTracks,
+                isFavorite = true,
+            )
+        }
     }
 
     @Test

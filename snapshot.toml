@@ -3,3 +3,80 @@ baselines = ".marathon-snapshots/baselines"
 current = ".marathon-snapshots/current"
 threshold = 0.01
 anti_aliasing = true
+path_template = "{platform}/{device}-{orientation}/{target}.png"
+
+[[snapshot.axes]]
+id = "platform"
+display = "Platform"
+
+[[snapshot.axes]]
+id = "device"
+display = "Device"
+
+[snapshot.axes.values.pixel10]
+display = "Pixel 10"
+group = "phone"
+
+[snapshot.axes.values.pixel-tablet]
+display = "Pixel Tablet"
+group = "tablet"
+
+[snapshot.axes.values.pixel10profold]
+display = "Pixel 10 Pro Fold"
+group = "foldable"
+
+[[snapshot.axes]]
+id = "orientation"
+display = "Orientation"
+
+[[snapshot.targets]]
+id = "player"
+display = "Player"
+
+[[snapshot.targets]]
+id = "library"
+display = "Library"
+
+[[snapshot.targets]]
+id = "album"
+display = "Album"
+
+[[snapshot.targets]]
+id = "artist"
+display = "Artist"
+
+[[snapshot.targets]]
+id = "home"
+display = "Home"
+
+[[snapshot.targets]]
+id = "favorites"
+display = "Favorites"
+
+[[snapshot.targets]]
+id = "playlist"
+display = "Playlist"
+
+[[snapshot.targets]]
+id = "playlists"
+display = "Playlists"
+
+[[snapshot.targets]]
+id = "search"
+display = "Search"
+
+[[snapshot.targets]]
+id = "settings"
+display = "Settings"
+
+[[snapshot.targets]]
+id = "login"
+display = "Login"
+
+[[snapshot.targets]]
+id = "lyrics"
+display = "Lyrics"
+
+[[snapshot.targets]]
+id = "queue"
+display = "Queue"

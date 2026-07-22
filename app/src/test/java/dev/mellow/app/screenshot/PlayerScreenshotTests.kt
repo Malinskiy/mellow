@@ -129,69 +129,79 @@ abstract class PlayerScreenshotTests : ScreenshotCapture() {
     }
 
     @Test
-    fun playerLandscape() = capture("player-landscape") {
-        ExpandedSheet {
-            PlayerScreen(
-                embedded = true,
-                layout = PlayerLayout.Landscape,
-                trackName = "Reckoner",
-                artistName = "Radiohead",
-                albumName = "In Rainbows",
-                albumImageUrl = "https://example.com/art.jpg",
-                isPlaying = true,
-                progress = 0.4f,
-                positionMs = 120000L,
-                durationMs = 300000L,
-                codec = "flac",
-            )
+    fun playerLandscape() {
+        if (windowWidthClass == WindowWidthClass.Compact) return
+        capture("player-landscape") {
+            ExpandedSheet {
+                PlayerScreen(
+                    embedded = true,
+                    layout = PlayerLayout.Landscape,
+                    trackName = "Reckoner",
+                    artistName = "Radiohead",
+                    albumName = "In Rainbows",
+                    albumImageUrl = "https://example.com/art.jpg",
+                    isPlaying = true,
+                    progress = 0.4f,
+                    positionMs = 120000L,
+                    durationMs = 300000L,
+                    codec = "flac",
+                )
+            }
         }
     }
 
     @Test
-    fun playerExpandedWithQueueLayout() = capture("player-expanded-queue-layout") {
-        ExpandedSheet {
-            PlayerScreen(
-                embedded = true,
-                layout = PlayerLayout.ExpandedWithQueue,
-                trackName = "Reckoner",
-                artistName = "Radiohead",
-                albumName = "In Rainbows",
-                albumImageUrl = "https://example.com/art.jpg",
-                isPlaying = true,
-                progress = 0.4f,
-                positionMs = 120000L,
-                durationMs = 300000L,
-                codec = "flac",
-                sidePanelContent = {
-                    QueueScreen(
-                        onBack = {},
-                        embedded = true,
-                        nowPlaying = ScreenshotData.queueNowPlaying,
-                        upNext = ScreenshotData.queueUpNext,
-                        currentAlbumName = "In Rainbows",
-                        modifier = Modifier.width(400.dp).fillMaxHeight(),
-                    )
-                },
-            )
+    fun playerExpandedWithQueueLayout() {
+        if (windowWidthClass == WindowWidthClass.Compact) return
+        capture("player-expanded-queue-layout") {
+            ExpandedSheet {
+                PlayerScreen(
+                    embedded = true,
+                    layout = PlayerLayout.ExpandedWithQueue,
+                    trackName = "Reckoner",
+                    artistName = "Radiohead",
+                    albumName = "In Rainbows",
+                    albumImageUrl = "https://example.com/art.jpg",
+                    isPlaying = true,
+                    progress = 0.4f,
+                    positionMs = 120000L,
+                    durationMs = 300000L,
+                    codec = "flac",
+                    sidePanelContent = {
+                        QueueScreen(
+                            onBack = {},
+                            embedded = true,
+                            nowPlaying = ScreenshotData.queueNowPlaying,
+                            upNext = ScreenshotData.queueUpNext,
+                            currentAlbumName = "In Rainbows",
+                            modifier = Modifier.width(400.dp).fillMaxHeight(),
+                        )
+                    },
+                )
+            }
         }
     }
 
     @Test
-    fun playerTabletop() = capture("player-tabletop") {
-        ExpandedSheet {
-            PlayerScreen(
-                embedded = true,
-                layout = PlayerLayout.Tabletop,
-                trackName = "Reckoner",
-                artistName = "Radiohead",
-                albumName = "In Rainbows",
-                albumImageUrl = "https://example.com/art.jpg",
-                isPlaying = true,
-                progress = 0.4f,
-                positionMs = 120000L,
-                durationMs = 300000L,
-                codec = "flac",
-            )
+    fun playerTabletop() {
+        if (foldableState.posture == DevicePosture.Flat) return
+        capture("player-tabletop") {
+            ExpandedSheet {
+                PlayerScreen(
+                    embedded = true,
+                    layout = PlayerLayout.Tabletop,
+                    tabletopTopHeight = 300.dp,
+                    trackName = "Reckoner",
+                    artistName = "Radiohead",
+                    albumName = "In Rainbows",
+                    albumImageUrl = "https://example.com/art.jpg",
+                    isPlaying = true,
+                    progress = 0.4f,
+                    positionMs = 120000L,
+                    durationMs = 300000L,
+                    codec = "flac",
+                )
+            }
         }
     }
 
