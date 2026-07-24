@@ -1,7 +1,9 @@
 package dev.mellow.app.navigation
 
 import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 
@@ -18,8 +20,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -330,12 +334,10 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
     Box(modifier = Modifier.weight(1f)) {
     Scaffold(
-        contentWindowInsets = when {
-            isFullScreen || (isExpanded && !useBottomNav) -> WindowInsets(0)
-            currentRoute in edgeToEdgeContentRoutes -> WindowInsets.systemBars.only(
-                WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal,
-            )
-            else -> WindowInsets.systemBars
+        contentWindowInsets = if (isFullScreen || (isExpanded && !useBottomNav)) {
+            WindowInsets(0)
+        } else {
+            WindowInsets.systemBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
         },
         containerColor = MellowTheme.colors.background,
         bottomBar = {
@@ -358,12 +360,18 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         },
         modifier = Modifier.fillMaxSize(),
     ) { innerPadding ->
+        val needsTopInset = !(isFullScreen || (isExpanded && !useBottomNav) || currentRoute in edgeToEdgeContentRoutes)
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val animatedTop by animateDpAsState(if (needsTopInset) statusBarTop else 0.dp, tween(300))
+
         @OptIn(ExperimentalSharedTransitionApi::class)
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(top = animatedTop)
                 .padding(innerPadding)
-                .consumeWindowInsets(innerPadding),
+                .consumeWindowInsets(innerPadding)
+                .consumeWindowInsets(PaddingValues(top = animatedTop)),
         ) {
             SharedTransitionLayout {
                 CompositionLocalProvider(LocalSharedTransitionScope provides this) {
