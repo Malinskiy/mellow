@@ -200,6 +200,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val context = LocalContext.current
 
     val fullScreenRoutes = setOf("now_playing", "queue", "lyrics")
+    val edgeToEdgeContentRoutes = setOf("album/{albumId}?source={source}")
     val isFullScreen = currentRoute in fullScreenRoutes
     val tabRoutes = MellowNavDestination.entries.map { it.route }.toSet()
     val baseRoute = currentRoute.substringBefore("?")
@@ -329,10 +330,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
     Box(modifier = Modifier.weight(1f)) {
     Scaffold(
-        contentWindowInsets = if (isFullScreen || (isExpanded && !useBottomNav)) {
-            WindowInsets(0)
-        } else {
-            WindowInsets.systemBars
+        contentWindowInsets = when {
+            isFullScreen || (isExpanded && !useBottomNav) -> WindowInsets(0)
+            currentRoute in edgeToEdgeContentRoutes -> WindowInsets.systemBars.only(
+                WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal,
+            )
+            else -> WindowInsets.systemBars
         },
         containerColor = MellowTheme.colors.background,
         bottomBar = {
