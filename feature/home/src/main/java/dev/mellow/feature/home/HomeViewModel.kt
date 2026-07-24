@@ -78,7 +78,7 @@ class HomeViewModel @Inject constructor(
 
             val recentlyAdded = albums
                 .sortedByDescending { it.dateAdded }
-                .take(20)
+                .take(12)
                 .map { it.toHomeAlbumItem() }
 
             val mostPlayedIds = mostPlayedAlbums.map { it.id }.toSet()

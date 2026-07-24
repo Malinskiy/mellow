@@ -28,6 +28,7 @@ data class TrackEntity(
     val bitrate: Int?,
     val sampleRate: Int?,
     val channels: Int?,
+    val resolvedArtistId: String?,
     val dateAdded: Long,
     val lastSynced: Long,
 )

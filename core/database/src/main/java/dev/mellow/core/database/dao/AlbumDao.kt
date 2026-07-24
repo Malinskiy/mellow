@@ -40,6 +40,40 @@ interface AlbumDao {
     @Upsert
     suspend fun upsertAlbums(albums: List<AlbumEntity>)
 
+    @Query("""
+        UPDATE albums SET artistId = (
+            SELECT ar.id FROM artists ar
+            WHERE ar.name = albums.artistName AND ar.serverId = albums.serverId
+            LIMIT 1
+        )
+        WHERE serverId = :serverId
+        AND artistName IS NOT NULL
+        AND artistId != (
+            SELECT ar2.id FROM artists ar2
+            WHERE ar2.name = albums.artistName AND ar2.serverId = albums.serverId
+            LIMIT 1
+        )
+    """)
+    suspend fun resolveArtistIds(serverId: String)
+
+    @Query("""
+        UPDATE albums SET resolvedArtistId = (
+            SELECT aa.canonicalArtistId FROM artist_aliases aa
+            WHERE aa.serverId = albums.serverId AND aa.rawArtistId = albums.artistId
+        )
+        WHERE serverId = :serverId AND artistId IS NOT NULL
+    """)
+    suspend fun resolveArtistAliases(serverId: String)
+
+    @Query("SELECT * FROM albums WHERE resolvedArtistId = :artistId ORDER BY year DESC")
+    fun getAlbumsByResolvedArtist(artistId: String): Flow<List<AlbumEntity>>
+
+    @Query("SELECT * FROM albums WHERE resolvedArtistId = :artistId ORDER BY year DESC")
+    suspend fun getAllAlbumsByResolvedArtist(artistId: String): List<AlbumEntity>
+
+    @Query("SELECT COUNT(*) FROM albums WHERE resolvedArtistId = :artistId")
+    suspend fun countAlbumsByResolvedArtist(artistId: String): Int
+
     @Query("UPDATE albums SET isFavorite = :isFavorite WHERE id = :albumId")
     suspend fun setFavorite(albumId: String, isFavorite: Boolean)
 

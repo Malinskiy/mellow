@@ -54,12 +54,11 @@ import dev.mellow.core.designsystem.component.ConnectionCloudIcon
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.model.Track
-import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
-import dev.mellow.core.designsystem.theme.WindowWidthClass
+import androidx.compose.ui.unit.Dp
 
 @Composable
 fun SearchScreen(
@@ -78,6 +77,8 @@ fun SearchScreen(
     onSettingsClick: () -> Unit = {},
     genres: List<String> = emptyList(),
     onGenreClick: (String) -> Unit = {},
+    isExpanded: Boolean = false,
+    hingeSplitWidth: Dp? = null,
 ) {
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -115,6 +116,8 @@ fun SearchScreen(
         onResultInteracted = viewModel::onResultInteracted,
         onDeleteRecentSearch = viewModel::onDeleteRecentSearch,
         onClearRecentSearches = viewModel::onClearRecentSearches,
+        isExpanded = isExpanded,
+        hingeSplitWidth = hingeSplitWidth,
         modifier = modifier,
     )
 }
@@ -147,9 +150,10 @@ fun SearchContent(
     onResultInteracted: () -> Unit = {},
     onDeleteRecentSearch: (String) -> Unit = {},
     onClearRecentSearches: () -> Unit = {},
+    isExpanded: Boolean = false,
+    hingeSplitWidth: Dp? = null,
     modifier: Modifier = Modifier,
 ) {
-    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
 
     Column(
         modifier = modifier
@@ -306,7 +310,12 @@ fun SearchContent(
             else -> {
                 if (isExpanded) {
                     Row(modifier = Modifier.fillMaxSize()) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        val leftModifier = if (hingeSplitWidth != null) {
+                            Modifier.width(hingeSplitWidth)
+                        } else {
+                            Modifier.weight(1f)
+                        }
+                        Column(modifier = leftModifier) {
                             RecentSearchesSection(
                                 recentSearches = recentSearches,
                                 onSearchClick = onQueryChanged,

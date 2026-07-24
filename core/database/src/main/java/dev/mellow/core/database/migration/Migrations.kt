@@ -5,6 +5,31 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 object Migrations {
 
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE artists ADD COLUMN cleanName TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE artists ADD COLUMN musicBrainzId TEXT")
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `artist_aliases` (
+                    `serverId` TEXT NOT NULL,
+                    `rawArtistId` TEXT NOT NULL,
+                    `canonicalArtistId` TEXT NOT NULL,
+                    `lastSynced` INTEGER NOT NULL,
+                    PRIMARY KEY(`serverId`, `rawArtistId`)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_artist_aliases_serverId_canonicalArtistId` ON `artist_aliases` (`serverId`, `canonicalArtistId`)",
+            )
+
+            db.execSQL("ALTER TABLE albums ADD COLUMN resolvedArtistId TEXT")
+            db.execSQL("ALTER TABLE tracks ADD COLUMN resolvedArtistId TEXT")
+        }
+    }
+
     val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(

@@ -141,6 +141,38 @@ gradle wrapper --gradle-version 8.12
    - All animated icons live in `core/designsystem/component/`: `AnimatedPlayPause.kt`, `AnimatedHeartIcon.kt`, `AnimatedDownloadIcon.kt`
    - Icon SVG paths rendered via `PathParser().parsePathString()` on Canvas — Phosphor 256x256 viewport
 
+### Route / ComponentGroup / Component Architecture (Adaptive UI)
+
+The UI layer uses a three-tier pattern for adaptive layouts across phone, tablet, and foldable devices:
+
+```
+Route → ComponentGroup → Component
+```
+
+1. **Route** — A navigation destination. Owns the ViewModel, collects state, handles nav events. Lives in `MellowNavHost.kt`.
+   - Example: `AlbumDetailRoute` navigates to album detail, creates `AlbumDetailViewModel`, collects state, passes to ComponentGroup.
+
+2. **ComponentGroup** — A layout composition of Components for a specific device class/posture. No ViewModel, no navigation — pure layout orchestration.
+   - Example: `AlbumDetailExpandedGroup` places album art/info in a left pane and track list in a right pane.
+   - ComponentGroups select which Components to show and in what arrangement (side-by-side, stacked, etc.).
+
+3. **Component** — A pure `@Composable` that renders a single UI concern. Accepts data + layout/chrome enums. No ViewModel, no nav, no device detection.
+   - Example: `AlbumDetailComponent(layout: AlbumDetailLayout, chrome: DetailChrome, album: Album, tracks: List<Track>, ...)`
+   - Layout enums: `AlbumDetailLayout.Stacked` / `SplitScreen` / `SplitPane`
+   - Chrome enums: `DetailChrome.FullScreen` / `Pane` / `Sheet`
+
+**Rules:**
+- Components NEVER call `hiltViewModel()`, access `NavController`, or read `LocalWindowWidthClass`/`LocalFoldableState`
+- ComponentGroups MAY read device state (`LocalWindowWidthClass`, `LocalFoldableState`) to select layout
+- Routes own the ViewModel lifecycle and provide data downward
+- Each Component is independently testable via screenshot tests at any resolution
+- ViewModels expose `setXxxId()` for embedded/pane usage where nav args aren't available (e.g., `AlbumDetailViewModel.setAlbumId()`)
+
+**Current migration status:**
+- `AlbumDetailViewModel` supports `setAlbumId()` for embedded pane usage (list-detail in Library)
+- `AlbumDetailComponent` extracted with `AlbumDetailLayout` and `DetailChrome` enums — no internal device detection
+- Target: every screen split into Route + ComponentGroup(s) + Component(s) with per-component screenshot tests
+
 ### Room Database
 
 1. **Entities**: 

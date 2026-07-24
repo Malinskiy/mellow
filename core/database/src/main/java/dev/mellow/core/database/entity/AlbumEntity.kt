@@ -17,6 +17,7 @@ data class AlbumEntity(
     val genres: List<String>,
     val imageTag: String?,
     val isFavorite: Boolean,
+    val resolvedArtistId: String?,
     val dateAdded: Long,
     val lastSynced: Long,
 )
