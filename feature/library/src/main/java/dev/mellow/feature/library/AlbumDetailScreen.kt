@@ -21,11 +21,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import dev.mellow.core.designsystem.icon.PhosphorIcons
@@ -41,6 +43,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,8 +52,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -72,12 +78,10 @@ import dev.mellow.core.designsystem.component.TrackRow
 import androidx.compose.ui.text.style.TextOverflow
 import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
-import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
-import dev.mellow.core.designsystem.theme.WindowWidthClass
 import dev.mellow.core.model.AlbumDownloadState
 
 enum class TrackDownloadIndicator {
@@ -99,10 +103,23 @@ data class AlbumDetailTrack(
     val downloadProgress: Float = 0f,
 )
 
+enum class AlbumDetailLayout {
+    Stacked,
+    SplitScreen,
+}
+
+enum class DetailChrome {
+    FullScreen,
+    Pane,
+}
+
 @Composable
-fun AlbumDetailScreen(
+fun AlbumDetailComponent(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    layout: AlbumDetailLayout = AlbumDetailLayout.Stacked,
+    chrome: DetailChrome = DetailChrome.FullScreen,
+    splitPaneWidth: Dp = 420.dp,
     albumId: String = "",
     sharedElementSource: String = "library",
     albumName: String = "",
@@ -138,16 +155,15 @@ fun AlbumDetailScreen(
     val tracksLoading = tracks.isEmpty() && (isSyncing || expectedTrackCount > 0)
     val displayTrackCount = if (tracks.isNotEmpty()) tracks.size else expectedTrackCount
     val showDownloadIndicators = downloadStatus != AlbumDownloadState.Status.NONE
-    val isExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
-    if (isExpanded) {
+    if (layout == AlbumDetailLayout.SplitScreen) {
+        val leftPaneModifier = Modifier.width(splitPaneWidth)
         Row(
             modifier = modifier
                 .fillMaxSize()
                 .background(MellowTheme.colors.background),
         ) {
             Box(
-                modifier = Modifier
-                    .width(420.dp)
+                modifier = leftPaneModifier
                     .fillMaxHeight(),
             ) {
                 ArtworkBackground(
@@ -163,7 +179,7 @@ fun AlbumDetailScreen(
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.statusBars),
                 ) {
-                    val isMedium = LocalWindowWidthClass.current == WindowWidthClass.Medium
+                    val isMedium = splitPaneWidth.value < 500f
                     val sharedTransitionScope = LocalSharedTransitionScope.current
                     val animatedVisibilityScope = LocalNavAnimatedVisibilityScope.current
                     val sharedElementKey = "album_art_${sharedElementSource}_$albumId"
@@ -307,12 +323,7 @@ fun AlbumDetailScreen(
                     }
                 }
             }
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .width(1.dp)
-                    .background(MellowTheme.colors.border)
-            )
+
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -391,7 +402,7 @@ fun AlbumDetailScreen(
                             key = { it.id },
                             contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
                             modifier = Modifier.weight(1f),
-                        ) { index, track ->
+                        ) { index, track, _ ->
                                 val isNotDownloadedOffline = isOffline &&
                                     showDownloadIndicators &&
                                     track.downloadIndicator != TrackDownloadIndicator.DOWNLOADED
@@ -437,33 +448,56 @@ fun AlbumDetailScreen(
                 .fillMaxSize()
                 .background(MellowTheme.colors.background),
         ) {
+            val lazyListState = rememberLazyListState()
+            var headerHeightPx by remember { mutableStateOf(0) }
+
             LazyColumn(
+                state = lazyListState,
                 contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + MellowSpacing.Sp16),
             ) {
-                item { AlbumDetailTopBar(onBack, onShare, onMore = { showMoreMenu = true }) }
                 item {
-                    AlbumHero(
-                        albumId = albumId,
-                        sharedElementSource = sharedElementSource,
-                        albumName = albumName,
-                        artistName = artistName,
-                        imageUrl = albumImageUrl,
-                        year = year,
-                        trackCount = displayTrackCount,
-                        totalDuration = formatTotalDuration(tracks),
-                        isFavorite = isFavorite,
-                        onPlayAll = onPlayAll,
-                        onShuffle = onShuffle,
-                        onFavoriteClick = onFavoriteClick,
-                        downloadStatus = downloadStatus,
-                        downloadProgress = downloadProgress,
-                        downloadedCount = downloadedCount,
-                        totalDownloadCount = totalDownloadCount,
-                        downloadInfoText = downloadInfoText,
-                        onDownloadClick = onDownloadClick,
-                        onRemoveDownloadsClick = onRemoveDownloadsClick,
-                        backgroundMode = BackgroundMode.Auto,
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { headerHeightPx = it.size.height },
+                    ) {
+                        ArtworkBackground(
+                            artworkKey = albumId,
+                            imageUrl = albumImageUrl,
+                            modifier = Modifier.matchParentSize(),
+                            mode = BackgroundMode.Auto,
+                            blurRadius = 60.dp,
+                            imageAlpha = 0.35f,
+                            overlayColors = emptyList(),
+                        )
+                        Column {
+                            Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+                            AlbumDetailTopBar(onBack, onShare, onMore = { showMoreMenu = true })
+                            AlbumHero(
+                                albumId = albumId,
+                                sharedElementSource = sharedElementSource,
+                                albumName = albumName,
+                                artistName = artistName,
+                                imageUrl = albumImageUrl,
+                                year = year,
+                                trackCount = displayTrackCount,
+                                totalDuration = formatTotalDuration(tracks),
+                                isFavorite = isFavorite,
+                                onPlayAll = onPlayAll,
+                                onShuffle = onShuffle,
+                                onFavoriteClick = onFavoriteClick,
+                                downloadStatus = downloadStatus,
+                                downloadProgress = downloadProgress,
+                                downloadedCount = downloadedCount,
+                                totalDownloadCount = totalDownloadCount,
+                                downloadInfoText = downloadInfoText,
+                                onDownloadClick = onDownloadClick,
+                                onRemoveDownloadsClick = onRemoveDownloadsClick,
+                                showBackground = false,
+                                backgroundMode = BackgroundMode.Auto,
+                            )
+                        }
+                    }
                 }
                 when {
                     isLoading -> {
@@ -559,6 +593,29 @@ fun AlbumDetailScreen(
                     }
                 }
             }
+
+            // Status bar scrim — fades to background color when header nearly scrolled off
+            val background = MellowTheme.colors.background
+            val statusBarPx = WindowInsets.statusBars.getTop(LocalDensity.current)
+            val scrimAlpha by remember {
+                derivedStateOf {
+                    when {
+                        lazyListState.firstVisibleItemIndex == 0 && headerHeightPx > 0 -> {
+                            val fadeStart = headerHeightPx - 2 * statusBarPx
+                            ((lazyListState.firstVisibleItemScrollOffset - fadeStart).toFloat() / statusBarPx)
+                                .coerceIn(0f, 1f)
+                        }
+                        lazyListState.firstVisibleItemIndex == 0 -> 0f
+                        else -> 1f
+                    }
+                }
+            }
+            Spacer(
+                Modifier
+                    .fillMaxWidth()
+                    .windowInsetsTopHeight(WindowInsets.statusBars)
+                    .background(background.copy(alpha = scrimAlpha)),
+            )
         }
     }
 

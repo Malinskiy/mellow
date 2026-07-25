@@ -125,7 +125,7 @@ fun HomeScreen(
         } else {
         LazyColumn(
             contentPadding = PaddingValues(
-                top = (toolbarTopPadding - MellowSpacing.Sp5).coerceAtLeast(0.dp),
+                top = toolbarTopPadding,
                 bottom = MellowSpacing.Sp8 + LocalMiniPlayerPadding.current,
             ),
             modifier = Modifier.fillMaxSize(),
@@ -250,7 +250,7 @@ fun HomeScreen(
                         items = favoriteTracks.take(5),
                         key = { it.id },
                         nested = true,
-                    ) { _, track ->
+                    ) { _, track, _ ->
                         TrackRow(
                             title = track.title,
                             subtitle = "${track.artist} · ${track.album}",

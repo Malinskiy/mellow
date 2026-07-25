@@ -37,6 +37,37 @@ interface TrackDao {
     @Upsert
     suspend fun upsertTracks(tracks: List<TrackEntity>)
 
+    @Query("""
+        UPDATE tracks SET artistId = (
+            SELECT ar.id FROM artists ar
+            WHERE ar.name = tracks.artistName AND ar.serverId = tracks.serverId
+            LIMIT 1
+        )
+        WHERE serverId = :serverId
+        AND artistName IS NOT NULL
+        AND artistId != (
+            SELECT ar2.id FROM artists ar2
+            WHERE ar2.name = tracks.artistName AND ar2.serverId = tracks.serverId
+            LIMIT 1
+        )
+    """)
+    suspend fun resolveArtistIds(serverId: String)
+
+    @Query("""
+        UPDATE tracks SET resolvedArtistId = (
+            SELECT aa.canonicalArtistId FROM artist_aliases aa
+            WHERE aa.serverId = tracks.serverId AND aa.rawArtistId = tracks.artistId
+        )
+        WHERE serverId = :serverId AND artistId IS NOT NULL
+    """)
+    suspend fun resolveArtistAliases(serverId: String)
+
+    @Query("SELECT * FROM tracks WHERE resolvedArtistId = :artistId ORDER BY playCount DESC LIMIT :limit")
+    fun getTracksByResolvedArtist(artistId: String, limit: Int = 20): Flow<List<TrackEntity>>
+
+    @Query("SELECT COUNT(*) FROM tracks WHERE resolvedArtistId = :artistId")
+    suspend fun countTracksByResolvedArtist(artistId: String): Int
+
     @Query("UPDATE tracks SET isFavorite = :isFavorite WHERE id = :trackId")
     suspend fun setFavorite(trackId: String, isFavorite: Boolean)
 

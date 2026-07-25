@@ -63,6 +63,9 @@ slf4j = "2.0.16"
 # Licenses
 aboutLibraries = "12.1.0"
 
+# Window (Foldable support)
+window = "1.4.0"
+
 # Tooling
 desugar-jdk = "2.1.5"
 reorderable = "3.1.0"
@@ -156,6 +159,9 @@ slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
 
 # Licenses
 aboutlibraries-core = { module = "com.mikepenz:aboutlibraries-core", version.ref = "aboutLibraries" }
+
+# Window
+androidx-window = { group = "androidx.window", name = "window", version.ref = "window" }
 
 # Tooling
 desugar-jdk = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar-jdk" }

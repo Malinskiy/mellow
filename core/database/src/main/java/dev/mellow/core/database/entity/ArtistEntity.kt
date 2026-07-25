@@ -14,5 +14,7 @@ data class ArtistEntity(
     val isFavorite: Boolean,
     val overview: String?,
     val genres: List<String>,
+    val cleanName: String,
+    val musicBrainzId: String?,
     val lastSynced: Long,
 )

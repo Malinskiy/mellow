@@ -10,6 +10,7 @@ data class Track(
     val albumId: String?,
     val albumName: String?,
     val artistId: String?,
+    val resolvedArtistId: String? = null,
     val artistName: String?,
     val trackNumber: Int?,
     val discNumber: Int?,

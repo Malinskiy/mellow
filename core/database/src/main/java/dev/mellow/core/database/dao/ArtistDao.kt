@@ -10,10 +10,22 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ArtistDao {
 
-    @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName ASC")
+    @Query("""
+        SELECT a.* FROM artists a
+        INNER JOIN artist_aliases aa ON a.id = aa.canonicalArtistId AND a.serverId = aa.serverId
+        WHERE a.serverId = :serverId
+        GROUP BY aa.canonicalArtistId
+        ORDER BY a.sortName ASC
+    """)
     fun getArtistsByServer(serverId: String): PagingSource<Int, ArtistEntity>
 
-    @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName ASC")
+    @Query("""
+        SELECT a.* FROM artists a
+        INNER JOIN artist_aliases aa ON a.id = aa.canonicalArtistId AND a.serverId = aa.serverId
+        WHERE a.serverId = :serverId
+        GROUP BY aa.canonicalArtistId
+        ORDER BY a.sortName ASC
+    """)
     fun observeArtistsByServer(serverId: String): Flow<List<ArtistEntity>>
 
     @Query("SELECT * FROM artists WHERE id = :id")
@@ -30,6 +42,9 @@ interface ArtistDao {
 
     @Upsert
     suspend fun upsertArtists(artists: List<ArtistEntity>)
+
+    @Query("UPDATE artists SET cleanName = :cleanName WHERE id = :id")
+    suspend fun updateCleanName(id: String, cleanName: String)
 
     @Query("UPDATE artists SET isFavorite = :isFavorite WHERE id = :artistId")
     suspend fun setFavorite(artistId: String, isFavorite: Boolean)

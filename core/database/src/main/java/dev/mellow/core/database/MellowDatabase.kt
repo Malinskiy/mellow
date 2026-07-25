@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import dev.mellow.core.database.converter.Converters
 import dev.mellow.core.database.dao.AlbumDao
+import dev.mellow.core.database.dao.ArtistAliasDao
 import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.LyricsDao
@@ -14,6 +15,7 @@ import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.AlbumEntity
+import dev.mellow.core.database.entity.ArtistAliasEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.DownloadEntity
 import dev.mellow.core.database.entity.LyricsEntity
@@ -29,6 +31,7 @@ import dev.mellow.core.database.entity.TrackEntity
         ServerEntity::class,
         AlbumEntity::class,
         ArtistEntity::class,
+        ArtistAliasEntity::class,
         TrackEntity::class,
         PlaylistEntity::class,
         PlaylistTrackCrossRef::class,
@@ -37,7 +40,7 @@ import dev.mellow.core.database.entity.TrackEntity
         LyricsEntity::class,
         SearchQueryEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -45,6 +48,7 @@ abstract class MellowDatabase : RoomDatabase() {
     abstract fun serverDao(): ServerDao
     abstract fun albumDao(): AlbumDao
     abstract fun artistDao(): ArtistDao
+    abstract fun artistAliasDao(): ArtistAliasDao
     abstract fun trackDao(): TrackDao
     abstract fun playlistDao(): PlaylistDao
     abstract fun pendingPlaybackEventDao(): PendingPlaybackEventDao

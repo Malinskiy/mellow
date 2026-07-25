@@ -1,5 +1,6 @@
 package dev.mellow.core.data.mapper
 
+import dev.mellow.core.common.getCleanValue
 import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.PlaylistEntity
@@ -21,6 +22,7 @@ fun BaseItemDto.toAlbumEntity(serverId: String): AlbumEntity = AlbumEntity(
     genres = genres.orEmpty(),
     imageTag = imageTags?.get(ImageType.PRIMARY),
     isFavorite = userData?.isFavorite ?: false,
+    resolvedArtistId = null,
     dateAdded = dateCreated?.let { parseDateToEpochMs(it.toString()) } ?: System.currentTimeMillis(),
     lastSynced = System.currentTimeMillis(),
 )
@@ -35,6 +37,8 @@ fun BaseItemDto.toArtistEntity(serverId: String): ArtistEntity = ArtistEntity(
     isFavorite = userData?.isFavorite ?: false,
     overview = overview,
     genres = genres.orEmpty(),
+    cleanName = getCleanValue(name.orEmpty()),
+    musicBrainzId = providerIds?.get("MusicBrainzArtist"),
     lastSynced = System.currentTimeMillis(),
 )
 
@@ -80,6 +84,7 @@ fun BaseItemDto.toTrackEntity(serverId: String): TrackEntity {
         bitrate = audioStream?.bitRate,
         sampleRate = audioStream?.sampleRate,
         channels = audioStream?.channels,
+        resolvedArtistId = null,
         dateAdded = dateCreated?.let { parseDateToEpochMs(it.toString()) } ?: System.currentTimeMillis(),
         lastSynced = System.currentTimeMillis(),
     )

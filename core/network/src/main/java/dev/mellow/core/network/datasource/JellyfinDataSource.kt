@@ -5,6 +5,7 @@ import dev.mellow.core.network.NetworkPreferences
 import dev.mellow.core.network.createOkHttpClient
 import android.util.Log
 import org.jellyfin.sdk.api.client.extensions.instantMixApi
+import org.jellyfin.sdk.api.client.extensions.artistsApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.playlistsApi
@@ -111,22 +112,17 @@ class JellyfinDataSource @Inject constructor(
         userId: UUID,
         startIndex: Int = 0,
         limit: Int = 200,
-        minDateLastSaved: LocalDateTime? = null,
     ): List<BaseItemDto> {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.artistsApi.getArtists(
             userId = userId,
-            includeItemTypes = listOf(BaseItemKind.MUSIC_ARTIST),
-            excludeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
-            recursive = true,
             sortBy = listOf(ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.ASCENDING),
-            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW),
+            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW, ItemFields.PROVIDER_IDS),
             enableUserData = true,
             startIndex = startIndex,
             limit = limit,
-            minDateLastSaved = minDateLastSaved,
         )
-        return response.items.orEmpty().filter { it.type == BaseItemKind.MUSIC_ARTIST }
+        return response.items.orEmpty()
     }
 
     suspend fun getArtistsPaged(
@@ -134,20 +130,16 @@ class JellyfinDataSource @Inject constructor(
         startIndex: Int = 0,
         limit: Int = 200,
     ): PagedItems {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.artistsApi.getArtists(
             userId = userId,
-            includeItemTypes = listOf(BaseItemKind.MUSIC_ARTIST),
-            excludeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
-            recursive = true,
             sortBy = listOf(ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.ASCENDING),
-            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW),
+            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW, ItemFields.PROVIDER_IDS),
             enableUserData = true,
             startIndex = startIndex,
             limit = limit,
         )
-        val filtered = response.items.orEmpty().filter { it.type == BaseItemKind.MUSIC_ARTIST }
-        return PagedItems(filtered, response.totalRecordCount ?: 0)
+        return PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
     }
 
     suspend fun getTracks(
@@ -354,14 +346,12 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getFavoriteArtists(userId: UUID): List<BaseItemDto> {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.artistsApi.getArtists(
             userId = userId,
-            includeItemTypes = listOf(BaseItemKind.MUSIC_ARTIST),
-            recursive = true,
             isFavorite = true,
             sortBy = listOf(ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.ASCENDING),
-            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW),
+            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW, ItemFields.PROVIDER_IDS),
             enableUserData = true,
         )
         return response.items.orEmpty()

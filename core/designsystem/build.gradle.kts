@@ -32,6 +32,7 @@ dependencies {
     api(libs.bundles.compose)
     api(libs.compose.material.icons.extended)
     api(libs.bundles.coil)
+    api(libs.androidx.window)
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)
 

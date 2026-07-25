@@ -31,12 +31,13 @@ fun ArtistRow(
     imageUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showChevron: Boolean = true,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .clickable(onClick = onClick)
-            .padding(vertical = MellowSpacing.Sp2),
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
     ) {
         Box(
             modifier = Modifier
@@ -78,11 +79,13 @@ fun ArtistRow(
             )
         }
 
-        Icon(
-            imageVector = PhosphorIcons.CaretRight,
-            contentDescription = null,
-            tint = MellowTheme.colors.muted,
-            modifier = Modifier.size(20.dp),
-        )
+        if (showChevron) {
+            Icon(
+                imageVector = PhosphorIcons.CaretRight,
+                contentDescription = null,
+                tint = MellowTheme.colors.muted,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }

@@ -25,49 +25,70 @@ fun <T> AdaptiveTrackGrid(
     contentPadding: PaddingValues = PaddingValues(),
     minColumnWidth: Dp = MIN_COLUMN_WIDTH,
     nested: Boolean = false,
-    itemContent: @Composable (index: Int, item: T) -> Unit,
+    columnFirst: Boolean = true,
+    itemContent: @Composable (index: Int, item: T, columns: Int) -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier) {
         val columns = (maxWidth / minColumnWidth).toInt().coerceIn(1, MAX_COLUMNS)
         val rows = ceil(items.size.toFloat() / columns).toInt()
-        val reordered = remember(items, columns) {
-            if (columns <= 1) items
-            else {
-                (0 until rows * columns).mapNotNull { gridPos ->
-                    val row = gridPos / columns
-                    val col = gridPos % columns
-                    val itemIndex = col * rows + row
-                    items.getOrNull(itemIndex)?.let { itemIndex to it }
-                }.map { it.second }
-            }
-        }
-        val reorderedIndices = remember(items, columns) {
-            if (columns <= 1) items.indices.toList()
-            else {
-                (0 until rows * columns).mapNotNull { gridPos ->
-                    val row = gridPos / columns
-                    val col = gridPos % columns
-                    val itemIndex = col * rows + row
-                    if (itemIndex < items.size) itemIndex else null
+
+        if (columnFirst) {
+            val reordered = remember(items, columns) {
+                if (columns <= 1) items
+                else {
+                    (0 until rows * columns).mapNotNull { gridPos ->
+                        val row = gridPos / columns
+                        val col = gridPos % columns
+                        val itemIndex = col * rows + row
+                        items.getOrNull(itemIndex)?.let { itemIndex to it }
+                    }.map { it.second }
                 }
             }
-        }
+            val reorderedIndices = remember(items, columns) {
+                if (columns <= 1) items.indices.toList()
+                else {
+                    (0 until rows * columns).mapNotNull { gridPos ->
+                        val row = gridPos / columns
+                        val col = gridPos % columns
+                        val itemIndex = col * rows + row
+                        if (itemIndex < items.size) itemIndex else null
+                    }
+                }
+            }
 
-        val gridModifier = if (nested) {
-            Modifier.height(ROW_HEIGHT * rows)
+            val gridModifier = if (nested) {
+                Modifier.height(ROW_HEIGHT * rows)
+            } else {
+                Modifier.fillMaxSize()
+            }
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                contentPadding = contentPadding,
+                userScrollEnabled = !nested,
+                modifier = gridModifier,
+            ) {
+                items(reordered.size, key = { reorderedIndices.getOrNull(it)?.let { idx -> key(items[idx]) } ?: it }) { gridIndex ->
+                    val originalIndex = reorderedIndices[gridIndex]
+                    itemContent(originalIndex, reordered[gridIndex], columns)
+                }
+            }
         } else {
-            Modifier.fillMaxSize()
-        }
+            val gridModifier = if (nested) {
+                Modifier.height(ROW_HEIGHT * rows)
+            } else {
+                Modifier.fillMaxSize()
+            }
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
-            contentPadding = contentPadding,
-            userScrollEnabled = !nested,
-            modifier = gridModifier,
-        ) {
-            items(reordered.size, key = { reorderedIndices.getOrNull(it)?.let { idx -> key(items[idx]) } ?: it }) { gridIndex ->
-                val originalIndex = reorderedIndices[gridIndex]
-                itemContent(originalIndex, reordered[gridIndex])
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                contentPadding = contentPadding,
+                userScrollEnabled = !nested,
+                modifier = gridModifier,
+            ) {
+                items(items.size, key = { key(items[it]) }) { index ->
+                    itemContent(index, items[index], columns)
+                }
             }
         }
     }

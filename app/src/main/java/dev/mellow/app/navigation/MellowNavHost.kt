@@ -1,13 +1,18 @@
 package dev.mellow.app.navigation
 
 import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.ui.platform.LocalContext
+import dev.mellow.core.designsystem.theme.DevicePosture
+import dev.mellow.core.designsystem.theme.LocalFoldableState
+import dev.mellow.core.designsystem.theme.rememberFoldableState
 import com.mikepenz.aboutlibraries.Libs
 import com.mikepenz.aboutlibraries.util.withContext
 import dev.mellow.app.dev.DevIconComparisonScreen
@@ -15,8 +20,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,7 +81,6 @@ import androidx.navigation.navArgument
 import dev.mellow.app.AuthState
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
-import dev.mellow.core.data.repository.LibraryRepositoryImpl
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
 import dev.mellow.core.designsystem.component.MellowBottomNavBar
@@ -92,6 +98,7 @@ import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.designsystem.theme.WindowWidthClass
 import dev.mellow.core.designsystem.theme.rememberIsBatterySaverActive
 import dev.mellow.core.network.ConnectionState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.common.jellyfinImageUrl
 import dev.mellow.core.model.AlbumDownloadState
@@ -109,12 +116,15 @@ import dev.mellow.feature.home.PlaylistDetailViewModel
 import dev.mellow.feature.home.PlaylistItem
 import dev.mellow.feature.home.PlaylistsScreen
 import dev.mellow.feature.home.PlaylistsViewModel
-import dev.mellow.feature.library.AlbumDetailScreen
+import dev.mellow.feature.library.AlbumDetailComponent
+import dev.mellow.feature.library.AlbumDetailLayout
+import dev.mellow.feature.library.DetailChrome
 import dev.mellow.feature.library.AlbumDownloadEvent
 import dev.mellow.feature.library.AlbumDetailTrack
 import dev.mellow.feature.library.AlbumDetailViewModel
 import dev.mellow.feature.library.AlbumItem
 import dev.mellow.feature.library.ArtistAlbum
+import dev.mellow.feature.library.ArtistDetailLayout
 import dev.mellow.feature.library.ArtistDetailScreen
 import dev.mellow.feature.library.ArtistDetailViewModel
 import dev.mellow.feature.library.ArtistItem
@@ -126,6 +136,7 @@ import dev.mellow.feature.library.TrackDownloadIndicator
 import dev.mellow.feature.library.TrackItem
 import dev.mellow.feature.player.LyricsLine
 import dev.mellow.feature.player.LyricsScreen
+import dev.mellow.feature.player.PlayerLayout
 import dev.mellow.feature.player.PlayerScreen
 import dev.mellow.feature.player.QueueScreen
 import dev.mellow.feature.player.QueueTrack
@@ -193,6 +204,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val context = LocalContext.current
 
     val fullScreenRoutes = setOf("now_playing", "queue", "lyrics")
+    val edgeToEdgeContentRoutes = setOf("album/{albumId}?source={source}", "artist/{artistId}")
     val isFullScreen = currentRoute in fullScreenRoutes
     val tabRoutes = MellowNavDestination.entries.map { it.route }.toSet()
     val baseRoute = currentRoute.substringBefore("?")
@@ -226,7 +238,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 artist = track.artistName ?: "",
                 album = track.albumName ?: "",
                 albumId = track.albumId,
-                artistId = track.artistId,
+                artistId = track.resolvedArtistId ?: track.artistId,
                             imageUrl = if (serverUrl != null) {
                                 val imgId = track.imageId ?: track.albumId
                                 if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
@@ -285,30 +297,35 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         }
     }
 
+    val foldableState by rememberFoldableState()
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val windowWidthClass = when {
             maxWidth >= 840.dp && maxHeight >= 600.dp -> WindowWidthClass.Expanded
             maxWidth >= 600.dp -> WindowWidthClass.Medium
             else -> WindowWidthClass.Compact
         }
+        val isTabletop = foldableState.posture == DevicePosture.Tabletop || foldableState.hasHorizontalFold
         val isExpanded = windowWidthClass != WindowWidthClass.Compact
         val isTabletLayout = windowWidthClass == WindowWidthClass.Expanded
         val isTabletPortrait = isTabletLayout && maxHeight > maxWidth
+        val useBottomNav = !isExpanded || isTabletPortrait || isTabletop
         val hasTrack = playbackState.currentTrack != null
         val showSheet = hasTrack
-        val sheetBottomNavPx = if (windowWidthClass == WindowWidthClass.Compact || isTabletPortrait) {
+        val sheetBottomNavPx = if (useBottomNav) {
             with(density) { MellowSpacing.BottomNavHeight.toPx() }
         } else 0f
 
-    val showExpandedMiniPlayer = isExpanded && !isFullScreen && hasTrack && !isTabletPortrait
+    val showExpandedMiniPlayer = isExpanded && !isFullScreen && hasTrack && !isTabletPortrait && !isTabletop
     val miniPlayerPadding = if (showExpandedMiniPlayer) MellowSpacing.MiniPlayerHeight + MellowSpacing.Sp2 else 0.dp
     CompositionLocalProvider(
         LocalWindowWidthClass provides windowWidthClass,
+        LocalFoldableState provides foldableState,
         LocalMiniPlayerPadding provides miniPlayerPadding,
         LocalBatterySaverActive provides (rememberIsBatterySaverActive() || mainViewModel.lowPowerMode.collectAsState().value),
     ) {
     Row(modifier = Modifier.fillMaxSize()) {
-        if (isExpanded && !isFullScreen && !isTabletPortrait) {
+        if (isExpanded && !isFullScreen && !isTabletPortrait && !isTabletop) {
             MellowNavigationRail(
                 selectedRoute = selectedTabRoute,
                 onNavigate = navigateToTab,
@@ -317,14 +334,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
     Box(modifier = Modifier.weight(1f)) {
     Scaffold(
-        contentWindowInsets = if (isFullScreen || (isExpanded && !isTabletPortrait)) {
+        contentWindowInsets = if (isFullScreen || (isExpanded && !useBottomNav)) {
             WindowInsets(0)
         } else {
-            WindowInsets.systemBars
+            WindowInsets.systemBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
         },
         containerColor = MellowTheme.colors.background,
         bottomBar = {
-            if (!isFullScreen && (!isExpanded || isTabletPortrait)) {
+            if (!isFullScreen && useBottomNav) {
                 Column {
                     if (hasTrack) {
                         MiniPlayerBar(
@@ -343,12 +360,18 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         },
         modifier = Modifier.fillMaxSize(),
     ) { innerPadding ->
+        val needsTopInset = !(isFullScreen || (isExpanded && !useBottomNav) || currentRoute in edgeToEdgeContentRoutes)
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val animatedTop by animateDpAsState(if (needsTopInset) statusBarTop else 0.dp, tween(300))
+
         @OptIn(ExperimentalSharedTransitionApi::class)
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(top = animatedTop)
                 .padding(innerPadding)
-                .consumeWindowInsets(innerPadding),
+                .consumeWindowInsets(innerPadding)
+                .consumeWindowInsets(PaddingValues(top = animatedTop)),
         ) {
             SharedTransitionLayout {
                 CompositionLocalProvider(LocalSharedTransitionScope provides this) {
@@ -427,7 +450,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         if (serverId.isNotEmpty()) libraryVm.loadLibrary(serverId)
                     }
 
-                    val albumCountByArtist = state.albums.groupingBy { it.artistName ?: "" }.eachCount()
+                    val albumCountByArtist = state.albums.groupingBy { it.resolvedArtistId ?: it.artistId ?: "" }.eachCount()
 
                     val filteredAlbums = remember(state.albums, selectedGenre) {
                         if (selectedGenre != null) {
@@ -453,9 +476,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             else -> state.artists
                         }
                         sorted.map { artist ->
-                            val count = albumCountByArtist[artist.name]
-                                ?: albumCountByArtist[LibraryRepositoryImpl.artistNameVariant(artist.name)]
-                                ?: 0
+                            val count = albumCountByArtist[artist.id] ?: 0
                             ArtistItem(artist.id, artist.name, count, artist.imageId)
                         }
                     }
@@ -543,6 +564,13 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     }
 
                     val effectiveSearchFilter by mainViewModel.downloadedOnly.collectAsState()
+                    val isSearchExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
+                    val searchHingeSplitWidth = run {
+                        val fold = LocalFoldableState.current
+                        if (fold.hasVerticalFold) {
+                            with(LocalDensity.current) { fold.hingeBounds.left.toDp() }
+                        } else null
+                    }
                     SearchScreen(
                         serverId = serverId,
                         serverUrl = serverUrl ?: "",
@@ -566,6 +594,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onGenreClick = { genre ->
                             navController.navigate("library?genre=${android.net.Uri.encode(genre)}")
                         },
+                        isExpanded = isSearchExpanded,
+                        hingeSplitWidth = searchHingeSplitWidth,
                     )
                 }
                 composable(MellowNavDestination.Favorites.route) {
@@ -743,8 +773,25 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         )
                     }
 
-                    AlbumDetailScreen(
+                    val albumLayout = if (LocalWindowWidthClass.current != WindowWidthClass.Compact) {
+                        AlbumDetailLayout.SplitScreen
+                    } else {
+                        AlbumDetailLayout.Stacked
+                    }
+                    val albumSplitWidth = run {
+                        val fold = LocalFoldableState.current
+                        if (fold.hasVerticalFold) {
+                            with(LocalDensity.current) { fold.hingeBounds.left.toDp() }
+                        } else {
+                            420.dp
+                        }
+                    }
+
+                    AlbumDetailComponent(
                         onBack = { navController.popBackStack() },
+                        layout = albumLayout,
+                        chrome = DetailChrome.FullScreen,
+                        splitPaneWidth = albumSplitWidth,
                         albumId = routeAlbumId,
                         sharedElementSource = routeSource,
                         albumName = albumState.album?.name ?: "",
@@ -827,7 +874,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             albumState.tracks.forEach { mainViewModel.player.addToQueue(it) }
                         },
                         onGoToArtist = {
-                            val artist = albumState.album?.artistId
+                            val artist = albumState.album?.resolvedArtistId ?: albumState.album?.artistId
                             if (artist != null) navController.navigate("artist/$artist")
                         },
                     )
@@ -862,8 +909,24 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         }
                     }
 
+                    val artistLayout = if (LocalWindowWidthClass.current != WindowWidthClass.Compact) {
+                        ArtistDetailLayout.SplitScreen
+                    } else {
+                        ArtistDetailLayout.Stacked
+                    }
+                    val artistSplitWidth = run {
+                        val fold = LocalFoldableState.current
+                        if (fold.hasVerticalFold) {
+                            with(LocalDensity.current) { fold.hingeBounds.left.toDp() }
+                        } else {
+                            380.dp
+                        }
+                    }
+
                     ArtistDetailScreen(
                         onBack = { navController.popBackStack() },
+                        layout = artistLayout,
+                        splitPaneWidth = artistSplitWidth,
                         artistName = artistState.artist?.name ?: "",
                         artistImageUrl = if (serverUrl != null && artistState.artist?.imageId != null) {
                             jellyfinImageUrl(serverUrl!!, artistState.artist!!.imageId!!)
@@ -1142,7 +1205,31 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             onSkipNext = { mainViewModel.player.skipNext() },
             playerContent = { onCollapse, onQueueClick, onLyricsClick ->
                 val isArtTransitioning = sheetState.dragFraction > 0f && sheetState.dragFraction < 1f
+                val playerFoldState = LocalFoldableState.current
+                val playerDensity = LocalDensity.current
+                val playerIsTabletop = playerFoldState.posture == DevicePosture.Tabletop || playerFoldState.hasHorizontalFold
+                val playerLayout = when {
+                    playerIsTabletop -> PlayerLayout.Tabletop
+                    LocalWindowWidthClass.current == WindowWidthClass.Expanded -> PlayerLayout.ExpandedWithQueue
+                    LocalWindowWidthClass.current == WindowWidthClass.Medium -> PlayerLayout.Landscape
+                    else -> PlayerLayout.Compact
+                }
+                val playerTabletopTopHeight = if (playerIsTabletop) {
+                    val systemBarTopPx = WindowInsets.systemBars.getTop(playerDensity).toFloat()
+                    val adjusted = (playerFoldState.hingeBounds.top - systemBarTopPx).coerceAtLeast(0f)
+                    with(playerDensity) { adjusted.toDp() }
+                } else {
+                    0.dp
+                }
+                val playerSplitPaneWidth = if (playerFoldState.hasVerticalFold) {
+                    with(playerDensity) { playerFoldState.hingeBounds.left.toDp() }
+                } else {
+                    Dp.Unspecified
+                }
                 PlayerScreen(
+                    layout = playerLayout,
+                    tabletopTopHeight = playerTabletopTopHeight,
+                    splitPaneWidth = playerSplitPaneWidth,
                     embedded = true,
                     artModifier = Modifier
                         .trackArtPosition(sharedArtPositions, isMini = false)
@@ -1233,9 +1320,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         val density = LocalDensity.current
                         val topInsetPx = WindowInsets.systemBars.getTop(density).toFloat()
                         val bottomInsetPx = WindowInsets.systemBars.getBottom(density).toFloat()
+                        val sidePanelFoldState = LocalFoldableState.current
+                        val sidePanelWidthModifier = if (sidePanelFoldState.hasFold) {
+                            Modifier.fillMaxWidth()
+                        } else {
+                            Modifier.width(400.dp)
+                        }
                         Column(
-                            modifier = Modifier
-                                .width(400.dp)
+                            modifier = sidePanelWidthModifier
                                 .fillMaxSize()
                                 .drawBehind {
                                     drawRect(
@@ -1711,9 +1803,5 @@ private fun StorageCapExceededDialog(
     )
 }
 
-private fun formatTrackDuration(duration: Duration): String {
-    val totalSeconds = duration.seconds
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "$minutes:${seconds.toString().padStart(2, '0')}"
-}
+private fun formatTrackDuration(duration: Duration): String =
+    dev.mellow.core.common.formatTrackDuration(duration)

@@ -1,11 +1,24 @@
 package dev.mellow.app.screenshot
 
+import androidx.compose.ui.unit.dp
 import org.junit.Test
-import dev.mellow.feature.library.AlbumDetailScreen
+import dev.mellow.core.designsystem.theme.WindowWidthClass
+import dev.mellow.feature.library.AlbumDetailComponent
+import dev.mellow.feature.library.AlbumDetailLayout
 import dev.mellow.feature.library.ArtistDetailScreen
 import dev.mellow.feature.library.LibraryScreen
 
 abstract class LibraryScreenshotTests : ScreenshotCapture() {
+
+    private val albumDetailLayout: AlbumDetailLayout
+        get() = if (windowWidthClass != WindowWidthClass.Compact) AlbumDetailLayout.SplitScreen else AlbumDetailLayout.Stacked
+
+    private val splitPaneWidth
+        get() = if (foldableState.hasVerticalFold) {
+            with(composeTestRule.density) { foldableState.hingeBounds.left.toDp() }
+        } else {
+            420.dp
+        }
 
     @Test
     fun libraryLoading() = capture("library-loading") {
@@ -44,24 +57,61 @@ abstract class LibraryScreenshotTests : ScreenshotCapture() {
 
     @Test
     fun albumDetailLoading() = capture("album-detail-loading") {
-        AlbumDetailScreen(onBack = {}, isLoading = true)
+        AlbumDetailComponent(onBack = {}, layout = albumDetailLayout, splitPaneWidth = splitPaneWidth, isLoading = true)
     }
 
     @Test
     fun albumDetailError() = capture("album-detail-error") {
-        AlbumDetailScreen(onBack = {}, error = "Failed to load album")
+        AlbumDetailComponent(
+            onBack = {},
+            layout = albumDetailLayout,
+            splitPaneWidth = splitPaneWidth,
+            error = "Failed to load album",
+        )
     }
 
     @Test
     fun albumDetailPopulated() = capture("album-detail-populated") {
-        AlbumDetailScreen(
+        AlbumDetailComponent(
             onBack = {},
+            layout = albumDetailLayout,
+            splitPaneWidth = splitPaneWidth,
             albumName = "OK Computer",
             artistName = "Radiohead",
             year = 1997,
             tracks = ScreenshotData.albumDetailTracks,
             isFavorite = true,
         )
+    }
+
+    @Test
+    fun albumDetailStacked() = capture("album-detail-stacked") {
+        AlbumDetailComponent(
+            onBack = {},
+            layout = AlbumDetailLayout.Stacked,
+            albumName = "OK Computer",
+            artistName = "Radiohead",
+            year = 1997,
+            tracks = ScreenshotData.albumDetailTracks,
+            isFavorite = true,
+        )
+    }
+
+    @Test
+    fun albumDetailSplitScreen() {
+        if (windowWidthClass == WindowWidthClass.Compact) return
+        capture("album-detail-split-screen") {
+            AlbumDetailComponent(
+                onBack = {},
+                layout = AlbumDetailLayout.SplitScreen,
+                splitPaneWidth = 420.dp,
+                albumName = "OK Computer",
+                artistName = "Radiohead",
+                year = 1997,
+                tracks = ScreenshotData.albumDetailTracks,
+                isFavorite = true,
+            )
+        }
     }
 
     @Test

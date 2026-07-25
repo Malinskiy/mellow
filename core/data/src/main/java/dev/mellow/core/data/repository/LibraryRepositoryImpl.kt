@@ -8,12 +8,16 @@ import dev.mellow.core.data.mapper.toArtistEntity
 import dev.mellow.core.data.mapper.toModel
 import dev.mellow.core.data.mapper.toTrackEntity
 import dev.mellow.core.data.preferences.SyncPreferences
+import dev.mellow.core.common.getCleanValue
 import dev.mellow.core.database.dao.AlbumDao
+import dev.mellow.core.database.dao.ArtistAliasDao
 import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.dao.getInstantMix
+import dev.mellow.core.database.entity.ArtistAliasEntity
+import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.SearchQueryEntity
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
@@ -36,6 +40,7 @@ import javax.inject.Singleton
 class LibraryRepositoryImpl @Inject constructor(
     private val albumDao: AlbumDao,
     private val artistDao: ArtistDao,
+    private val artistAliasDao: ArtistAliasDao,
     private val trackDao: TrackDao,
     private val serverDao: ServerDao,
     private val searchQueryDao: SearchQueryDao,
@@ -46,18 +51,6 @@ class LibraryRepositoryImpl @Inject constructor(
     companion object {
         private const val TAG = "LibraryRepository"
         private const val ROOM_BIND_LIMIT = 900
-
-        /**
-         * Jellyfin replaces `/` with `+` in MusicArtist display names (e.g. "AC/DC" → "AC+DC").
-         * Albums and tracks keep the original name from metadata ("AC/DC"), so exact matching
-         * on artist.name fails. This helper produces the alternate form so DAO queries can
-         * match either variant.
-         */
-        fun artistNameVariant(name: String): String {
-            val slashToPlus = name.replace("/", "+")
-            if (slashToPlus != name) return slashToPlus
-            return name.replace("+", "/")
-        }
     }
 
     override fun getAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
@@ -75,8 +68,8 @@ class LibraryRepositoryImpl @Inject constructor(
             .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
             .catch { emit(MellowResult.Error(it)) }
 
-    override fun getArtistAlbums(artistName: String): Flow<MellowResult<List<Album>>> =
-        albumDao.getAlbumsByArtistName(artistName, artistNameVariant(artistName))
+    override fun getArtistAlbumsById(artistId: String): Flow<MellowResult<List<Album>>> =
+        albumDao.getAlbumsByResolvedArtist(artistId)
             .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
             .catch { emit(MellowResult.Error(it)) }
 
@@ -104,21 +97,22 @@ class LibraryRepositoryImpl @Inject constructor(
             .map { MellowResult.Success(it?.toModel()) as MellowResult<Artist?> }
             .catch { emit(MellowResult.Error(it)) }
 
-    override fun getArtistTracks(artistName: String): Flow<MellowResult<List<Track>>> =
-        trackDao.getTracksByArtistName(artistName, artistNameVariant(artistName))
+
+    override fun getArtistTracksById(artistId: String): Flow<MellowResult<List<Track>>> =
+        trackDao.getTracksByResolvedArtist(artistId)
             .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
             .catch { emit(MellowResult.Error(it)) }
 
-    override suspend fun countArtistAlbums(artistName: String): MellowResult<Int> =
+    override suspend fun countArtistAlbumsById(artistId: String): MellowResult<Int> =
         try {
-            MellowResult.Success(albumDao.countAlbumsByArtistName(artistName, artistNameVariant(artistName)))
+            MellowResult.Success(albumDao.countAlbumsByResolvedArtist(artistId))
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
 
-    override suspend fun countArtistTracks(artistName: String): MellowResult<Int> =
+    override suspend fun countArtistTracksById(artistId: String): MellowResult<Int> =
         try {
-            MellowResult.Success(trackDao.countTracksByArtistName(artistName, artistNameVariant(artistName)))
+            MellowResult.Success(trackDao.countTracksByResolvedArtist(artistId))
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
@@ -272,15 +266,33 @@ class LibraryRepositoryImpl @Inject constructor(
                 Log.d(TAG, "First sync — full")
                 fullSync(serverId, userId, onProgress)
             } else {
-                Log.d(TAG, "Incremental sync since ${Instant.ofEpochMilli(lastSyncMs)}")
-                incrementalSync(serverId, userId, lastSyncMs, onProgress)
+                val albumsOutdated = syncPreferences.albumRevision.first() < SyncPreferences.CURRENT_ALBUM_REVISION
+                val tracksOutdated = syncPreferences.trackRevision.first() < SyncPreferences.CURRENT_TRACK_REVISION
+
+                if (albumsOutdated || tracksOutdated) {
+                    Log.d(TAG, "Data revision outdated (albums=$albumsOutdated, tracks=$tracksOutdated)")
+                }
+
+                val since = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastSyncMs), ZoneOffset.UTC)
+                if (albumsOutdated) syncAllAlbums(serverId, userId, onProgress) else syncAlbumsIncremental(serverId, userId, since, onProgress)
+                syncAllArtists(serverId, userId, onProgress)
+                if (tracksOutdated) syncAllTracks(serverId, userId, onProgress) else syncTracksIncremental(serverId, userId, since, onProgress)
             }
+
+            resolveArtistAliases(serverId)
+            albumDao.resolveArtistIds(serverId)
+            trackDao.resolveArtistIds(serverId)
+            albumDao.resolveArtistAliases(serverId)
+            trackDao.resolveArtistAliases(serverId)
 
             onProgress(SyncProgress("favorites", 0, 0))
             syncFavoritesDiff(serverId, userId)
             syncRecentlyPlayed(serverId, userId)
 
             syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
+            syncPreferences.setAlbumRevision(SyncPreferences.CURRENT_ALBUM_REVISION)
+            syncPreferences.setArtistRevision(SyncPreferences.CURRENT_ARTIST_REVISION)
+            syncPreferences.setTrackRevision(SyncPreferences.CURRENT_TRACK_REVISION)
             syncPreferences.incrementSyncCount()
             MellowResult.Success(Unit)
         } catch (e: Exception) {
@@ -331,24 +343,77 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
+    private suspend fun resolveArtistAliases(serverId: String) {
+        val artists = artistDao.getAllArtistsByServer(serverId).map { artist ->
+            if (artist.cleanName.isEmpty()) {
+                val computed = getCleanValue(artist.name)
+                artistDao.updateCleanName(artist.id, computed)
+                artist.copy(cleanName = computed)
+            } else {
+                artist
+            }
+        }
+
+        val clusters = artists.groupBy { it.cleanName }
+
+        val aliases = mutableListOf<ArtistAliasEntity>()
+        val now = System.currentTimeMillis()
+
+        for ((_, group) in clusters) {
+            val canonical = group.sortedWith(
+                compareByDescending<ArtistEntity> { it.musicBrainzId != null }
+                    .thenByDescending { it.imageTag != null }
+                    .thenByDescending { it.albumCount }
+                    .thenBy { it.id },
+            ).first()
+
+            for (artist in group) {
+                aliases.add(
+                    ArtistAliasEntity(
+                        serverId = serverId,
+                        rawArtistId = artist.id,
+                        canonicalArtistId = canonical.id,
+                        lastSynced = now,
+                    ),
+                )
+            }
+        }
+
+        val mbidGroups = aliases
+            .mapNotNull { alias ->
+                artists.find { it.id == alias.rawArtistId }?.musicBrainzId?.let { mbid -> mbid to alias }
+            }
+            .groupBy { it.first }
+
+        for ((_, mbidAliases) in mbidGroups) {
+            if (mbidAliases.size > 1) {
+                val canonicalId = mbidAliases
+                    .map { it.second.canonicalArtistId }
+                    .minByOrNull { id ->
+                        val a = artists.find { it.id == id }
+                        if (a?.musicBrainzId != null) 0 else 1
+                    } ?: continue
+                for ((_, alias) in mbidAliases) {
+                    val idx = aliases.indexOfFirst {
+                        it.rawArtistId == alias.rawArtistId && it.serverId == alias.serverId
+                    }
+                    if (idx >= 0) {
+                        aliases[idx] = aliases[idx].copy(canonicalArtistId = canonicalId)
+                    }
+                }
+            }
+        }
+
+        artistAliasDao.deleteByServer(serverId)
+        artistAliasDao.upsertAliases(aliases)
+    }
+
     private suspend fun fullSync(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
         syncAllAlbums(serverId, userId, onProgress)
         syncAllArtists(serverId, userId, onProgress)
         syncAllTracks(serverId, userId, onProgress)
     }
 
-    private suspend fun incrementalSync(
-        serverId: String,
-        userId: UUID,
-        lastSyncMs: Long,
-        onProgress: (SyncProgress) -> Unit,
-    ) {
-        val since = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastSyncMs), ZoneOffset.UTC)
-
-        syncAlbumsIncremental(serverId, userId, since, onProgress)
-        syncArtistsIncremental(serverId, userId, since, onProgress)
-        syncTracksIncremental(serverId, userId, since, onProgress)
-    }
 
     private suspend fun syncAlbumsIncremental(
         serverId: String,
@@ -369,24 +434,6 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun syncArtistsIncremental(
-        serverId: String,
-        userId: UUID,
-        since: LocalDateTime,
-        onProgress: (SyncProgress) -> Unit,
-    ) {
-        var startIndex = 0
-        val pageSize = 200
-        while (true) {
-            val items = jellyfinDataSource.getArtists(userId, startIndex, pageSize, minDateLastSaved = since)
-            if (items.isEmpty()) break
-            Log.d(TAG, "Incremental artist sync: ${items.size} changed items at offset $startIndex")
-            artistDao.upsertArtists(items.map { it.toArtistEntity(serverId) })
-            startIndex += items.size
-            onProgress(SyncProgress("artists", startIndex, startIndex))
-            if (items.size < pageSize) break
-        }
-    }
 
     private suspend fun syncTracksIncremental(
         serverId: String,

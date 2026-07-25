@@ -90,7 +90,7 @@ class SearchViewModel @Inject constructor(
                 val albums = (albumsResult as? MellowResult.Success)?.data ?: emptyList()
                 val artistsRaw = (artistsResult as? MellowResult.Success)?.data ?: emptyList()
                 val artists = artistsRaw.map { artist ->
-                    val count = (libraryRepository.countArtistAlbums(artist.name) as? MellowResult.Success)?.data ?: 0
+                    val count = (libraryRepository.countArtistAlbumsById(artist.id) as? MellowResult.Success)?.data ?: 0
                     artist.copy(albumCount = count)
                 }
 

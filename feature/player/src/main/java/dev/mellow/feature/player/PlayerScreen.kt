@@ -48,6 +48,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -59,16 +60,24 @@ import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.QualityBadge
-import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
-import dev.mellow.core.designsystem.theme.WindowWidthClass
+
+enum class PlayerLayout {
+    Compact,
+    Landscape,
+    ExpandedWithQueue,
+    Tabletop,
+}
 
 @Composable
 fun PlayerScreen(
     modifier: Modifier = Modifier,
+    layout: PlayerLayout = PlayerLayout.Compact,
+    tabletopTopHeight: Dp = 0.dp,
+    splitPaneWidth: Dp = Dp.Unspecified,
     embedded: Boolean = false,
     artModifier: Modifier = Modifier,
     trackName: String = "",
@@ -99,8 +108,6 @@ fun PlayerScreen(
     codec: String? = null,
     sidePanelContent: @Composable (() -> Unit)? = null,
 ) {
-    val windowWidthClass = LocalWindowWidthClass.current
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -121,14 +128,46 @@ fun PlayerScreen(
             .fillMaxSize()
             .then(if (embedded) Modifier else Modifier.windowInsetsPadding(WindowInsets.systemBars)),
         ) {
-        when (windowWidthClass) {
-            WindowWidthClass.Expanded -> {
+        if (layout == PlayerLayout.Tabletop) {
+            TabletopPlayerLayout(
+                trackName = trackName,
+                artistName = artistName,
+                albumName = albumName,
+                albumImageUrl = albumImageUrl,
+                artModifier = artModifier,
+                isPlaying = isPlaying,
+                progress = progress,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                isFavorite = isFavorite,
+                isDownloaded = isDownloaded,
+                onCollapse = onCollapse,
+                onQueueClick = onQueueClick,
+                onLyricsClick = onLyricsClick,
+                onPlayPauseClick = onPlayPauseClick,
+                onSkipNextClick = onSkipNextClick,
+                onSkipPreviousClick = onSkipPreviousClick,
+                onSeekTo = onSeekTo,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                onShuffleClick = onShuffleClick,
+                onRepeatClick = onRepeatClick,
+                onFavoriteClick = onFavoriteClick,
+                codec = codec,
+                topHeight = tabletopTopHeight,
+            )
+        } else when (layout) {
+            PlayerLayout.ExpandedWithQueue -> {
+                val useHingeSplit = splitPaneWidth.isSpecified && sidePanelContent != null
                 Row(modifier = Modifier.fillMaxSize()) {
+                    val leftModifier = if (useHingeSplit) {
+                        Modifier.width(splitPaneWidth)
+                    } else {
+                        Modifier.weight(1f)
+                    }
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
+                        modifier = leftModifier.fillMaxHeight(),
                     ) {
                         val hasSidePanel = sidePanelContent != null
                         NowPlayingTopBar(albumName, onCollapse, onQueueClick, showQueueButton = !hasSidePanel)
@@ -153,6 +192,7 @@ fun PlayerScreen(
                                     .background(MellowTheme.colors.surface),
                             )
                         }
+                        Spacer(Modifier.weight(1f))
                         PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
                         PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
                         PlayerPlaybackControls(
@@ -169,11 +209,13 @@ fun PlayerScreen(
                         Spacer(Modifier.weight(1f))
                     }
                     if (sidePanelContent != null) {
-                        sidePanelContent()
+                        Box(modifier = if (useHingeSplit) Modifier.weight(1f) else Modifier) {
+                            sidePanelContent()
+                        }
                     }
                 }
             }
-            WindowWidthClass.Medium -> {
+            PlayerLayout.Landscape -> {
                 Box(modifier = Modifier.fillMaxSize()) {
                     Row(modifier = Modifier.fillMaxSize()) {
                         Box(
@@ -251,7 +293,7 @@ fun PlayerScreen(
                     }
                 }
             }
-            WindowWidthClass.Compact -> {
+            PlayerLayout.Compact -> {
                 Column(
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -272,6 +314,7 @@ fun PlayerScreen(
                     PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick)
                 }
             }
+            PlayerLayout.Tabletop -> Unit
         }
         }
 
@@ -665,4 +708,117 @@ fun formatMs(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "$minutes:${seconds.toString().padStart(2, '0')}"
+}
+
+@Composable
+private fun TabletopPlayerLayout(
+    trackName: String,
+    artistName: String,
+    albumName: String,
+    albumImageUrl: String?,
+    artModifier: Modifier,
+    isPlaying: Boolean,
+    progress: Float,
+    positionMs: Long,
+    durationMs: Long,
+    isFavorite: Boolean,
+    isDownloaded: Boolean,
+    onCollapse: () -> Unit,
+    onQueueClick: () -> Unit,
+    onLyricsClick: () -> Unit,
+    onPlayPauseClick: () -> Unit,
+    onSkipNextClick: () -> Unit,
+    onSkipPreviousClick: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
+    onShuffleClick: () -> Unit,
+    onRepeatClick: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    codec: String?,
+    topHeight: Dp,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(topHeight)
+                .padding(horizontal = MellowSpacing.Sp6),
+        ) {
+            NowPlayingTopBar(albumName, onCollapse, onQueueClick)
+            Spacer(Modifier.weight(1f))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                AsyncImage(
+                    model = albumImageUrl?.let {
+                        ImageRequest.Builder(LocalContext.current).data(it)
+                            .memoryCacheKey(it).placeholderMemoryCacheKey(it).build()
+                    },
+                    contentDescription = "Album art",
+                    contentScale = ContentScale.Crop,
+                    modifier = artModifier
+                        .fillMaxHeight(0.7f)
+                        .aspectRatio(1f)
+                        .clip(MellowShapes.Large)
+                        .background(MellowTheme.colors.surface),
+                )
+                Spacer(Modifier.width(MellowSpacing.Sp8))
+                Column {
+                    Text(
+                        trackName,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MellowTheme.colors.foreground,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(MellowSpacing.Sp1))
+                    Text(
+                        artistName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MellowTheme.colors.accentStrong,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (albumName.isNotEmpty()) {
+                        Spacer(Modifier.height(MellowSpacing.Sp1))
+                        Text(
+                            albumName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MellowTheme.colors.muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.weight(1f))
+        }
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = MellowSpacing.Sp6),
+        ) {
+            PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
+            PlayerPlaybackControls(
+                isPlaying = isPlaying,
+                onPlayPauseClick = onPlayPauseClick,
+                onSkipPreviousClick = onSkipPreviousClick,
+                onSkipNextClick = onSkipNextClick,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                onShuffleClick = onShuffleClick,
+                onRepeatClick = onRepeatClick,
+            )
+            PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick)
+        }
+    }
 }
