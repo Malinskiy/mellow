@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -145,33 +146,43 @@ fun ArtistDetailScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         item {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
-                            ) {
-                                IconButton(onClick = onBack) {
-                                    Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
-                                }
-                                IconButton(onClick = { showMoreMenu = true }) {
-                                    Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                ArtworkBackground(
+                                    artworkKey = artistImageUrl,
+                                    imageUrl = artistImageUrl,
+                                    modifier = Modifier.matchParentSize(),
+                                    blurRadius = 70.dp,
+                                    imageAlpha = 0.25f,
+                                    overlayColors = emptyList(),
+                                )
+                                Column {
+                                    Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = MellowSpacing.Sp2, vertical = MellowSpacing.Sp3),
+                                    ) {
+                                        IconButton(onClick = onBack) {
+                                            Icon(PhosphorIcons.ArrowLeft, "Back", tint = MellowTheme.colors.foreground)
+                                        }
+                                        IconButton(onClick = { showMoreMenu = true }) {
+                                            Icon(PhosphorIcons.DotsThreeVertical, "More", tint = MellowTheme.colors.foreground, modifier = Modifier.size(20.dp))
+                                        }
+                                    }
+                                    ArtistHero(
+                                        artistName = artistName,
+                                        artistImageUrl = artistImageUrl,
+                                        albumCount = albumCount,
+                                        trackCount = totalTrackCount,
+                                        isFavorite = isFavorite,
+                                        onPlayAll = onPlayAll,
+                                        onShuffle = onShuffle,
+                                        onFavoriteClick = onFavoriteClick,
+                                    )
                                 }
                             }
-                        }
-
-                        item {
-                            ArtistHero(
-                                artistName = artistName,
-                                artistImageUrl = artistImageUrl,
-                                albumCount = albumCount,
-                                trackCount = totalTrackCount,
-                                isFavorite = isFavorite,
-                                onPlayAll = onPlayAll,
-                                onShuffle = onShuffle,
-                                onFavoriteClick = onFavoriteClick,
-                            )
                         }
 
                         if (topTracks.isNotEmpty()) {

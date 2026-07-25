@@ -204,7 +204,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val context = LocalContext.current
 
     val fullScreenRoutes = setOf("now_playing", "queue", "lyrics")
-    val edgeToEdgeContentRoutes = setOf("album/{albumId}?source={source}")
+    val edgeToEdgeContentRoutes = setOf("album/{albumId}?source={source}", "artist/{artistId}")
     val isFullScreen = currentRoute in fullScreenRoutes
     val tabRoutes = MellowNavDestination.entries.map { it.route }.toSet()
     val baseRoute = currentRoute.substringBefore("?")

@@ -37,7 +37,7 @@ fun ArtistRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .clickable(onClick = onClick)
-            .padding(vertical = MellowSpacing.Sp2),
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
     ) {
         Box(
             modifier = Modifier

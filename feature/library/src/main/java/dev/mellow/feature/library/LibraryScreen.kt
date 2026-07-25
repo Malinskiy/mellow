@@ -396,7 +396,7 @@ private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtist
     AdaptiveTrackGrid(
         items = artists,
         key = { it.id.ifEmpty { it.name } },
-        contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
+        contentPadding = PaddingValues(top = topPadding),
         modifier = Modifier.fillMaxSize(),
         columnFirst = false,
     ) { _, artist, columns ->

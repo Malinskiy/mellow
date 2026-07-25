@@ -247,7 +247,7 @@ fun FavoritesContent(
                         AdaptiveTrackGrid(
                             items = artists,
                             key = { it.id },
-                            contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
+                            contentPadding = PaddingValues(top = topPadding),
                             modifier = Modifier.fillMaxSize(),
                             columnFirst = false,
                         ) { _, artist, columns ->
