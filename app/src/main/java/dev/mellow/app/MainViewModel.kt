@@ -12,7 +12,9 @@ import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.LyricsDao
+import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.LyricsEntity
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkStateObserver
@@ -44,6 +46,7 @@ class MainViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
     private val downloadDao: DownloadDao,
     private val trackDao: TrackDao,
+    private val albumDao: AlbumDao,
     private val lyricsDao: LyricsDao,
     private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
@@ -233,6 +236,14 @@ class MainViewModel @Inject constructor(
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    suspend fun getArtistsForTrack(trackId: String): List<ArtistEntity> {
+        return trackDao.getArtistsForTrack(trackId)
+    }
+
+    suspend fun getArtistsForAlbum(albumId: String): List<ArtistEntity> {
+        return albumDao.getArtistsForAlbum(albumId)
     }
 
     fun isTrackDownloaded(trackId: String): kotlinx.coroutines.flow.Flow<Boolean> {

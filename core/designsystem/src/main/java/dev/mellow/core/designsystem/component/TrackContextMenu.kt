@@ -109,10 +109,14 @@ fun TrackContextMenu(
                 onGoToAlbum()
                 onDismiss()
             })
-            MenuAction(PhosphorIcons.User, "Go to Artist", onClick = {
-                onGoToArtist()
-                onDismiss()
-            })
+            MenuAction(
+                PhosphorIcons.User,
+                if ("," in track.artist) "Go to Artist\u2026" else "Go to Artist",
+                onClick = {
+                    onGoToArtist()
+                    onDismiss()
+                },
+            )
 
             HorizontalDivider(
                 color = MellowTheme.colors.border,

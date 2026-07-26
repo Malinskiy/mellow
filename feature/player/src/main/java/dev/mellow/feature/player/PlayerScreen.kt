@@ -47,9 +47,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -481,6 +485,9 @@ fun PlayerTrackInfo(
     isFavorite: Boolean,
     isDownloaded: Boolean,
     onFavoriteClick: () -> Unit = {},
+    artists: List<Pair<String, String>> = emptyList(),
+    onArtistClick: (String) -> Unit = {},
+    onMoreArtistsClick: () -> Unit = {},
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -506,12 +513,23 @@ fun PlayerTrackInfo(
                     )
                 }
             }
-            Text(
-                artistName.ifEmpty { "Unknown artist" },
-                style = MaterialTheme.typography.titleLarge,
-                color = MellowTheme.colors.accentStrong,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+            if (artists.size > 1) {
+                MultiArtistText(
+                    artists = artists,
+                    onArtistClick = onArtistClick,
+                    onMoreArtistsClick = onMoreArtistsClick,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            } else {
+                Text(
+                    artistName.ifEmpty { "Unknown artist" },
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MellowTheme.colors.accentStrong,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
         AnimatedHeartIcon(
             isFavorite = isFavorite,
@@ -519,6 +537,55 @@ fun PlayerTrackInfo(
             iconSize = 24.dp,
         )
     }
+}
+
+@Composable
+private fun MultiArtistText(
+    artists: List<Pair<String, String>>,
+    onArtistClick: (String) -> Unit,
+    onMoreArtistsClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val accentColor = MellowTheme.colors.accentStrong
+    val displayArtists = artists.take(2)
+    val remaining = artists.size - 2
+
+    val annotatedString = buildAnnotatedString {
+        displayArtists.forEachIndexed { index, (id, name) ->
+            if (index > 0) {
+                withStyle(SpanStyle(color = accentColor)) {
+                    append(", ")
+                }
+            }
+            pushStringAnnotation(tag = "artist", annotation = id)
+            withStyle(SpanStyle(color = accentColor)) {
+                append(name)
+            }
+            pop()
+        }
+        if (remaining > 0) {
+            withStyle(SpanStyle(color = accentColor)) {
+                append(" ")
+            }
+            pushStringAnnotation(tag = "more", annotation = "")
+            withStyle(SpanStyle(color = accentColor)) {
+                append("+$remaining more")
+            }
+            pop()
+        }
+    }
+
+    ClickableText(
+        text = annotatedString,
+        style = MaterialTheme.typography.titleLarge,
+        modifier = modifier,
+        onClick = { offset ->
+            annotatedString.getStringAnnotations("artist", offset, offset)
+                .firstOrNull()?.let { onArtistClick(it.item) }
+                ?: annotatedString.getStringAnnotations("more", offset, offset)
+                    .firstOrNull()?.let { onMoreArtistsClick() }
+        },
+    )
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)

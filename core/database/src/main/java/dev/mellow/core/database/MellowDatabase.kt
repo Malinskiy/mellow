@@ -22,6 +22,8 @@ import dev.mellow.core.database.entity.LyricsEntity
 import dev.mellow.core.database.entity.PendingPlaybackEventEntity
 import dev.mellow.core.database.entity.PlaylistEntity
 import dev.mellow.core.database.entity.PlaylistTrackCrossRef
+import dev.mellow.core.database.entity.AlbumArtistCrossRef
+import dev.mellow.core.database.entity.TrackArtistCrossRef
 import dev.mellow.core.database.entity.SearchQueryEntity
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.database.entity.TrackEntity
@@ -35,12 +37,14 @@ import dev.mellow.core.database.entity.TrackEntity
         TrackEntity::class,
         PlaylistEntity::class,
         PlaylistTrackCrossRef::class,
+        AlbumArtistCrossRef::class,
+        TrackArtistCrossRef::class,
         PendingPlaybackEventEntity::class,
         DownloadEntity::class,
         LyricsEntity::class,
         SearchQueryEntity::class,
     ],
-    version = 9,
+    version = 11,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

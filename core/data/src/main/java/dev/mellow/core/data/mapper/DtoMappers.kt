@@ -1,9 +1,11 @@
 package dev.mellow.core.data.mapper
 
 import dev.mellow.core.common.getCleanValue
+import dev.mellow.core.database.entity.AlbumArtistCrossRef
 import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.PlaylistEntity
+import dev.mellow.core.database.entity.TrackArtistCrossRef
 import dev.mellow.core.database.entity.TrackEntity
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -16,7 +18,7 @@ fun BaseItemDto.toAlbumEntity(serverId: String): AlbumEntity = AlbumEntity(
     name = name.orEmpty(),
     sortName = sortName ?: name.orEmpty(),
     artistId = albumArtists?.firstOrNull()?.id?.toString(),
-    artistName = albumArtist,
+    artistName = albumArtists?.mapNotNull { it.name }?.joinToString(", ")?.ifEmpty { null } ?: albumArtist,
     year = productionYear,
     trackCount = childCount ?: 0,
     genres = genres.orEmpty(),
@@ -26,6 +28,17 @@ fun BaseItemDto.toAlbumEntity(serverId: String): AlbumEntity = AlbumEntity(
     dateAdded = dateCreated?.let { parseDateToEpochMs(it.toString()) } ?: System.currentTimeMillis(),
     lastSynced = System.currentTimeMillis(),
 )
+
+fun BaseItemDto.toAlbumArtistCrossRefs(): List<AlbumArtistCrossRef> =
+    albumArtists?.mapIndexedNotNull { index, pair ->
+        val artistId = pair.id?.toString() ?: return@mapIndexedNotNull null
+        AlbumArtistCrossRef(
+            albumId = id.toString(),
+            artistId = artistId,
+            artistName = pair.name.orEmpty(),
+            displayOrder = index,
+        )
+    } ?: emptyList()
 
 fun BaseItemDto.toArtistEntity(serverId: String): ArtistEntity = ArtistEntity(
     id = id.toString(),
@@ -65,7 +78,7 @@ fun BaseItemDto.toTrackEntity(serverId: String): TrackEntity {
         albumId = albumId?.toString(),
         albumName = album,
         artistId = artistItems?.firstOrNull()?.id?.toString(),
-        artistName = artists?.firstOrNull(),
+        artistName = artists?.joinToString(", ")?.ifEmpty { null } ?: artists?.firstOrNull(),
         trackNumber = indexNumber,
         discNumber = parentIndexNumber,
         durationMs = (runTimeTicks ?: 0L) / 10_000,
@@ -89,6 +102,17 @@ fun BaseItemDto.toTrackEntity(serverId: String): TrackEntity {
         lastSynced = System.currentTimeMillis(),
     )
 }
+
+fun BaseItemDto.toTrackArtistCrossRefs(): List<TrackArtistCrossRef> =
+    artistItems?.mapIndexedNotNull { index, pair ->
+        val artistId = pair.id?.toString() ?: return@mapIndexedNotNull null
+        TrackArtistCrossRef(
+            trackId = id.toString(),
+            artistId = artistId,
+            artistName = pair.name.orEmpty(),
+            displayOrder = index,
+        )
+    } ?: emptyList()
 
 private fun parseDateToEpochMs(dateStr: String): Long? = try {
     java.time.LocalDateTime.parse(dateStr)

@@ -88,6 +88,8 @@ import dev.mellow.core.designsystem.component.MellowNavigationRail
 import dev.mellow.core.player.PositionState
 import dev.mellow.core.designsystem.component.MellowNavDestination
 import dev.mellow.core.designsystem.component.MiniPlayer
+import dev.mellow.core.designsystem.component.ArtistPickerSheet
+import dev.mellow.core.designsystem.component.PickerArtist
 import dev.mellow.core.designsystem.component.TrackContextMenu
 import dev.mellow.core.designsystem.component.TrackMenuData
 import dev.mellow.core.designsystem.theme.LocalBatterySaverActive
@@ -223,6 +225,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     var trackInfoTrack by remember { mutableStateOf<Track?>(null) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var addToPlaylistTrackId by remember { mutableStateOf<String?>(null) }
+    var showArtistPicker by remember { mutableStateOf(false) }
+    var pickerArtists by remember { mutableStateOf<List<PickerArtist>>(emptyList()) }
     val playlistsVm: PlaylistsViewModel = hiltViewModel()
     val playlistsState by playlistsVm.uiState.collectAsState()
 
@@ -859,7 +863,15 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             val album = albumState.album
                             if (album != null) {
                                 val text = buildString {
-                                    append("${album.name} by ${album.artistName ?: "Unknown Artist"}")
+                                    val artistDisplay = album.artistName?.let { names ->
+                                    val parts = names.split(", ")
+                                    when {
+                                        parts.size <= 1 -> names
+                                        parts.size == 2 -> "${parts[0]} & ${parts[1]}"
+                                        else -> parts.dropLast(1).joinToString(", ") + " & " + parts.last()
+                                    }
+                                } ?: "Unknown Artist"
+                                append("${album.name} by $artistDisplay")
                                     val url = serverUrl
                                     if (url != null) append("\n${url}/web/index.html#!/details?id=${album.id}")
                                 }
@@ -874,8 +886,27 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             albumState.tracks.forEach { mainViewModel.player.addToQueue(it) }
                         },
                         onGoToArtist = {
-                            val artist = albumState.album?.resolvedArtistId ?: albumState.album?.artistId
-                            if (artist != null) navController.navigate("artist/$artist")
+                            val albumId = albumState.album?.id
+                            val fallbackArtistId = albumState.album?.resolvedArtistId ?: albumState.album?.artistId
+                            if (albumId != null) {
+                                scope.launch {
+                                    val artists = mainViewModel.getArtistsForAlbum(albumId)
+                                    if (artists.size <= 1) {
+                                        val artistId = artists.firstOrNull()?.id ?: fallbackArtistId
+                                        if (artistId != null) navController.navigate("artist/$artistId")
+                                    } else {
+                                        pickerArtists = artists.map { a ->
+                                            PickerArtist(
+                                                id = a.id,
+                                                name = a.name,
+                                                imageUrl = if (serverUrl != null) jellyfinImageUrl(serverUrl!!, a.id) else null,
+                                                albumCount = a.albumCount,
+                                            )
+                                        }
+                                        showArtistPicker = true
+                                    }
+                                }
+                            }
                         },
                     )
                     }
@@ -1574,8 +1605,26 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 contextMenuState = null
             },
             onGoToArtist = {
-                contextMenuState!!.menuData.artistId?.let { navController.navigate("artist/$it") }
+                val trackId = contextMenuState!!.menuData.id
+                val fallbackArtistId = contextMenuState!!.menuData.artistId
                 contextMenuState = null
+                scope.launch {
+                    val artists = mainViewModel.getArtistsForTrack(trackId)
+                    if (artists.size <= 1) {
+                        val artistId = artists.firstOrNull()?.id ?: fallbackArtistId
+                        if (artistId != null) navController.navigate("artist/$artistId")
+                    } else {
+                        pickerArtists = artists.map { a ->
+                            PickerArtist(
+                                id = a.id,
+                                name = a.name,
+                                imageUrl = if (serverUrl != null) jellyfinImageUrl(serverUrl!!, a.id) else null,
+                                albumCount = a.albumCount,
+                            )
+                        }
+                        showArtistPicker = true
+                    }
+                }
             },
             onStartMix = {
                 mainViewModel.startMix(contextMenuState!!.menuData.id)
@@ -1587,6 +1636,18 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             onTrackInfo = {
                 trackInfoTrack = contextMenuState?.track
                 contextMenuState = null
+            },
+        )
+    }
+
+    if (showArtistPicker) {
+        ArtistPickerSheet(
+            artists = pickerArtists,
+            onArtistClick = { artistId ->
+                navController.navigate("artist/$artistId")
+            },
+            onDismiss = {
+                showArtistPicker = false
             },
         )
     }

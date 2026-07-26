@@ -511,6 +511,8 @@ private fun TopResultRow(result: SearchResult, serverUrl: String, onClick: () ->
                 subtitle as String,
                 style = MaterialTheme.typography.bodySmall,
                 color = MellowTheme.colors.muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -554,6 +556,8 @@ private fun ResultRow(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MellowTheme.colors.muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Text(

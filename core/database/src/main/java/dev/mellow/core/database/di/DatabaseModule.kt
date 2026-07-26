@@ -31,6 +31,8 @@ object DatabaseModule {
                 Migrations.MIGRATION_6_7,
                 Migrations.MIGRATION_7_8,
                 Migrations.MIGRATION_8_9,
+                Migrations.MIGRATION_9_10,
+                Migrations.MIGRATION_10_11,
             )
             .build()
 

@@ -3,9 +3,11 @@ package dev.mellow.core.data.repository
 import android.util.Log
 import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.SyncProgress
+import dev.mellow.core.data.mapper.toAlbumArtistCrossRefs
 import dev.mellow.core.data.mapper.toAlbumEntity
 import dev.mellow.core.data.mapper.toArtistEntity
 import dev.mellow.core.data.mapper.toModel
+import dev.mellow.core.data.mapper.toTrackArtistCrossRefs
 import dev.mellow.core.data.mapper.toTrackEntity
 import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.common.getCleanValue
@@ -274,8 +276,8 @@ class LibraryRepositoryImpl @Inject constructor(
                 }
 
                 val since = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastSyncMs), ZoneOffset.UTC)
-                if (albumsOutdated) syncAllAlbums(serverId, userId, onProgress) else syncAlbumsIncremental(serverId, userId, since, onProgress)
                 syncAllArtists(serverId, userId, onProgress)
+                if (albumsOutdated) syncAllAlbums(serverId, userId, onProgress) else syncAlbumsIncremental(serverId, userId, since, onProgress)
                 if (tracksOutdated) syncAllTracks(serverId, userId, onProgress) else syncTracksIncremental(serverId, userId, since, onProgress)
             }
 
@@ -324,6 +326,8 @@ class LibraryRepositoryImpl @Inject constructor(
             Log.d(TAG, "syncFavorites: ${favAlbums.size} albums from API")
             if (favAlbums.isNotEmpty()) {
                 albumDao.upsertAlbums(favAlbums.map { it.toAlbumEntity(serverId) })
+                favAlbums.forEach { albumDao.clearAlbumArtists(it.id.toString()) }
+                albumDao.insertAlbumArtists(favAlbums.flatMap { it.toAlbumArtistCrossRefs() })
             }
 
             val favArtists = jellyfinDataSource.getFavoriteArtists(userId)
@@ -336,6 +340,8 @@ class LibraryRepositoryImpl @Inject constructor(
             Log.d(TAG, "syncFavorites: ${favTracks.size} tracks from API")
             if (favTracks.isNotEmpty()) {
                 trackDao.upsertTracks(favTracks.map { it.toTrackEntity(serverId) })
+                favTracks.forEach { trackDao.clearTrackArtists(it.id.toString()) }
+                trackDao.insertTrackArtists(favTracks.flatMap { it.toTrackArtistCrossRefs() })
             }
             MellowResult.Success(Unit)
         } catch (e: Exception) {
@@ -409,8 +415,8 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     private suspend fun fullSync(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
-        syncAllAlbums(serverId, userId, onProgress)
         syncAllArtists(serverId, userId, onProgress)
+        syncAllAlbums(serverId, userId, onProgress)
         syncAllTracks(serverId, userId, onProgress)
     }
 
@@ -428,6 +434,8 @@ class LibraryRepositoryImpl @Inject constructor(
             if (items.isEmpty()) break
             Log.d(TAG, "Incremental album sync: ${items.size} changed items at offset $startIndex")
             albumDao.upsertAlbums(items.map { it.toAlbumEntity(serverId) })
+            items.forEach { albumDao.clearAlbumArtists(it.id.toString()) }
+            albumDao.insertAlbumArtists(items.flatMap { it.toAlbumArtistCrossRefs() })
             startIndex += items.size
             onProgress(SyncProgress("albums", startIndex, startIndex))
             if (items.size < pageSize) break
@@ -448,6 +456,8 @@ class LibraryRepositoryImpl @Inject constructor(
             if (items.isEmpty()) break
             Log.d(TAG, "Incremental track sync: ${items.size} changed items at offset $startIndex")
             trackDao.upsertTracks(items.map { it.toTrackEntity(serverId) })
+            items.forEach { trackDao.clearTrackArtists(it.id.toString()) }
+            trackDao.insertTrackArtists(items.flatMap { it.toTrackArtistCrossRefs() })
             startIndex += items.size
             onProgress(SyncProgress("tracks", startIndex, startIndex))
             if (items.size < pageSize) break
@@ -551,6 +561,7 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     private suspend fun syncAllAlbums(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
+        albumDao.clearAllAlbumArtistsByServer(serverId)
         var startIndex = 0
         val pageSize = 200
         var totalCount = 0
@@ -559,6 +570,7 @@ class LibraryRepositoryImpl @Inject constructor(
             if (paged.items.isEmpty()) break
             if (totalCount == 0) totalCount = paged.totalRecordCount
             albumDao.upsertAlbums(paged.items.map { it.toAlbumEntity(serverId) })
+            albumDao.insertAlbumArtists(paged.items.flatMap { it.toAlbumArtistCrossRefs() })
             startIndex += paged.items.size
             onProgress(SyncProgress("albums", startIndex, totalCount))
             if (paged.items.size < pageSize) break
@@ -581,6 +593,7 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     private suspend fun syncAllTracks(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
+        trackDao.clearAllTrackArtistsByServer(serverId)
         var startIndex = 0
         val pageSize = 500
         var totalCount = 0
@@ -589,6 +602,7 @@ class LibraryRepositoryImpl @Inject constructor(
             if (paged.items.isEmpty()) break
             if (totalCount == 0) totalCount = paged.totalRecordCount
             trackDao.upsertTracks(paged.items.map { it.toTrackEntity(serverId) })
+            trackDao.insertTrackArtists(paged.items.flatMap { it.toTrackArtistCrossRefs() })
             startIndex += paged.items.size
             onProgress(SyncProgress("tracks", startIndex, totalCount))
             if (paged.items.size < pageSize) break
