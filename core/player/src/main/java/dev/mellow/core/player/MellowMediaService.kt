@@ -5,10 +5,13 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.CacheBitmapLoader
@@ -80,16 +83,43 @@ class MellowMediaService : MediaLibraryService() {
 
         player = exoPlayer
 
+        exoPlayer.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                Log.e(TAG, "ExoPlayer error: ${error.errorCodeName}", error)
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                val stateName = when (playbackState) {
+                    Player.STATE_IDLE -> "IDLE"
+                    Player.STATE_BUFFERING -> "BUFFERING"
+                    Player.STATE_READY -> "READY"
+                    Player.STATE_ENDED -> "ENDED"
+                    else -> "UNKNOWN($playbackState)"
+                }
+                Log.d(TAG, "Playback state: $stateName, items=${exoPlayer.mediaItemCount}")
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                Log.d(TAG, "Media item transition: id=${mediaItem?.mediaId}, uri=${mediaItem?.localConfiguration?.uri}")
+            }
+        })
+
         val bitmapLoader = CacheBitmapLoader(ContentBitmapLoader(this))
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, LibrarySessionCallback())
             .setBitmapLoader(bitmapLoader)
             .build()
 
+        Log.d(TAG, "MediaLibrarySession created")
+
         serviceScope.launch {
             if (!jellyfinClientWrapper.isConnected) {
-                val server = serverDao.getActiveServer() ?: return@launch
+                val server = serverDao.getActiveServer() ?: run {
+                    Log.w(TAG, "No active server in Room, skipping session restore")
+                    return@launch
+                }
                 jellyfinClientWrapper.restoreSession(server.url, server.accessToken)
+                Log.d(TAG, "Jellyfin session restored for ${server.url}")
                 networkStateObserver.refresh()
             }
         }
@@ -122,6 +152,7 @@ class MellowMediaService : MediaLibraryService() {
             try {
                 future.set(block())
             } catch (e: Exception) {
+                Log.e(TAG, "asyncFuture failed", e)
                 future.setException(e)
             }
         }
@@ -139,6 +170,7 @@ class MellowMediaService : MediaLibraryService() {
             putInt(CONTENT_STYLE_PLAYABLE_HINT, CONTENT_STYLE_LIST_ITEM)
             groupTitle?.let { putString(CONTENT_STYLE_GROUP_TITLE, it) }
         }
+        val artUri = if (imageTag != null) artworkUri(id) else drawableUri(R.drawable.ic_aa_albums)
         return MediaItem.Builder()
             .setMediaId("album:$id")
             .setMediaMetadata(
@@ -146,7 +178,7 @@ class MellowMediaService : MediaLibraryService() {
                     .setTitle(name)
                     .setArtist(artistName)
                     .setSubtitle(artistName?.let { "Album \u2022 $it" } ?: "Album")
-                    .setArtworkUri(artworkUri(id))
+                    .setArtworkUri(artUri)
                     .setMediaType(MediaMetadata.MEDIA_TYPE_ALBUM)
                     .apply { year?.let { setReleaseYear(it) } }
                     .setIsBrowsable(true)
@@ -168,7 +200,7 @@ class MellowMediaService : MediaLibraryService() {
                 MediaMetadata.Builder()
                     .setTitle(name)
                     .setSubtitle("Artist")
-                    .setArtworkUri(if (imageTag != null) artworkUri(id) else null)
+                    .setArtworkUri(if (imageTag != null) artworkUri(id) else drawableUri(R.drawable.ic_aa_artists))
                     .setMediaType(MediaMetadata.MEDIA_TYPE_ARTIST)
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
@@ -227,20 +259,22 @@ class MellowMediaService : MediaLibraryService() {
             .build()
     }
 
-    private fun AlbumEntity.toPlayablePreview(): MediaItem =
-        MediaItem.Builder()
+    private fun AlbumEntity.toPlayablePreview(): MediaItem {
+        val artUri = if (imageTag != null) artworkUri(id) else drawableUri(R.drawable.ic_aa_albums)
+        return MediaItem.Builder()
             .setMediaId("album:$id")
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(name)
                     .setSubtitle(artistName?.let { "Album \u2022 $it" } ?: "Album")
-                    .setArtworkUri(artworkUri(id))
+                    .setArtworkUri(artUri)
                     .setMediaType(MediaMetadata.MEDIA_TYPE_ALBUM)
                     .setIsBrowsable(false)
                     .setIsPlayable(true)
                     .build()
             )
             .build()
+    }
 
     private fun ArtistEntity.toPlayablePreview(): MediaItem =
         MediaItem.Builder()
@@ -249,7 +283,7 @@ class MellowMediaService : MediaLibraryService() {
                 MediaMetadata.Builder()
                     .setTitle(name)
                     .setSubtitle("Artist")
-                    .setArtworkUri(if (imageTag != null) artworkUri(id) else null)
+                    .setArtworkUri(if (imageTag != null) artworkUri(id) else drawableUri(R.drawable.ic_aa_artists))
                     .setMediaType(MediaMetadata.MEDIA_TYPE_ARTIST)
                     .setIsBrowsable(false)
                     .setIsPlayable(true)
@@ -258,16 +292,26 @@ class MellowMediaService : MediaLibraryService() {
             .build()
 
     private suspend fun enrichMediaItems(mediaItems: List<MediaItem>): List<MediaItem> {
-        val server = serverDao.getActiveServer() ?: return mediaItems
+        val server = serverDao.getActiveServer()
+        if (server == null) {
+            Log.w(TAG, "enrichMediaItems: no active server, returning ${mediaItems.size} unenriched items")
+            return mediaItems
+        }
         val serverUrl = server.url
         val apiKey = server.accessToken
 
-        return mediaItems.map { item ->
+        var enrichedCount = 0
+        var missCount = 0
+        val result = mediaItems.map { item ->
             val trackId = item.mediaId
-            if (item.localConfiguration != null) return@map item
+            if (item.localConfiguration != null) {
+                enrichedCount++
+                return@map item
+            }
 
             val track = trackDao.getTrackById(trackId)
             if (track != null) {
+                enrichedCount++
                 MediaItem.Builder()
                     .setMediaId(trackId)
                     .setUri(Uri.parse(jellyfinStreamUrl(serverUrl, trackId, apiKey)))
@@ -285,9 +329,13 @@ class MellowMediaService : MediaLibraryService() {
                     )
                     .build()
             } else {
+                missCount++
+                Log.w(TAG, "enrichMediaItems: track not found in Room: $trackId")
                 item
             }
         }
+        Log.d(TAG, "enrichMediaItems: ${result.size} items, $enrichedCount enriched, $missCount not found")
+        return result
     }
 
     private inner class LibrarySessionCallback : MediaLibrarySession.Callback {
@@ -299,17 +347,23 @@ class MellowMediaService : MediaLibraryService() {
             startIndex: Int,
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            Log.d(TAG, "onSetMediaItems: ${mediaItems.size} items, startIndex=$startIndex, " +
+                "ids=${mediaItems.map { it.mediaId }}, " +
+                "controller=${browser.packageName}")
             return asyncFuture {
                 if (mediaItems.size == 1) {
                     val mediaId = mediaItems[0].mediaId
+                    Log.d(TAG, "onSetMediaItems: resolving single item mediaId=$mediaId")
 
                     if (mediaId.startsWith("album:")) {
                         val albumId = mediaId.removePrefix("album:")
                         val tracks = trackDao.getTracksByAlbumSync(albumId)
+                        Log.d(TAG, "onSetMediaItems: album:$albumId → ${tracks.size} tracks")
                         if (tracks.isNotEmpty()) {
                             val enriched = enrichMediaItems(tracks.map {
                                 it.toPlayableItem(parentId = "album:$albumId")
                             })
+                            Log.d(TAG, "onSetMediaItems: resolved album, returning ${enriched.size} items")
                             return@asyncFuture MediaSession.MediaItemsWithStartPosition(
                                 enriched, 0, startPositionMs,
                             )
@@ -320,6 +374,7 @@ class MellowMediaService : MediaLibraryService() {
                         val albums = albumDao.getAllAlbumsByArtist(artistId)
                         if (albums.isNotEmpty()) {
                             val firstAlbumTracks = trackDao.getTracksByAlbumSync(albums[0].id)
+                            Log.d(TAG, "onSetMediaItems: artist:$artistId → ${albums.size} albums, first album ${firstAlbumTracks.size} tracks")
                             if (firstAlbumTracks.isNotEmpty()) {
                                 val enriched = enrichMediaItems(firstAlbumTracks.map {
                                     it.toPlayableItem(parentId = "album:${albums[0].id}")
@@ -335,6 +390,7 @@ class MellowMediaService : MediaLibraryService() {
                     val parentId = mediaItems[0].mediaMetadata.extras?.getString(EXTRA_PARENT_ID)
                     val track = trackDao.getTrackById(trackId)
                     val serverId = serverDao.getActiveServer()?.id ?: ""
+                    Log.d(TAG, "onSetMediaItems: track lookup id=$trackId, found=${track != null}, parentId=$parentId, serverId=$serverId")
 
                     val siblings = when {
                         parentId?.startsWith("playlist:") == true -> {
@@ -356,18 +412,31 @@ class MellowMediaService : MediaLibraryService() {
                         }
                         else -> null
                     }
+                    Log.d(TAG, "onSetMediaItems: siblings=${siblings?.size}, source=${
+                        when {
+                            parentId?.startsWith("playlist:") == true -> "playlist"
+                            parentId == FAV_TRACKS -> "fav_tracks"
+                            parentId == LIBRARY_SONGS -> "library_songs"
+                            parentId?.startsWith("album:") == true -> "album_parent"
+                            track?.albumId != null -> "album_fallback"
+                            else -> "none"
+                        }
+                    }")
 
                     if (!siblings.isNullOrEmpty()) {
                         val enriched = enrichMediaItems(siblings.map {
                             it.toPlayableItem(parentId = parentId)
                         })
                         val idx = siblings.indexOfFirst { it.id == trackId }.coerceAtLeast(0)
+                        Log.d(TAG, "onSetMediaItems: returning ${enriched.size} sibling items, startIdx=$idx")
                         MediaSession.MediaItemsWithStartPosition(enriched, idx, startPositionMs)
                     } else {
                         val enriched = enrichMediaItems(mediaItems)
+                        Log.d(TAG, "onSetMediaItems: no siblings, returning ${enriched.size} single items")
                         MediaSession.MediaItemsWithStartPosition(enriched, startIndex, startPositionMs)
                     }
                 } else {
+                    Log.d(TAG, "onSetMediaItems: multi-item (${mediaItems.size}), enriching directly")
                     val enriched = enrichMediaItems(mediaItems)
                     MediaSession.MediaItemsWithStartPosition(enriched, startIndex, startPositionMs)
                 }
@@ -379,6 +448,7 @@ class MellowMediaService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> {
+            Log.d(TAG, "onAddMediaItems: ${mediaItems.size} items, ids=${mediaItems.map { it.mediaId }}")
             return asyncFuture { enrichMediaItems(mediaItems) }
         }
 
@@ -536,7 +606,7 @@ class MellowMediaService : MediaLibraryService() {
                             .map { it.toBrowsableItem() }
                     }
                     parentId == LIBRARY_ARTISTS -> {
-                        artistDao.getAllArtistsByServer(serverId)
+                        artistDao.getCanonicalArtistsByServer(serverId)
                             .onlineFilter()
                             .map { it.toBrowsableItem() }
                     }
@@ -557,9 +627,12 @@ class MellowMediaService : MediaLibraryService() {
                             }
                     }
                     parentId == LIBRARY_SONGS -> {
-                        trackDao.getTracksByServerPaged(serverId, limit = AA_MAX_ITEMS, offset = 0)
-                            .onlineFilter()
-                            .map { it.toPlayableItem() }
+                        val allTracks = trackDao.getTracksByServerPaged(serverId, limit = AA_MAX_ITEMS, offset = 0)
+                        val filtered = allTracks.onlineFilter()
+                        Log.d(TAG, "LIBRARY_SONGS: serverId=$serverId, isOnline=$isOnline, " +
+                            "total=${allTracks.size}, afterFilter=${filtered.size}, " +
+                            "dlTrackIds=${dlTrackIds?.size}")
+                        filtered.map { it.toPlayableItem() }
                     }
                     parentId == TAB_PLAYLISTS -> {
                         playlistDao.getPlaylistsByServer(serverId)
@@ -748,6 +821,7 @@ class MellowMediaService : MediaLibraryService() {
     }
 
     companion object {
+        private const val TAG = "MellowMediaService"
         private const val ROOT_ID = "mellow_root"
         private const val TAB_HOME = "tab_home"
         private const val TAB_LIBRARY = "tab_library"

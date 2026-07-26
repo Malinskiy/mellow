@@ -52,6 +52,15 @@ interface ArtistDao {
     @Query("SELECT * FROM artists WHERE serverId = :serverId ORDER BY sortName ASC")
     suspend fun getAllArtistsByServer(serverId: String): List<ArtistEntity>
 
+    @Query("""
+        SELECT a.* FROM artists a
+        INNER JOIN artist_aliases aa ON a.id = aa.canonicalArtistId AND a.serverId = aa.serverId
+        WHERE a.serverId = :serverId
+        GROUP BY aa.canonicalArtistId
+        ORDER BY a.sortName ASC
+    """)
+    suspend fun getCanonicalArtistsByServer(serverId: String): List<ArtistEntity>
+
     @Query("SELECT id FROM artists WHERE isFavorite = 1 AND serverId = :serverId")
     suspend fun getFavoriteArtistIds(serverId: String): List<String>
 
