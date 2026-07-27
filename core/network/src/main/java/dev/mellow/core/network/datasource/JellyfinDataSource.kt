@@ -89,6 +89,17 @@ class JellyfinDataSource @Inject constructor(
         return response.items.orEmpty()
     }
 
+    suspend fun getAlbumsByIds(userId: UUID, ids: List<UUID>): List<BaseItemDto> {
+        if (ids.isEmpty()) return emptyList()
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            ids = ids,
+            fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
+            enableUserData = true,
+        )
+        return response.items.orEmpty()
+    }
+
     suspend fun getAlbumsPaged(
         userId: UUID,
         startIndex: Int = 0,

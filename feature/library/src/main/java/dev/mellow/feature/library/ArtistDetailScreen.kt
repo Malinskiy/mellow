@@ -54,7 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
 import coil3.compose.AsyncImage
-import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.common.artworkUri
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
@@ -222,7 +222,7 @@ fun ArtistDetailScreen(
                                             title = album.name,
                                             artist = album.year?.toString() ?: "",
                                             imageUrl = if (serverUrl != null && album.imageId != null) {
-                                                jellyfinImageUrl(serverUrl, album.imageId)
+                                                artworkUri(album.imageId)
                                             } else null,
                                             onClick = { onAlbumClick(album.id) },
                                             modifier = Modifier.weight(1f),
@@ -494,7 +494,7 @@ private fun ArtistDetailExpanded(
                                 title = album.name,
                                 artist = album.year?.toString() ?: "",
                                 imageUrl = if (serverUrl != null && album.imageId != null) {
-                                    jellyfinImageUrl(serverUrl, album.imageId)
+                                    artworkUri(album.imageId)
                                 } else null,
                                 onClick = { onAlbumClick(album.id) },
                         )

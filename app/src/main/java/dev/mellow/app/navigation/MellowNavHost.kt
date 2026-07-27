@@ -102,7 +102,7 @@ import dev.mellow.core.designsystem.theme.rememberIsBatterySaverActive
 import dev.mellow.core.network.ConnectionState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.common.artworkUri
 import dev.mellow.core.model.AlbumDownloadState
 import dev.mellow.core.model.DownloadState
 import dev.mellow.core.designsystem.component.AddToPlaylistSheet
@@ -245,7 +245,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 artistId = track.resolvedArtistId ?: track.artistId,
                             imageUrl = if (serverUrl != null) {
                                 val imgId = track.imageId ?: track.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                if (imgId != null) artworkUri(imgId) else null
                             } else null,
                 isFavorite = track.isFavorite,
                 isDownloaded = false,
@@ -279,7 +279,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 artist = track.artistName ?: "",
                 imageUrl = if (serverUrl != null) {
                     val imgId = track.imageId ?: track.albumId
-                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                    if (imgId != null) artworkUri(imgId) else null
                 } else null,
                 isPlaying = playbackState.isPlaying,
                 isBuffering = playbackState.isBuffering,
@@ -802,7 +802,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         artistName = albumState.album?.artistName ?: "",
                         albumImageUrl = if (serverUrl != null) {
                             val imgId = albumState.album?.imageId ?: routeAlbumId
-                            jellyfinImageUrl(serverUrl!!, imgId)
+                            artworkUri(imgId)
                         } else null,
                         year = albumState.album?.year,
                         expectedTrackCount = albumState.album?.trackCount ?: 0,
@@ -899,7 +899,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                             PickerArtist(
                                                 id = a.id,
                                                 name = a.name,
-                                                imageUrl = if (serverUrl != null) jellyfinImageUrl(serverUrl!!, a.id) else null,
+                                                imageUrl = if (serverUrl != null) artworkUri(a.id) else null,
                                                 albumCount = a.albumCount,
                                             )
                                         }
@@ -924,7 +924,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 albumName = track.albumName ?: "",
                                 imageUrl = if (serverUrl != null) {
                                     val imgId = track.imageId ?: track.albumId
-                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                    if (imgId != null) artworkUri(imgId) else null
                                 } else null,
                             )
                         }
@@ -960,7 +960,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         splitPaneWidth = artistSplitWidth,
                         artistName = artistState.artist?.name ?: "",
                         artistImageUrl = if (serverUrl != null && artistState.artist?.imageId != null) {
-                            jellyfinImageUrl(serverUrl!!, artistState.artist!!.imageId!!)
+                            artworkUri(artistState.artist!!.imageId!!)
                         } else null,
                         albumCount = albums.size,
                         totalTrackCount = artistState.totalTrackCount,
@@ -1042,7 +1042,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 duration = formatTrackDuration(track.duration),
                                 imageUrl = if (serverUrl != null) {
                                     val imgId = track.imageId ?: track.albumId
-                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                    if (imgId != null) artworkUri(imgId) else null
                                 } else null,
                             )
                         }
@@ -1103,7 +1103,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             duration = formatTrackDuration(track.duration),
                             imageUrl = if (serverUrl != null) {
                                 val imgId = track.imageId ?: track.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                if (imgId != null) artworkUri(imgId) else null
                             } else null,
                         )
                     }
@@ -1120,7 +1120,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                     duration = formatTrackDuration(track.duration),
                                     imageUrl = if (serverUrl != null) {
                                         val imgId = track.imageId ?: track.albumId
-                                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                        if (imgId != null) artworkUri(imgId) else null
                                     } else null,
                                 )
                             }
@@ -1177,7 +1177,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         artistName = track?.artistName ?: "",
                         albumImageUrl = if (serverUrl != null) {
                             val imgId = track?.imageId ?: track?.albumId
-                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                            if (imgId != null) artworkUri(imgId) else null
                         } else null,
                         lyrics = lyrics,
                         isLoadingLyrics = isLoadingLyrics,
@@ -1225,7 +1225,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             artistName = track.artistName ?: "",
             albumImageUrl = if (serverUrl != null) {
                 val imgId = track.imageId ?: track.albumId
-                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                if (imgId != null) artworkUri(imgId) else null
             } else null,
             isPlaying = playbackState.isPlaying,
             isBuffering = playbackState.isBuffering,
@@ -1270,7 +1270,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     albumName = track.albumName ?: "",
                     albumImageUrl = if (serverUrl != null) {
                         val imgId = track.imageId ?: track.albumId
-                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                        if (imgId != null) artworkUri(imgId) else null
                     } else null,
                     isPlaying = playbackState.isPlaying,
                     progress = if (positionState.durationMs > 0) {
@@ -1316,7 +1316,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
                                 imageUrl = if (serverUrl != null) {
                                     val imgId = t.imageId ?: t.albumId
-                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                    if (imgId != null) artworkUri(imgId) else null
                                 } else null,
                             )
                         }
@@ -1327,7 +1327,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                     album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
                                     imageUrl = if (serverUrl != null) {
                                         val imgId = t.imageId ?: t.albumId
-                                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                        if (imgId != null) artworkUri(imgId) else null
                                     } else null,
                                 )
                             }
@@ -1449,7 +1449,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                         artistName = lyricsTrack?.artistName ?: "",
                                         albumImageUrl = if (serverUrl != null) {
                                             val imgId = lyricsTrack?.imageId ?: lyricsTrack?.albumId
-                                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                            if (imgId != null) artworkUri(imgId) else null
                                         } else null,
                                         lyrics = sideLyrics,
                                         isLoadingLyrics = sideIsLoadingLyrics,
@@ -1479,7 +1479,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
                         imageUrl = if (serverUrl != null) {
                             val imgId = t.imageId ?: t.albumId
-                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                            if (imgId != null) artworkUri(imgId) else null
                         } else null,
                     )
                 }
@@ -1491,7 +1491,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
                             imageUrl = if (serverUrl != null) {
                                 val imgId = t.imageId ?: t.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                if (imgId != null) artworkUri(imgId) else null
                             } else null,
                         )
                     }
@@ -1548,7 +1548,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     artistName = lyricsTrack?.artistName ?: "",
                     albumImageUrl = if (serverUrl != null) {
                         val imgId = lyricsTrack?.imageId ?: lyricsTrack?.albumId
-                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                        if (imgId != null) artworkUri(imgId) else null
                     } else null,
                     lyrics = lyrics,
                     isLoadingLyrics = isLoadingLyrics,
@@ -1570,7 +1570,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             SharedArtOverlay(
                 imageUrl = if (serverUrl != null) {
                     val imgId = track.imageId ?: track.albumId
-                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                    if (imgId != null) artworkUri(imgId) else null
                 } else null,
                 dragFraction = sheetState.dragFraction,
                 positions = sharedArtPositions,
@@ -1618,7 +1618,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             PickerArtist(
                                 id = a.id,
                                 name = a.name,
-                                imageUrl = if (serverUrl != null) jellyfinImageUrl(serverUrl!!, a.id) else null,
+                                imageUrl = if (serverUrl != null) artworkUri(a.id) else null,
                                 albumCount = a.albumCount,
                             )
                         }

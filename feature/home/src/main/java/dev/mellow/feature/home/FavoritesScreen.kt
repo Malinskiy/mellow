@@ -38,7 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.common.artworkUri
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
 import dev.mellow.core.model.Track
@@ -204,7 +204,7 @@ fun FavoritesContent(
                                 duration = formatFavDuration(track.duration),
                                 imageUrl = if (serverUrl != null) {
                                     val imgId = track.imageId ?: track.albumId
-                                    if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
+                                    if (imgId != null) artworkUri(imgId) else null
                                 } else null,
                                 isFavorite = true,
                                 onClick = { onTrackClick(track.id) },
@@ -231,7 +231,7 @@ fun FavoritesContent(
                                     title = album.name,
                                     artist = album.artistName ?: "",
                                     imageUrl = if (serverUrl != null && album.imageId != null) {
-                                        jellyfinImageUrl(serverUrl, album.imageId!!)
+                                        artworkUri(album.imageId!!)
                                     } else null,
                                     onClick = { onAlbumClick(album.id) },
                                     sharedElementKey = "album_art_favorites_${album.id}",
@@ -255,7 +255,7 @@ fun FavoritesContent(
                                 name = artist.name,
                                 albumCount = artist.albumCount,
                                 imageUrl = if (serverUrl != null && artist.imageId != null) {
-                                    jellyfinImageUrl(serverUrl, artist.imageId!!)
+                                    artworkUri(artist.imageId!!)
                                 } else null,
                                 onClick = { onArtistClick(artist.id) },
                                 showChevron = columns == 1,

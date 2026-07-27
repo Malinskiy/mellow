@@ -153,6 +153,9 @@ interface TrackDao {
 
     @Query("SELECT artistName FROM track_artists WHERE trackId = :trackId ORDER BY displayOrder ASC")
     suspend fun getArtistNamesForTrack(trackId: String): List<String>
+
+    @Query("SELECT id FROM tracks WHERE serverId = :serverId AND imageTag IS NOT NULL AND albumId IS NULL")
+    suspend fun getOrphanTrackIdsWithImage(serverId: String): List<String>
 }
 
 suspend fun TrackDao.getInstantMix(
