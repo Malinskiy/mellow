@@ -2,11 +2,15 @@ package dev.mellow.core.database.dao
 
 import androidx.paging.PagingSource
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.RawQuery
 import androidx.room.Upsert
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery
+import dev.mellow.core.database.entity.ArtistEntity
+import dev.mellow.core.database.entity.TrackArtistCrossRef
 import dev.mellow.core.database.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -121,6 +125,37 @@ interface TrackDao {
 
     @RawQuery
     suspend fun getInstantMixRaw(query: SupportSQLiteQuery): List<TrackEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTrackArtists(refs: List<TrackArtistCrossRef>)
+
+    @Query("DELETE FROM track_artists WHERE trackId = :trackId")
+    suspend fun clearTrackArtists(trackId: String)
+
+    @Query("DELETE FROM track_artists WHERE trackId IN (SELECT id FROM tracks WHERE serverId = :serverId)")
+    suspend fun clearAllTrackArtistsByServer(serverId: String)
+
+    @Query("""
+        SELECT a.* FROM artists a
+        INNER JOIN track_artists ta ON a.id = ta.artistId
+        WHERE ta.trackId = :trackId
+        ORDER BY ta.displayOrder ASC
+    """)
+    suspend fun getArtistsForTrack(trackId: String): List<ArtistEntity>
+
+    @Query("""
+        SELECT a.* FROM artists a
+        INNER JOIN track_artists ta ON a.id = ta.artistId
+        WHERE ta.trackId = :trackId
+        ORDER BY ta.displayOrder ASC
+    """)
+    fun observeArtistsForTrack(trackId: String): Flow<List<ArtistEntity>>
+
+    @Query("SELECT artistName FROM track_artists WHERE trackId = :trackId ORDER BY displayOrder ASC")
+    suspend fun getArtistNamesForTrack(trackId: String): List<String>
+
+    @Query("SELECT id FROM tracks WHERE serverId = :serverId AND imageTag IS NOT NULL AND albumId IS NULL")
+    suspend fun getOrphanTrackIdsWithImage(serverId: String): List<String>
 }
 
 suspend fun TrackDao.getInstantMix(

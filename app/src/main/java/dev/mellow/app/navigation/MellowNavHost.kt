@@ -88,6 +88,8 @@ import dev.mellow.core.designsystem.component.MellowNavigationRail
 import dev.mellow.core.player.PositionState
 import dev.mellow.core.designsystem.component.MellowNavDestination
 import dev.mellow.core.designsystem.component.MiniPlayer
+import dev.mellow.core.designsystem.component.ArtistPickerSheet
+import dev.mellow.core.designsystem.component.PickerArtist
 import dev.mellow.core.designsystem.component.TrackContextMenu
 import dev.mellow.core.designsystem.component.TrackMenuData
 import dev.mellow.core.designsystem.theme.LocalBatterySaverActive
@@ -100,7 +102,7 @@ import dev.mellow.core.designsystem.theme.rememberIsBatterySaverActive
 import dev.mellow.core.network.ConnectionState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.common.artworkUri
 import dev.mellow.core.model.AlbumDownloadState
 import dev.mellow.core.model.DownloadState
 import dev.mellow.core.designsystem.component.AddToPlaylistSheet
@@ -223,6 +225,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     var trackInfoTrack by remember { mutableStateOf<Track?>(null) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var addToPlaylistTrackId by remember { mutableStateOf<String?>(null) }
+    var showArtistPicker by remember { mutableStateOf(false) }
+    var pickerArtists by remember { mutableStateOf<List<PickerArtist>>(emptyList()) }
     val playlistsVm: PlaylistsViewModel = hiltViewModel()
     val playlistsState by playlistsVm.uiState.collectAsState()
 
@@ -241,7 +245,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 artistId = track.resolvedArtistId ?: track.artistId,
                             imageUrl = if (serverUrl != null) {
                                 val imgId = track.imageId ?: track.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                if (imgId != null) artworkUri(imgId) else null
                             } else null,
                 isFavorite = track.isFavorite,
                 isDownloaded = false,
@@ -275,7 +279,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 artist = track.artistName ?: "",
                 imageUrl = if (serverUrl != null) {
                     val imgId = track.imageId ?: track.albumId
-                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                    if (imgId != null) artworkUri(imgId) else null
                 } else null,
                 isPlaying = playbackState.isPlaying,
                 isBuffering = playbackState.isBuffering,
@@ -798,7 +802,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         artistName = albumState.album?.artistName ?: "",
                         albumImageUrl = if (serverUrl != null) {
                             val imgId = albumState.album?.imageId ?: routeAlbumId
-                            jellyfinImageUrl(serverUrl!!, imgId)
+                            artworkUri(imgId)
                         } else null,
                         year = albumState.album?.year,
                         expectedTrackCount = albumState.album?.trackCount ?: 0,
@@ -859,7 +863,15 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             val album = albumState.album
                             if (album != null) {
                                 val text = buildString {
-                                    append("${album.name} by ${album.artistName ?: "Unknown Artist"}")
+                                    val artistDisplay = album.artistName?.let { names ->
+                                    val parts = names.split(", ")
+                                    when {
+                                        parts.size <= 1 -> names
+                                        parts.size == 2 -> "${parts[0]} & ${parts[1]}"
+                                        else -> parts.dropLast(1).joinToString(", ") + " & " + parts.last()
+                                    }
+                                } ?: "Unknown Artist"
+                                append("${album.name} by $artistDisplay")
                                     val url = serverUrl
                                     if (url != null) append("\n${url}/web/index.html#!/details?id=${album.id}")
                                 }
@@ -874,8 +886,27 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             albumState.tracks.forEach { mainViewModel.player.addToQueue(it) }
                         },
                         onGoToArtist = {
-                            val artist = albumState.album?.resolvedArtistId ?: albumState.album?.artistId
-                            if (artist != null) navController.navigate("artist/$artist")
+                            val albumId = albumState.album?.id
+                            val fallbackArtistId = albumState.album?.resolvedArtistId ?: albumState.album?.artistId
+                            if (albumId != null) {
+                                scope.launch {
+                                    val artists = mainViewModel.getArtistsForAlbum(albumId)
+                                    if (artists.size <= 1) {
+                                        val artistId = artists.firstOrNull()?.id ?: fallbackArtistId
+                                        if (artistId != null) navController.navigate("artist/$artistId")
+                                    } else {
+                                        pickerArtists = artists.map { a ->
+                                            PickerArtist(
+                                                id = a.id,
+                                                name = a.name,
+                                                imageUrl = if (serverUrl != null) artworkUri(a.id) else null,
+                                                albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
+                                            )
+                                        }
+                                        showArtistPicker = true
+                                    }
+                                }
+                            }
                         },
                     )
                     }
@@ -893,7 +924,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 albumName = track.albumName ?: "",
                                 imageUrl = if (serverUrl != null) {
                                     val imgId = track.imageId ?: track.albumId
-                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                    if (imgId != null) artworkUri(imgId) else null
                                 } else null,
                             )
                         }
@@ -929,7 +960,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         splitPaneWidth = artistSplitWidth,
                         artistName = artistState.artist?.name ?: "",
                         artistImageUrl = if (serverUrl != null && artistState.artist?.imageId != null) {
-                            jellyfinImageUrl(serverUrl!!, artistState.artist!!.imageId!!)
+                            artworkUri(artistState.artist!!.imageId!!)
                         } else null,
                         albumCount = albums.size,
                         totalTrackCount = artistState.totalTrackCount,
@@ -1011,7 +1042,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 duration = formatTrackDuration(track.duration),
                                 imageUrl = if (serverUrl != null) {
                                     val imgId = track.imageId ?: track.albumId
-                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                    if (imgId != null) artworkUri(imgId) else null
                                 } else null,
                             )
                         }
@@ -1072,7 +1103,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             duration = formatTrackDuration(track.duration),
                             imageUrl = if (serverUrl != null) {
                                 val imgId = track.imageId ?: track.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                if (imgId != null) artworkUri(imgId) else null
                             } else null,
                         )
                     }
@@ -1089,7 +1120,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                     duration = formatTrackDuration(track.duration),
                                     imageUrl = if (serverUrl != null) {
                                         val imgId = track.imageId ?: track.albumId
-                                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                        if (imgId != null) artworkUri(imgId) else null
                                     } else null,
                                 )
                             }
@@ -1146,7 +1177,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         artistName = track?.artistName ?: "",
                         albumImageUrl = if (serverUrl != null) {
                             val imgId = track?.imageId ?: track?.albumId
-                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                            if (imgId != null) artworkUri(imgId) else null
                         } else null,
                         lyrics = lyrics,
                         isLoadingLyrics = isLoadingLyrics,
@@ -1194,7 +1225,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             artistName = track.artistName ?: "",
             albumImageUrl = if (serverUrl != null) {
                 val imgId = track.imageId ?: track.albumId
-                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                if (imgId != null) artworkUri(imgId) else null
             } else null,
             isPlaying = playbackState.isPlaying,
             isBuffering = playbackState.isBuffering,
@@ -1239,7 +1270,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     albumName = track.albumName ?: "",
                     albumImageUrl = if (serverUrl != null) {
                         val imgId = track.imageId ?: track.albumId
-                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                        if (imgId != null) artworkUri(imgId) else null
                     } else null,
                     isPlaying = playbackState.isPlaying,
                     progress = if (positionState.durationMs > 0) {
@@ -1285,7 +1316,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
                                 imageUrl = if (serverUrl != null) {
                                     val imgId = t.imageId ?: t.albumId
-                                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                    if (imgId != null) artworkUri(imgId) else null
                                 } else null,
                             )
                         }
@@ -1296,7 +1327,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                     album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
                                     imageUrl = if (serverUrl != null) {
                                         val imgId = t.imageId ?: t.albumId
-                                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                        if (imgId != null) artworkUri(imgId) else null
                                     } else null,
                                 )
                             }
@@ -1418,7 +1449,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                         artistName = lyricsTrack?.artistName ?: "",
                                         albumImageUrl = if (serverUrl != null) {
                                             val imgId = lyricsTrack?.imageId ?: lyricsTrack?.albumId
-                                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                            if (imgId != null) artworkUri(imgId) else null
                                         } else null,
                                         lyrics = sideLyrics,
                                         isLoadingLyrics = sideIsLoadingLyrics,
@@ -1448,7 +1479,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
                         imageUrl = if (serverUrl != null) {
                             val imgId = t.imageId ?: t.albumId
-                            if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                            if (imgId != null) artworkUri(imgId) else null
                         } else null,
                     )
                 }
@@ -1460,7 +1491,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             album = t.albumName ?: "", duration = formatTrackDuration(t.duration),
                             imageUrl = if (serverUrl != null) {
                                 val imgId = t.imageId ?: t.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                                if (imgId != null) artworkUri(imgId) else null
                             } else null,
                         )
                     }
@@ -1517,7 +1548,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     artistName = lyricsTrack?.artistName ?: "",
                     albumImageUrl = if (serverUrl != null) {
                         val imgId = lyricsTrack?.imageId ?: lyricsTrack?.albumId
-                        if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                        if (imgId != null) artworkUri(imgId) else null
                     } else null,
                     lyrics = lyrics,
                     isLoadingLyrics = isLoadingLyrics,
@@ -1539,7 +1570,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             SharedArtOverlay(
                 imageUrl = if (serverUrl != null) {
                     val imgId = track.imageId ?: track.albumId
-                    if (imgId != null) jellyfinImageUrl(serverUrl!!, imgId) else null
+                    if (imgId != null) artworkUri(imgId) else null
                 } else null,
                 dragFraction = sheetState.dragFraction,
                 positions = sharedArtPositions,
@@ -1574,8 +1605,26 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 contextMenuState = null
             },
             onGoToArtist = {
-                contextMenuState!!.menuData.artistId?.let { navController.navigate("artist/$it") }
+                val trackId = contextMenuState!!.menuData.id
+                val fallbackArtistId = contextMenuState!!.menuData.artistId
                 contextMenuState = null
+                scope.launch {
+                    val artists = mainViewModel.getArtistsForTrack(trackId)
+                    if (artists.size <= 1) {
+                        val artistId = artists.firstOrNull()?.id ?: fallbackArtistId
+                        if (artistId != null) navController.navigate("artist/$artistId")
+                    } else {
+                        pickerArtists = artists.map { a ->
+                            PickerArtist(
+                                id = a.id,
+                                name = a.name,
+                                imageUrl = if (serverUrl != null) artworkUri(a.id) else null,
+                                albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
+                            )
+                        }
+                        showArtistPicker = true
+                    }
+                }
             },
             onStartMix = {
                 mainViewModel.startMix(contextMenuState!!.menuData.id)
@@ -1587,6 +1636,18 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             onTrackInfo = {
                 trackInfoTrack = contextMenuState?.track
                 contextMenuState = null
+            },
+        )
+    }
+
+    if (showArtistPicker) {
+        ArtistPickerSheet(
+            artists = pickerArtists,
+            onArtistClick = { artistId ->
+                navController.navigate("artist/$artistId")
+            },
+            onDismiss = {
+                showArtistPicker = false
             },
         )
     }

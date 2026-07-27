@@ -5,6 +5,83 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 object Migrations {
 
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("DROP TABLE IF EXISTS `album_artists`")
+            db.execSQL("DROP TABLE IF EXISTS `track_artists`")
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `album_artists` (
+                    `albumId` TEXT NOT NULL,
+                    `artistId` TEXT NOT NULL,
+                    `artistName` TEXT NOT NULL,
+                    `displayOrder` INTEGER NOT NULL,
+                    PRIMARY KEY(`albumId`, `artistId`),
+                    FOREIGN KEY(`albumId`) REFERENCES `albums`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_album_artists_artistId` ON `album_artists` (`artistId`)",
+            )
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `track_artists` (
+                    `trackId` TEXT NOT NULL,
+                    `artistId` TEXT NOT NULL,
+                    `artistName` TEXT NOT NULL,
+                    `displayOrder` INTEGER NOT NULL,
+                    PRIMARY KEY(`trackId`, `artistId`),
+                    FOREIGN KEY(`trackId`) REFERENCES `tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_track_artists_artistId` ON `track_artists` (`artistId`)",
+            )
+        }
+    }
+
+    val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `album_artists` (
+                    `albumId` TEXT NOT NULL,
+                    `artistId` TEXT NOT NULL,
+                    `artistName` TEXT NOT NULL,
+                    `displayOrder` INTEGER NOT NULL,
+                    PRIMARY KEY(`albumId`, `artistId`),
+                    FOREIGN KEY(`albumId`) REFERENCES `albums`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`artistId`) REFERENCES `artists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_album_artists_artistId` ON `album_artists` (`artistId`)",
+            )
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `track_artists` (
+                    `trackId` TEXT NOT NULL,
+                    `artistId` TEXT NOT NULL,
+                    `artistName` TEXT NOT NULL,
+                    `displayOrder` INTEGER NOT NULL,
+                    PRIMARY KEY(`trackId`, `artistId`),
+                    FOREIGN KEY(`trackId`) REFERENCES `tracks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`artistId`) REFERENCES `artists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_track_artists_artistId` ON `track_artists` (`artistId`)",
+            )
+        }
+    }
+
     val MIGRATION_8_9 = object : Migration(8, 9) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE artists ADD COLUMN cleanName TEXT NOT NULL DEFAULT ''")

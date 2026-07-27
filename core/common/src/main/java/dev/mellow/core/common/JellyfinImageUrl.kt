@@ -1,5 +1,9 @@
 package dev.mellow.core.common
 
+const val ARTWORK_AUTHORITY = "com.malinskiy.mellow.artwork"
+
+fun artworkUri(itemId: String): String = "content://$ARTWORK_AUTHORITY/$itemId"
+
 fun jellyfinImageUrl(
     serverUrl: String,
     itemId: String,
@@ -7,7 +11,7 @@ fun jellyfinImageUrl(
     quality: Int = 90,
     apiKey: String? = null,
 ): String {
-    val base = "$serverUrl/Items/$itemId/Images/Primary?maxWidth=$maxWidth&quality=$quality"
+    val base = "$serverUrl/Items/$itemId/Images/Primary?maxWidth=$maxWidth&quality=$quality&format=Webp"
     return if (apiKey != null) "$base&api_key=$apiKey" else base
 }
 

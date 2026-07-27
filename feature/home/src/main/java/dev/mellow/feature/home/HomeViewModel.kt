@@ -50,18 +50,29 @@ class HomeViewModel @Inject constructor(
     private var loadedServerId: String? = null
     private val shuffleSeed = System.nanoTime()
     private var cachedQuickPicks: List<HomeAlbumItem>? = null
+    private var cachedRecentlyPlayed: List<HomeAlbumItem>? = null
+    private var cachedRecentlyAdded: List<HomeAlbumItem>? = null
     private var cachedFavTracks: List<Track>? = null
 
     fun retry() {
         val id = loadedServerId ?: return
         loadedServerId = null
+        clearCaches()
         _uiState.value = _uiState.value.copy(error = null, isLoading = true)
         loadHome(id)
+    }
+
+    private fun clearCaches() {
+        cachedQuickPicks = null
+        cachedRecentlyPlayed = null
+        cachedRecentlyAdded = null
+        cachedFavTracks = null
     }
 
     fun loadHome(serverId: String) {
         if (serverId.isEmpty() || serverId == loadedServerId) return
         loadedServerId = serverId
+        clearCaches()
 
         combine(
             libraryRepository.getAlbums(serverId),
@@ -76,16 +87,24 @@ class HomeViewModel @Inject constructor(
             val mostPlayedAlbums = (mostPlayedResult as? MellowResult.Success)?.data ?: emptyList()
             val favoriteAlbums = (favoriteAlbumsResult as? MellowResult.Success)?.data ?: emptyList()
 
-            val recentlyAdded = albums
-                .sortedByDescending { it.dateAdded }
-                .take(12)
-                .map { it.toHomeAlbumItem() }
+            val recentlyAdded = cachedRecentlyAdded ?: run {
+                val items = albums
+                    .sortedByDescending { it.dateAdded }
+                    .take(12)
+                    .map { it.toHomeAlbumItem() }
+                if (items.size >= 3) cachedRecentlyAdded = items
+                items
+            }
 
             val mostPlayedIds = mostPlayedAlbums.map { it.id }.toSet()
-            val recentlyPlayed = if (recentlyPlayedAlbums.isNotEmpty()) {
-                recentlyPlayedAlbums.take(12).map { it.toHomeAlbumItem() }
-            } else {
-                emptyList()
+            val recentlyPlayed = cachedRecentlyPlayed ?: run {
+                val items = if (recentlyPlayedAlbums.isNotEmpty()) {
+                    recentlyPlayedAlbums.take(12).map { it.toHomeAlbumItem() }
+                } else {
+                    emptyList()
+                }
+                if (items.size >= 3) cachedRecentlyPlayed = items
+                items
             }
 
             val recentlyPlayedIds = recentlyPlayed.map { it.id }.toSet()
@@ -104,7 +123,7 @@ class HomeViewModel @Inject constructor(
                     .shuffled(Random(shuffleSeed))
                     .take(12)
                     .map { it.toHomeAlbumItem() }
-                if (picks.isNotEmpty()) cachedQuickPicks = picks
+                if (picks.size >= 4) cachedQuickPicks = picks
                 picks
             }
 

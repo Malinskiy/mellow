@@ -242,6 +242,8 @@ fun AlbumDetailComponent(
                             artistName,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MellowTheme.colors.accentStrong,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = MellowSpacing.Sp1),
                         )
                     } else {
@@ -275,6 +277,8 @@ fun AlbumDetailComponent(
                             artistName,
                             style = MaterialTheme.typography.titleLarge,
                             color = MellowTheme.colors.accentStrong,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = MellowSpacing.Sp1),
                         )
                         Row(
@@ -816,6 +820,8 @@ private fun AlbumHero(
                 artistName,
                 style = MaterialTheme.typography.titleLarge,
                 color = MellowTheme.colors.accentStrong,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = MellowSpacing.Sp1),
             )
             Row(

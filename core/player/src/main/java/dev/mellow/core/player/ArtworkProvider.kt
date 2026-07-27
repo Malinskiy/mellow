@@ -9,10 +9,9 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import dev.mellow.core.data.ArtworkPreCacher
 import dev.mellow.core.database.dao.ServerDao
 import kotlinx.coroutines.runBlocking
-import java.io.File
-import java.net.URL
 
 class ArtworkProvider : ContentProvider() {
 
@@ -20,6 +19,7 @@ class ArtworkProvider : ContentProvider() {
     @InstallIn(SingletonComponent::class)
     interface ArtworkEntryPoint {
         fun serverDao(): ServerDao
+        fun artworkPreCacher(): ArtworkPreCacher
     }
 
     override fun onCreate(): Boolean = true
@@ -28,36 +28,17 @@ class ArtworkProvider : ContentProvider() {
         val itemId = uri.lastPathSegment ?: return null
         val ctx = context ?: return null
 
-        val cacheDir = File(ctx.cacheDir, "artwork")
-        cacheDir.mkdirs()
-        val cacheFile = File(cacheDir, "$itemId.jpg")
-
-        if (cacheFile.exists() && cacheFile.length() > 0) {
-            return ParcelFileDescriptor.open(cacheFile, ParcelFileDescriptor.MODE_READ_ONLY)
-        }
-
         val entryPoint = EntryPointAccessors.fromApplication(
             ctx.applicationContext,
             ArtworkEntryPoint::class.java,
         )
         val server = runBlocking { entryPoint.serverDao().getActiveServer() } ?: return null
-        val imageUrl = "${server.url}/Items/$itemId/Images/Primary?maxWidth=600&quality=90&api_key=${server.accessToken}"
-
-        return try {
-            val tmpFile = File(cacheDir, "$itemId.tmp")
-            URL(imageUrl).openStream().use { input ->
-                tmpFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-            tmpFile.renameTo(cacheFile)
-            ParcelFileDescriptor.open(cacheFile, ParcelFileDescriptor.MODE_READ_ONLY)
-        } catch (_: Exception) {
-            null
-        }
+        val file = entryPoint.artworkPreCacher().resolveArtwork(server.url, server.accessToken, itemId)
+            ?: return null
+        return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     }
 
-    override fun getType(uri: Uri): String = "image/jpeg"
+    override fun getType(uri: Uri): String = "image/webp"
     override fun query(uri: Uri, p: Array<String>?, s: String?, sa: Array<String>?, so: String?): Cursor? = null
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, s: String?, sa: Array<String>?): Int = 0

@@ -4,7 +4,11 @@ import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import dev.mellow.core.database.entity.AlbumArtistCrossRef
 import dev.mellow.core.database.entity.AlbumEntity
+import dev.mellow.core.database.entity.ArtistEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -135,6 +139,37 @@ interface AlbumDao {
 
     @Query("SELECT id FROM albums WHERE serverId = :serverId AND imageTag IS NOT NULL")
     suspend fun getIdsWithImage(serverId: String): List<String>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAlbumArtists(refs: List<AlbumArtistCrossRef>)
+
+    @Query("DELETE FROM album_artists WHERE albumId = :albumId")
+    suspend fun clearAlbumArtists(albumId: String)
+
+    @Query("DELETE FROM album_artists WHERE albumId IN (SELECT id FROM albums WHERE serverId = :serverId)")
+    suspend fun clearAllAlbumArtistsByServer(serverId: String)
+
+    @Query("""
+        SELECT a.* FROM artists a
+        INNER JOIN album_artists aa ON a.id = aa.artistId
+        WHERE aa.albumId = :albumId
+        ORDER BY aa.displayOrder ASC
+    """)
+    suspend fun getArtistsForAlbum(albumId: String): List<ArtistEntity>
+
+    @Query("""
+        SELECT a.* FROM artists a
+        INNER JOIN album_artists aa ON a.id = aa.artistId
+        WHERE aa.albumId = :albumId
+        ORDER BY aa.displayOrder ASC
+    """)
+    fun observeArtistsForAlbum(albumId: String): Flow<List<ArtistEntity>>
+
+    @Query("SELECT artistName FROM album_artists WHERE albumId = :albumId ORDER BY displayOrder ASC")
+    suspend fun getArtistNamesForAlbum(albumId: String): List<String>
+
+    @Query("SELECT COUNT(*) FROM album_artists WHERE artistId = :artistId")
+    suspend fun countAlbumsByArtistCrossRef(artistId: String): Int
 
     @Query("""
         SELECT a.* FROM albums a 

@@ -62,7 +62,7 @@ import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.designsystem.theme.WindowWidthClass
-import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.common.artworkUri
 
 data class LibraryPlaylistItem(val id: String, val name: String, val trackCount: Int, val imageId: String?)
 
@@ -333,7 +333,7 @@ private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClic
                 title = album.name,
                 artist = album.artist,
                 imageUrl = if (serverUrl != null && album.imageId != null) {
-                    jellyfinImageUrl(serverUrl, album.imageId)
+                    artworkUri(album.imageId)
                 } else null,
                 onClick = { onAlbumClick(album.id) },
                 sharedElementKey = "album_art_library_${album.id}",
@@ -357,7 +357,7 @@ private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbum
             ) {
                 AsyncImage(
                     model = if (serverUrl != null && album.imageId != null) {
-                        jellyfinImageUrl(serverUrl, album.imageId)
+                        artworkUri(album.imageId)
                     } else null,
                     contentDescription = album.name,
                     contentScale = ContentScale.Crop,
@@ -404,7 +404,7 @@ private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtist
             name = artist.name,
             albumCount = artist.albumCount,
             imageUrl = if (serverUrl != null && artist.imageId != null) {
-                jellyfinImageUrl(serverUrl, artist.imageId)
+                artworkUri(artist.imageId)
             } else null,
             onClick = { onArtistClick(artist.id) },
             showChevron = columns == 1,
@@ -432,7 +432,7 @@ private fun TracksPanel(
             duration = track.duration,
             imageUrl = if (serverUrl != null) {
                 val imgId = track.imageId ?: track.albumId
-                if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
+                if (imgId != null) artworkUri(imgId) else null
             } else null,
             onClick = { onTrackClick(track.id) },
             onMenuClick = { onTrackMenuClick(track.id) },
@@ -481,7 +481,7 @@ private fun PlaylistsPanel(
             ) {
                 AsyncImage(
                     model = if (serverUrl != null && playlist.imageId != null) {
-                        jellyfinImageUrl(serverUrl, playlist.imageId)
+                        artworkUri(playlist.imageId)
                     } else null,
                     contentDescription = playlist.name,
                     contentScale = ContentScale.Crop,

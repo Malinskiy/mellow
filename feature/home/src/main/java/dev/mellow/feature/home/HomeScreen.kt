@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -35,12 +36,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.mellow.core.common.jellyfinImageUrl
+import dev.mellow.core.common.artworkUri
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
@@ -172,7 +174,7 @@ fun HomeScreen(
                                         title = album.name,
                                         artist = album.artist,
                                         imageUrl = if (serverUrl != null && album.imageId != null) {
-                                            jellyfinImageUrl(serverUrl, album.imageId)
+                                            artworkUri(album.imageId)
                                         } else null,
                                         onClick = { onAlbumClick(album.id, "recent") },
                                         sharedElementKey = "album_art_recent_${album.id}",
@@ -222,7 +224,7 @@ fun HomeScreen(
                                         title = album.name,
                                         artist = album.artist,
                                         imageUrl = if (serverUrl != null && album.imageId != null) {
-                                            jellyfinImageUrl(serverUrl, album.imageId)
+                                            artworkUri(album.imageId)
                                         } else null,
                                         onClick = { onAlbumClick(album.id, "added") },
                                         sharedElementKey = "album_art_added_${album.id}",
@@ -257,7 +259,7 @@ fun HomeScreen(
                             duration = track.duration,
                             imageUrl = if (serverUrl != null) {
                                 val imgId = track.imageId ?: track.albumId
-                                if (imgId != null) jellyfinImageUrl(serverUrl, imgId) else null
+                                if (imgId != null) artworkUri(imgId) else null
                             } else null,
                             onClick = { onTrackClick(track.id) },
                             onMenuClick = { onTrackMenuClick(track.id) },
@@ -370,7 +372,7 @@ private fun QuickPicksGrid(
                     title = album.name,
                     artist = album.artist,
                     imageUrl = if (serverUrl != null && album.imageId != null) {
-                        jellyfinImageUrl(serverUrl, album.imageId)
+                        artworkUri(album.imageId)
                     } else null,
                     onClick = { onAlbumClick(album.id) },
                     sharedElementKey = "album_art_quick_${album.id}",
@@ -481,7 +483,7 @@ private fun AlbumCarousel(
                 title = album.name,
                 artist = album.artist,
                 imageUrl = if (serverUrl != null && album.imageId != null) {
-                    jellyfinImageUrl(serverUrl, album.imageId)
+                    artworkUri(album.imageId)
                 } else null,
                 onClick = { onAlbumClick(album.id) },
                 modifier = Modifier.width(130.dp),
