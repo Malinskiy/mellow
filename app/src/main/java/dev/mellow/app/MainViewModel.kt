@@ -246,6 +246,10 @@ class MainViewModel @Inject constructor(
         return albumDao.getArtistsForAlbum(albumId)
     }
 
+    suspend fun countAlbumsByArtistCrossRef(artistId: String): Int {
+        return albumDao.countAlbumsByArtistCrossRef(artistId)
+    }
+
     fun isTrackDownloaded(trackId: String): kotlinx.coroutines.flow.Flow<Boolean> {
         return downloadDao.isDownloaded(trackId)
     }

@@ -168,6 +168,9 @@ interface AlbumDao {
     @Query("SELECT artistName FROM album_artists WHERE albumId = :albumId ORDER BY displayOrder ASC")
     suspend fun getArtistNamesForAlbum(albumId: String): List<String>
 
+    @Query("SELECT COUNT(*) FROM album_artists WHERE artistId = :artistId")
+    suspend fun countAlbumsByArtistCrossRef(artistId: String): Int
+
     @Query("""
         SELECT a.* FROM albums a 
         INNER JOIN (

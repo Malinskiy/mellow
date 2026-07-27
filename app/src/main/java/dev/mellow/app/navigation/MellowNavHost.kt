@@ -900,7 +900,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                                 id = a.id,
                                                 name = a.name,
                                                 imageUrl = if (serverUrl != null) artworkUri(a.id) else null,
-                                                albumCount = a.albumCount,
+                                                albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
                                             )
                                         }
                                         showArtistPicker = true
@@ -1619,7 +1619,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 id = a.id,
                                 name = a.name,
                                 imageUrl = if (serverUrl != null) artworkUri(a.id) else null,
-                                albumCount = a.albumCount,
+                                albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
                             )
                         }
                         showArtistPicker = true
