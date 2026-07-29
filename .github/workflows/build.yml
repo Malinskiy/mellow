@@ -3,7 +3,7 @@ name: Build
 on:
   push:
     branches: [master]
-    tags: ['v*']
+    tags: ["v*"]
   pull_request:
     branches: [master]
   release:
@@ -12,6 +12,9 @@ on:
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  BUILDFETCH_GRADLE_REMOTE_CACHE_TOKEN: ${{ secrets.BUILDFETCH_GRADLE_REMOTE_CACHE_TOKEN }}
 
 jobs:
   build:
