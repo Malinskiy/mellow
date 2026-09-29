@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,15 +43,16 @@ fun MellowBottomNavBar(
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
+    Column(modifier = modifier.navigationBarsPadding()) {
         HorizontalDivider(color = MellowTheme.colors.border, thickness = 1.dp)
         Row(
             horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(MellowSpacing.BottomNavHeight)
                 .background(MellowTheme.colors.background)
-                .padding(top = MellowSpacing.Sp2, start = MellowSpacing.Sp6, end = MellowSpacing.Sp6),
+                .padding(horizontal = MellowSpacing.Sp6),
         ) {
             MellowNavDestination.entries.forEach { dest ->
                 val isSelected = dest.route == selectedRoute
