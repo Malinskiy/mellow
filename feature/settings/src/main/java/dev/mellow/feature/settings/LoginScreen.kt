@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.LocalAutofillHighlightColor
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +63,15 @@ fun LoginScreen(
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showAdvancedSettings by rememberSaveable { mutableStateOf(false) }
+    var showCleartextWarning by rememberSaveable { mutableStateOf(false) }
+
+    val signIn = {
+        if (serverUrl.trim().startsWith("http://", ignoreCase = true)) {
+            showCleartextWarning = true
+        } else {
+            onSignIn(serverUrl, username, password)
+        }
+    }
 
     val caretRotation by animateFloatAsState(
         targetValue = if (showAdvancedSettings) 180f else 0f,
@@ -134,7 +144,7 @@ fun LoginScreen(
                         isLoading = isLoading,
                         error = error,
                         textFieldColors = textFieldColors,
-                        onSignIn = { onSignIn(serverUrl, username, password) },
+                        onSignIn = signIn,
                         showAdvancedSettings = showAdvancedSettings,
                         onToggleAdvancedSettings = { showAdvancedSettings = !showAdvancedSettings },
                         caretRotation = caretRotation,
@@ -178,7 +188,7 @@ fun LoginScreen(
                     isLoading = isLoading,
                     error = error,
                     textFieldColors = textFieldColors,
-                    onSignIn = { onSignIn(serverUrl, username, password) },
+                    onSignIn = signIn,
                     showAdvancedSettings = showAdvancedSettings,
                     onToggleAdvancedSettings = { showAdvancedSettings = !showAdvancedSettings },
                     caretRotation = caretRotation,
@@ -191,6 +201,48 @@ fun LoginScreen(
         }
     }
     }
+
+    if (showCleartextWarning) {
+        CleartextWarningDialog(
+            onConnectAnyway = {
+                showCleartextWarning = false
+                onSignIn(serverUrl, username, password)
+            },
+            onDismiss = { showCleartextWarning = false },
+        )
+    }
+}
+
+@Composable
+private fun CleartextWarningDialog(
+    onConnectAnyway: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(PhosphorIcons.WarningCircle, contentDescription = null, modifier = Modifier.size(28.dp)) },
+        title = { Text("Unencrypted connection") },
+        text = {
+            Text(
+                "This server address uses http://. Your password and access token will be sent " +
+                    "unencrypted and anyone on the same network can read them.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConnectAnyway) {
+                Text("Connect anyway", color = MellowTheme.colors.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = MellowTheme.colors.foreground)
+            }
+        },
+        containerColor = MellowTheme.colors.surface,
+        iconContentColor = MellowTheme.colors.error,
+        titleContentColor = MellowTheme.colors.foreground,
+        textContentColor = MellowTheme.colors.muted,
+    )
 }
 
 @Composable
