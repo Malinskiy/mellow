@@ -3,7 +3,11 @@ package dev.mellow.core.network.datasource
 import dev.mellow.core.network.JellyfinClientWrapper
 import dev.mellow.core.network.NetworkPreferences
 import dev.mellow.core.network.createOkHttpClient
+import dev.mellow.core.network.di.IoDispatcher
 import android.util.Log
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.instantMixApi
 import org.jellyfin.sdk.api.client.extensions.artistsApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
@@ -41,12 +45,17 @@ data class PagedItems(
 class JellyfinDataSource @Inject constructor(
     private val client: JellyfinClientWrapper,
     private val networkPreferences: NetworkPreferences,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
-    suspend fun authenticate(username: String, password: String): AuthResult {
+    // The Jellyfin SDK reads response bodies on the caller's dispatcher. Running every request on IO
+    // keeps this class main-safe and avoids NetworkOnMainThreadException.
+    private suspend fun <T> io(block: suspend CoroutineScope.() -> T): T = withContext(ioDispatcher, block)
+
+    suspend fun authenticate(username: String, password: String): AuthResult = io {
         val response by client.api.userApi.authenticateUserByName(
             data = AuthenticateUserByName(username = username, pw = password),
         )
-        return AuthResult(
+        AuthResult(
             userId = response.user!!.id.toString(),
             accessToken = response.accessToken!!,
             serverId = response.serverId!!,
@@ -54,7 +63,7 @@ class JellyfinDataSource @Inject constructor(
         )
     }
 
-    suspend fun getRecentlyAddedAlbums(userId: UUID, limit: Int = 50): List<BaseItemDto> {
+    suspend fun getRecentlyAddedAlbums(userId: UUID, limit: Int = 50): List<BaseItemDto> = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
@@ -65,7 +74,7 @@ class JellyfinDataSource @Inject constructor(
             enableUserData = true,
             limit = limit,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
     suspend fun getAlbums(
@@ -73,7 +82,7 @@ class JellyfinDataSource @Inject constructor(
         startIndex: Int = 0,
         limit: Int = 200,
         minDateLastSaved: LocalDateTime? = null,
-    ): List<BaseItemDto> {
+    ): List<BaseItemDto> = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
@@ -86,25 +95,25 @@ class JellyfinDataSource @Inject constructor(
             limit = limit,
             minDateLastSaved = minDateLastSaved,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun getAlbumsByIds(userId: UUID, ids: List<UUID>): List<BaseItemDto> {
-        if (ids.isEmpty()) return emptyList()
+    suspend fun getAlbumsByIds(userId: UUID, ids: List<UUID>): List<BaseItemDto> = io {
+        if (ids.isEmpty()) return@io emptyList()
         val response by client.api.itemsApi.getItems(
             userId = userId,
             ids = ids,
             fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
             enableUserData = true,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
     suspend fun getAlbumsPaged(
         userId: UUID,
         startIndex: Int = 0,
         limit: Int = 200,
-    ): PagedItems {
+    ): PagedItems = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
@@ -116,14 +125,14 @@ class JellyfinDataSource @Inject constructor(
             startIndex = startIndex,
             limit = limit,
         )
-        return PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
+        PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
     }
 
     suspend fun getArtists(
         userId: UUID,
         startIndex: Int = 0,
         limit: Int = 200,
-    ): List<BaseItemDto> {
+    ): List<BaseItemDto> = io {
         val response by client.api.artistsApi.getArtists(
             userId = userId,
             sortBy = listOf(ItemSortBy.SORT_NAME),
@@ -133,14 +142,14 @@ class JellyfinDataSource @Inject constructor(
             startIndex = startIndex,
             limit = limit,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
     suspend fun getArtistsPaged(
         userId: UUID,
         startIndex: Int = 0,
         limit: Int = 200,
-    ): PagedItems {
+    ): PagedItems = io {
         val response by client.api.artistsApi.getArtists(
             userId = userId,
             sortBy = listOf(ItemSortBy.SORT_NAME),
@@ -150,7 +159,7 @@ class JellyfinDataSource @Inject constructor(
             startIndex = startIndex,
             limit = limit,
         )
-        return PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
+        PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
     }
 
     suspend fun getTracks(
@@ -158,7 +167,7 @@ class JellyfinDataSource @Inject constructor(
         startIndex: Int = 0,
         limit: Int = 500,
         minDateLastSaved: LocalDateTime? = null,
-    ): List<BaseItemDto> {
+    ): List<BaseItemDto> = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
@@ -171,14 +180,14 @@ class JellyfinDataSource @Inject constructor(
             limit = limit,
             minDateLastSaved = minDateLastSaved,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
     suspend fun getTracksPaged(
         userId: UUID,
         startIndex: Int = 0,
         limit: Int = 500,
-    ): PagedItems {
+    ): PagedItems = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
@@ -190,10 +199,10 @@ class JellyfinDataSource @Inject constructor(
             startIndex = startIndex,
             limit = limit,
         )
-        return PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
+        PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
     }
 
-    suspend fun getRecentlyPlayedItems(userId: UUID, limit: Int = 200): List<BaseItemDto> {
+    suspend fun getRecentlyPlayedItems(userId: UUID, limit: Int = 200): List<BaseItemDto> = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
@@ -205,10 +214,10 @@ class JellyfinDataSource @Inject constructor(
             enableUserData = true,
             limit = limit,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun getAlbumTracks(userId: UUID, albumId: UUID): List<BaseItemDto> {
+    suspend fun getAlbumTracks(userId: UUID, albumId: UUID): List<BaseItemDto> = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             parentId = albumId,
@@ -217,10 +226,10 @@ class JellyfinDataSource @Inject constructor(
             fields = listOf(ItemFields.MEDIA_STREAMS),
             enableUserData = true,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun setFavorite(userId: UUID, itemId: UUID, isFavorite: Boolean) {
+    suspend fun setFavorite(userId: UUID, itemId: UUID, isFavorite: Boolean): Unit = io {
         if (isFavorite) {
             client.api.userLibraryApi.markFavoriteItem(userId = userId, itemId = itemId)
         } else {
@@ -232,7 +241,7 @@ class JellyfinDataSource @Inject constructor(
         itemId: UUID,
         userId: UUID,
         limit: Int = 50,
-    ): List<BaseItemDto> {
+    ): List<BaseItemDto> = io {
         val response by client.api.instantMixApi.getInstantMixFromSong(
             itemId = itemId,
             userId = userId,
@@ -241,10 +250,10 @@ class JellyfinDataSource @Inject constructor(
             enableUserData = true,
             enableImages = true,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun reportPlaybackStarted(itemId: UUID) {
+    suspend fun reportPlaybackStarted(itemId: UUID): Unit = io {
         try {
             client.api.playStateApi.reportPlaybackStart(
                 PlaybackStartInfo(
@@ -262,7 +271,7 @@ class JellyfinDataSource @Inject constructor(
         }
     }
 
-    suspend fun reportPlaybackProgress(itemId: UUID, positionTicks: Long) {
+    suspend fun reportPlaybackProgress(itemId: UUID, positionTicks: Long): Unit = io {
         try {
             client.api.playStateApi.reportPlaybackProgress(
                 PlaybackProgressInfo(
@@ -281,7 +290,7 @@ class JellyfinDataSource @Inject constructor(
         }
     }
 
-    suspend fun reportPlaybackStopped(itemId: UUID, positionTicks: Long) {
+    suspend fun reportPlaybackStopped(itemId: UUID, positionTicks: Long): Unit = io {
         try {
             client.api.playStateApi.reportPlaybackStopped(
                 PlaybackStopInfo(
@@ -295,13 +304,12 @@ class JellyfinDataSource @Inject constructor(
         }
     }
 
-    suspend fun getLyrics(itemId: UUID): List<LyricsResult> {
-        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun getLyrics(itemId: UUID): List<LyricsResult> = io {
         try {
             val baseUrl = client.api.baseUrl?.trimEnd('/')
-                ?: return@withContext emptyList()
+                ?: return@io emptyList()
             val token = client.api.accessToken
-                ?: return@withContext emptyList()
+                ?: return@io emptyList()
             val url = "$baseUrl/Audio/$itemId/Lyrics"
 
             val request = okhttp3.Request.Builder()
@@ -312,12 +320,12 @@ class JellyfinDataSource @Inject constructor(
 
             val response = createOkHttpClient(networkPreferences.isTrustSelfSignedSync())
                 .newCall(request).execute()
-            if (!response.isSuccessful) return@withContext emptyList()
+            if (!response.isSuccessful) return@io emptyList()
 
-            val body = response.body?.string() ?: return@withContext emptyList()
+            val body = response.body?.string() ?: return@io emptyList()
             val json = org.json.JSONObject(body)
             val lyricsArray = json.optJSONArray("Lyrics")
-                ?: return@withContext emptyList()
+                ?: return@io emptyList()
 
             (0 until lyricsArray.length()).mapNotNull { i ->
                 val line = lyricsArray.getJSONObject(i)
@@ -333,7 +341,6 @@ class JellyfinDataSource @Inject constructor(
             Log.e(TAG, "Failed to fetch lyrics for $itemId", e)
             emptyList()
         }
-        }
     }
 
     data class LyricsResult(val startMs: Long, val text: String)
@@ -342,7 +349,7 @@ class JellyfinDataSource @Inject constructor(
         private const val TAG = "JellyfinDataSource"
     }
 
-    suspend fun getFavoriteAlbums(userId: UUID): List<BaseItemDto> {
+    suspend fun getFavoriteAlbums(userId: UUID): List<BaseItemDto> = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
@@ -353,10 +360,10 @@ class JellyfinDataSource @Inject constructor(
             fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
             enableUserData = true,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun getFavoriteArtists(userId: UUID): List<BaseItemDto> {
+    suspend fun getFavoriteArtists(userId: UUID): List<BaseItemDto> = io {
         val response by client.api.artistsApi.getArtists(
             userId = userId,
             isFavorite = true,
@@ -365,10 +372,10 @@ class JellyfinDataSource @Inject constructor(
             fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW, ItemFields.PROVIDER_IDS),
             enableUserData = true,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun getFavoriteTracks(userId: UUID): List<BaseItemDto> {
+    suspend fun getFavoriteTracks(userId: UUID): List<BaseItemDto> = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
@@ -379,10 +386,10 @@ class JellyfinDataSource @Inject constructor(
             fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS),
             enableUserData = true,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun getPlaylists(userId: UUID): List<BaseItemDto> {
+    suspend fun getPlaylists(userId: UUID): List<BaseItemDto> = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.PLAYLIST),
@@ -392,20 +399,20 @@ class JellyfinDataSource @Inject constructor(
             fields = listOf(ItemFields.DATE_CREATED),
             enableUserData = true,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun getPlaylistItems(playlistId: UUID, userId: UUID): List<BaseItemDto> {
+    suspend fun getPlaylistItems(playlistId: UUID, userId: UUID): List<BaseItemDto> = io {
         val response by client.api.playlistsApi.getPlaylistItems(
             playlistId = playlistId,
             userId = userId,
             fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS),
             enableUserData = true,
         )
-        return response.items.orEmpty()
+        response.items.orEmpty()
     }
 
-    suspend fun createPlaylist(name: String, userId: UUID): String? {
+    suspend fun createPlaylist(name: String, userId: UUID): String? = io {
         val response by client.api.playlistsApi.createPlaylist(
             CreatePlaylistDto(
                 name = name,
@@ -416,10 +423,10 @@ class JellyfinDataSource @Inject constructor(
                 isPublic = false,
             ),
         )
-        return response.id
+        response.id
     }
 
-    suspend fun addToPlaylist(playlistId: UUID, trackIds: List<UUID>, userId: UUID) {
+    suspend fun addToPlaylist(playlistId: UUID, trackIds: List<UUID>, userId: UUID): Unit = io {
         client.api.playlistsApi.addItemToPlaylist(
             playlistId = playlistId,
             ids = trackIds,
@@ -427,7 +434,7 @@ class JellyfinDataSource @Inject constructor(
         )
     }
 
-    suspend fun removeFromPlaylist(playlistId: String, entryIds: List<String>) {
+    suspend fun removeFromPlaylist(playlistId: String, entryIds: List<String>): Unit = io {
         client.api.playlistsApi.removeItemFromPlaylist(
             playlistId = playlistId,
             entryIds = entryIds,
