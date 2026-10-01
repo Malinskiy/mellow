@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
@@ -46,13 +48,20 @@ enum class MellowNavDestination(
     Favorites("favorites", "Favorites", PhosphorIcons.Heart, PhosphorIcons.HeartFill),
 }
 
+/**
+ * Bottom navigation bar for compact layouts.
+ *
+ * @param windowInsets insets applied as padding below the destinations. Defaults to the navigation bars;
+ *   a caller that handles the system-bar inset itself (e.g. to slide the bar away on scroll) passes `WindowInsets(0)`.
+ */
 @Composable
 fun MellowBottomNavBar(
     selectedRoute: String,
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier,
+    windowInsets: WindowInsets = WindowInsets.navigationBars,
 ) {
-    Column(modifier = modifier.navigationBarsPadding()) {
+    Column(modifier = modifier.windowInsetsPadding(windowInsets)) {
         HorizontalDivider(color = MellowTheme.colors.border, thickness = 1.dp)
         Row(
             verticalAlignment = Alignment.CenterVertically,
