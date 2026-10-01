@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.LocalAutofillHighlightColor
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,6 +43,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.mellow.core.designsystem.component.MellowDialog
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -218,30 +218,15 @@ private fun CleartextWarningDialog(
     onConnectAnyway: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    MellowDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(PhosphorIcons.WarningCircle, contentDescription = null, modifier = Modifier.size(28.dp)) },
-        title = { Text("Unencrypted connection") },
-        text = {
-            Text(
-                "This server address uses http://. Your password and access token will be sent " +
-                    "unencrypted and anyone on the same network can read them.",
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConnectAnyway) {
-                Text("Connect anyway", color = MellowTheme.colors.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = MellowTheme.colors.foreground)
-            }
-        },
-        containerColor = MellowTheme.colors.surface,
-        iconContentColor = MellowTheme.colors.error,
-        titleContentColor = MellowTheme.colors.foreground,
-        textContentColor = MellowTheme.colors.muted,
+        title = "Unencrypted connection",
+        description = "This server address uses http://. Your password and access token will be sent " +
+            "unencrypted and anyone on the same network can read them.",
+        confirmLabel = "Connect anyway",
+        confirmColor = MellowTheme.colors.error,
+        confirmBackground = Color.Transparent,
+        onConfirm = onConnectAnyway,
     )
 }
 
