@@ -7,11 +7,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,9 +43,15 @@ fun MellowNavigationRail(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier
                 .fillMaxHeight()
-                .width(80.dp)
                 .background(MellowTheme.colors.surface)
-                .windowInsetsPadding(WindowInsets.systemBars),
+                // Only the start edge belongs to the rail; a side navigation bar or cutout on the
+                // end edge is handled by the content. The inset is added to the 80dp, not taken from it.
+                .windowInsetsPadding(
+                    WindowInsets.systemBars
+                        .union(WindowInsets.displayCutout)
+                        .only(WindowInsetsSides.Start + WindowInsetsSides.Vertical),
+                )
+                .width(80.dp),
         ) {
             MellowNavDestination.entries.forEach { dest ->
                 val isSelected = dest.route == selectedRoute
