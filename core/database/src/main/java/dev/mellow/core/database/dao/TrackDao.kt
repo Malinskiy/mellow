@@ -26,6 +26,10 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE id = :id")
     suspend fun getTrackById(id: String): TrackEntity?
 
+    /** Unordered. Use [getTracksById] for lists that may exceed SQLite's bound-parameter limit. */
+    @Query("SELECT * FROM tracks WHERE id IN (:ids)")
+    suspend fun getTracksByIds(ids: List<String>): List<TrackEntity>
+
     @Query("SELECT isFavorite FROM tracks WHERE id = :id")
     fun observeIsFavorite(id: String): Flow<Boolean?>
 
@@ -192,3 +196,7 @@ suspend fun TrackDao.getInstantMix(
 
     return getInstantMixRaw(SimpleSQLiteQuery(sb.toString(), args.toTypedArray()))
 }
+
+/** Looks up tracks by ID in chunks that stay under SQLite's bound-parameter limit; missing IDs are absent. */
+suspend fun TrackDao.getTracksById(ids: Collection<String>): Map<String, TrackEntity> =
+    ids.distinct().chunked(500).flatMap { getTracksByIds(it) }.associateBy { it.id }

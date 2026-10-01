@@ -24,11 +24,14 @@ import dev.mellow.core.data.mapper.toModel
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.getTracksById
 import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -80,6 +83,12 @@ class MellowPlayer @Inject constructor(
     private var downloadedTrackIds: Set<String> = emptySet()
     private var positionUpdateCount = 0
 
+    /** A track that became current without playing (a restored queue); reported as started once it plays. */
+    private var unreportedTrackId: String? = null
+
+    /** The in-flight [syncFromController] lookup; a newer sync replaces it. */
+    private var syncJob: Job? = null
+
     private val handler = Handler(Looper.getMainLooper())
     private val positionUpdateRunnable = object : Runnable {
         override fun run() {
@@ -110,8 +119,12 @@ class MellowPlayer @Inject constructor(
         val future = MediaController.Builder(context, sessionToken).buildAsync()
         future.addListener({
             try {
-                controller = future.get()
-                controller?.addListener(playerListener)
+                val ctrl = future.get()
+                controller = ctrl
+                ctrl.addListener(playerListener)
+                // The service may have a different queue than this object remembers: empty after it was restarted,
+                // or a restored queue. Show what the player actually has.
+                syncFromController(ctrl, reportStart = false)
                 startPositionUpdates()
                 Log.d(TAG, "MediaController connected")
             } catch (e: Exception) {
@@ -141,6 +154,7 @@ class MellowPlayer @Inject constructor(
             return
         }
 
+        syncJob?.cancel()
         val mediaItems = tracks.map { it.toMediaItem() }
         Log.d(TAG, "Playing ${mediaItems.size} tracks starting at $startIndex")
         Log.d(TAG, "Stream URL: ${mediaItems.getOrNull(startIndex)?.localConfiguration?.uri}")
@@ -158,7 +172,7 @@ class MellowPlayer @Inject constructor(
 
     fun playPause() {
         controller?.let { c ->
-            if (c.isPlaying) c.pause() else c.play()
+            if (c.isPlaying) c.pause() else c.playPrepared()
         }
     }
 
@@ -170,7 +184,7 @@ class MellowPlayer @Inject constructor(
         controller?.let { c ->
             if (index in 0 until c.mediaItemCount) {
                 c.seekTo(index, 0L)
-                c.play()
+                c.playPrepared()
             }
         }
     }
@@ -229,9 +243,7 @@ class MellowPlayer @Inject constructor(
         if (track != null) {
             reportingScope.launch { playbackReporter.reportStopped(track.id, pos) }
         }
-        currentQueue = emptyList()
-        _state.value = PlaybackState()
-        _positionState.value = PositionState()
+        resetState()
     }
 
     fun toggleShuffle() {
@@ -251,10 +263,17 @@ class MellowPlayer @Inject constructor(
         }
     }
 
-    private fun updateStateFromMediaItem(mediaItem: MediaItem, idx: Int) {
-        val meta = mediaItem.mediaMetadata
-        val placeholder = Track(
-            id = mediaItem.mediaId,
+    /** Plays, preparing first if needed: a restored queue isn't prepared, and play() alone doesn't start it. */
+    private fun Player.playPrepared() {
+        if (playbackState == Player.STATE_IDLE && mediaItemCount > 0) prepare()
+        play()
+    }
+
+    /** A track built from a media item's own metadata, shown until (or if not) the library has it. */
+    private fun MediaItem.toPlaceholderTrack(): Track {
+        val meta = mediaMetadata
+        return Track(
+            id = mediaId,
             name = meta.title?.toString() ?: "",
             albumId = null,
             albumName = meta.albumTitle?.toString(),
@@ -270,32 +289,77 @@ class MellowPlayer @Inject constructor(
             lastPlayedAt = 0L,
             normalizationGain = null,
         )
-        _state.value = _state.value.copy(
-            currentTrack = placeholder,
-            currentIndex = idx,
-            error = null,
-        )
-        positionUpdateCount = 0
     }
 
-    private fun rebuildQueueFromController(ctrl: MediaController, idx: Int) {
-        val mediaIds = (0 until ctrl.mediaItemCount).map { i ->
-            ctrl.getMediaItemAt(i).mediaId
+    private fun resetState() {
+        syncJob?.cancel()
+        currentQueue = emptyList()
+        unreportedTrackId = null
+        _state.value = PlaybackState()
+        _positionState.value = PositionState()
+    }
+
+    /**
+     * Sets the state from what [ctrl] holds: cleared if the player is empty, otherwise its queue, current track,
+     * position and modes. Reports the current track as started if [reportStart]; otherwise that happens once it plays.
+     *
+     * What the controller knows is shown right away; library details follow from a lookup, which is dropped if the
+     * controller's queue has changed by the time it finishes.
+     */
+    private fun syncFromController(ctrl: MediaController, reportStart: Boolean) {
+        if (ctrl.mediaItemCount == 0) {
+            resetState()
+            return
         }
-        reportingScope.launch {
-            val newQueue = mediaIds.mapNotNull { id ->
-                trackDao.getTrackById(id)?.toModel()
-            }
-            currentQueue = newQueue
-            val resolved = newQueue.getOrNull(idx)
-            if (resolved != null) {
+        val idx = ctrl.currentMediaItemIndex
+        val items = (0 until ctrl.mediaItemCount).map { ctrl.getMediaItemAt(it) }
+        val mediaIds = items.map { it.mediaId }
+        val current = items[idx]
+        val positionMs = ctrl.currentPosition
+        val playerDurationMs = ctrl.duration.coerceAtLeast(0L)
+        // A track that is already playing was reported when it started; only a paused one is still pending.
+        unreportedTrackId = if (!reportStart && !ctrl.playWhenReady) current.mediaId else null
+        positionUpdateCount = 0
+        // Until the lookup finishes, the queue is what the controller says, so transitions never match an old one.
+        currentQueue = items.map { it.toPlaceholderTrack() }
+        _state.value = _state.value.copy(
+            currentTrack = _state.value.currentTrack?.takeIf { it.id == current.mediaId }
+                ?: current.toPlaceholderTrack(),
+            isPlaying = ctrl.isPlaying,
+            currentIndex = idx,
+            positionMs = positionMs,
+            durationMs = playerDurationMs,
+            shuffleEnabled = ctrl.shuffleModeEnabled,
+            repeatMode = ctrl.repeatMode,
+            error = null,
+        )
+        _positionState.value = PositionState(positionMs = positionMs, durationMs = playerDurationMs)
+
+        syncJob?.cancel()
+        syncJob = reportingScope.launch {
+            val tracks = trackDao.getTracksById(mediaIds)
+            // One entry per controller item, so indices match the player's.
+            val queue = items.map { tracks[it.mediaId]?.toModel() ?: it.toPlaceholderTrack() }
+            val applied = withContext(Dispatchers.Main) {
+                if (controller !== ctrl || ctrl.currentMediaItemIndex != idx ||
+                    (0 until ctrl.mediaItemCount).map { ctrl.getMediaItemAt(it).mediaId } != mediaIds
+                ) {
+                    return@withContext false
+                }
+                currentQueue = queue
+                val track = queue[idx]
+                // An unprepared (restored) player doesn't know the duration yet; the library does.
+                val durationMs = ctrl.duration.takeIf { it > 0L } ?: track.duration.toMillis()
                 _state.value = _state.value.copy(
-                    currentTrack = resolved,
+                    currentTrack = track,
                     currentIndex = idx,
-                    queue = newQueue,
+                    queue = queue,
+                    durationMs = durationMs,
                 )
-                playbackReporter.reportStarted(resolved.id)
+                _positionState.value = _positionState.value.copy(durationMs = durationMs)
+                true
             }
+            if (applied && reportStart) playbackReporter.reportStarted(current.mediaId)
         }
     }
 
@@ -329,12 +393,18 @@ class MellowPlayer @Inject constructor(
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _state.value = _state.value.copy(isPlaying = isPlaying)
+            val unreported = unreportedTrackId
+            if (isPlaying && unreported != null && unreported == _state.value.currentTrack?.id) {
+                unreportedTrackId = null
+                reportingScope.launch { playbackReporter.reportStarted(unreported) }
+            }
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val ctrl = controller ?: return
             val idx = ctrl.currentMediaItemIndex
-            val track = currentQueue.getOrNull(idx)
+            // Trust the remembered queue only if it still matches the player; Android Auto may have replaced it.
+            val track = currentQueue.getOrNull(idx)?.takeIf { it.id == mediaItem?.mediaId }
 
             if (track != null) {
                 _state.value = _state.value.copy(
@@ -343,10 +413,12 @@ class MellowPlayer @Inject constructor(
                     error = null,
                 )
                 positionUpdateCount = 0
+                unreportedTrackId = null
                 reportingScope.launch { playbackReporter.reportStarted(track.id) }
             } else if (mediaItem != null) {
-                updateStateFromMediaItem(mediaItem, idx)
-                rebuildQueueFromController(ctrl, idx)
+                // A queue this object didn't set: from Android Auto, or restored by the service. A restored queue
+                // is paused, so its track is reported once it actually plays.
+                syncFromController(ctrl, reportStart = ctrl.playWhenReady)
             }
         }
 
@@ -453,6 +525,9 @@ class MellowPlayer @Inject constructor(
         controller?.removeListener(playerListener)
         controller?.release()
         controller = null
+        // Whatever this showed may be gone by the next connect (the service can stop meanwhile); that connect
+        // shows what the player has then.
+        resetState()
     }
 
     private fun mimeToCodec(mime: String): String = when (mime) {
