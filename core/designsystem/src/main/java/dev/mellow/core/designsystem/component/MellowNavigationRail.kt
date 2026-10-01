@@ -1,5 +1,6 @@
 package dev.mellow.core.designsystem.component
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -100,12 +101,14 @@ fun MellowNavigationRail(
                             .clickable { onNavigate(dest.route) }
                             .padding(vertical = 4.dp),
                     ) {
-                        Icon(
-                            imageVector = dest.icon,
-                            contentDescription = dest.label,
-                            tint = tint,
-                            modifier = Modifier.size(22.dp),
-                        )
+                        Crossfade(targetState = isSelected, label = "railIcon") { selected ->
+                            Icon(
+                                imageVector = if (selected) dest.selectedIcon else dest.icon,
+                                contentDescription = dest.label,
+                                tint = tint,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = dest.label,

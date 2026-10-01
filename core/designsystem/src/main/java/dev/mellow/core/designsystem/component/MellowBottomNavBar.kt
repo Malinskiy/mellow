@@ -1,5 +1,6 @@
 package dev.mellow.core.designsystem.component
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,11 +37,12 @@ enum class MellowNavDestination(
     val route: String,
     val label: String,
     val icon: ImageVector,
+    val selectedIcon: ImageVector,
 ) {
-    Home("home", "Home", PhosphorIcons.House),
-    Library("library", "Library", PhosphorIcons.VinylRecord),
-    Search("search", "Search", PhosphorIcons.MagnifyingGlass),
-    Favorites("favorites", "Favorites", PhosphorIcons.Heart),
+    Home("home", "Home", PhosphorIcons.House, PhosphorIcons.HouseFill),
+    Library("library", "Library", PhosphorIcons.VinylRecord, PhosphorIcons.VinylRecordFill),
+    Search("search", "Search", PhosphorIcons.MagnifyingGlass, PhosphorIcons.MagnifyingGlassFill),
+    Favorites("favorites", "Favorites", PhosphorIcons.Heart, PhosphorIcons.HeartFill),
 }
 
 @Composable
@@ -88,12 +90,14 @@ fun MellowBottomNavBar(
                             .indication(interactionSource, ripple())
                             .padding(horizontal = MellowSpacing.Sp3, vertical = MellowSpacing.Sp1),
                     ) {
-                        Icon(
-                            imageVector = dest.icon,
-                            contentDescription = null,
-                            tint = tint,
-                            modifier = Modifier.size(22.dp),
-                        )
+                        Crossfade(targetState = isSelected, label = "navIcon") { selected ->
+                            Icon(
+                                imageVector = if (selected) dest.selectedIcon else dest.icon,
+                                contentDescription = null,
+                                tint = tint,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
                         Box(modifier = Modifier.height(4.dp))
                         Text(
                             text = dest.label,
