@@ -1,5 +1,6 @@
 package dev.mellow.core.designsystem.component
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -9,7 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
@@ -27,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -36,20 +40,28 @@ enum class MellowNavDestination(
     val route: String,
     val label: String,
     val icon: ImageVector,
+    val selectedIcon: ImageVector,
 ) {
-    Home("home", "Home", PhosphorIcons.House),
-    Library("library", "Library", PhosphorIcons.VinylRecord),
-    Search("search", "Search", PhosphorIcons.MagnifyingGlass),
-    Favorites("favorites", "Favorites", PhosphorIcons.Heart),
+    Home("home", "Home", PhosphorIcons.House, PhosphorIcons.HouseFill),
+    Library("library", "Library", PhosphorIcons.VinylRecord, PhosphorIcons.VinylRecordFill),
+    Search("search", "Search", PhosphorIcons.MagnifyingGlass, PhosphorIcons.MagnifyingGlassFill),
+    Favorites("favorites", "Favorites", PhosphorIcons.Heart, PhosphorIcons.HeartFill),
 }
 
+/**
+ * Bottom navigation bar for compact layouts.
+ *
+ * @param windowInsets insets applied as padding below the destinations. Defaults to the navigation bars;
+ *   a caller that handles the system-bar inset itself (e.g. to slide the bar away on scroll) passes `WindowInsets(0)`.
+ */
 @Composable
 fun MellowBottomNavBar(
     selectedRoute: String,
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier,
+    windowInsets: WindowInsets = WindowInsets.navigationBars,
 ) {
-    Column(modifier = modifier.navigationBarsPadding()) {
+    Column(modifier = modifier.windowInsetsPadding(windowInsets)) {
         HorizontalDivider(color = MellowTheme.colors.border, thickness = 1.dp)
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -88,17 +100,21 @@ fun MellowBottomNavBar(
                             .indication(interactionSource, ripple())
                             .padding(horizontal = MellowSpacing.Sp3, vertical = MellowSpacing.Sp1),
                     ) {
-                        Icon(
-                            imageVector = dest.icon,
-                            contentDescription = null,
-                            tint = tint,
-                            modifier = Modifier.size(22.dp),
-                        )
+                        Crossfade(targetState = isSelected, label = "navIcon") { selected ->
+                            Icon(
+                                imageVector = if (selected) dest.selectedIcon else dest.icon,
+                                contentDescription = null,
+                                tint = tint,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
                         Box(modifier = Modifier.height(4.dp))
                         Text(
                             text = dest.label,
                             fontSize = 11.sp,
                             color = tint,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

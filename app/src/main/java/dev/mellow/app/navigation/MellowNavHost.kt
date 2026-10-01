@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.statusBars
@@ -63,6 +66,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,7 +89,11 @@ import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
 import dev.mellow.core.designsystem.component.LocalSharedTransitionScope
+import dev.mellow.core.designsystem.component.LocalHideOnScrollState
 import dev.mellow.core.designsystem.component.MellowBottomNavBar
+import dev.mellow.core.designsystem.component.hideOnScrollBottom
+import dev.mellow.core.designsystem.component.rememberHideOnScrollPart
+import dev.mellow.core.designsystem.component.rememberHideOnScrollState
 import dev.mellow.core.designsystem.component.MellowNavigationRail
 import dev.mellow.core.player.PositionState
 import dev.mellow.core.designsystem.component.MellowNavDestination
@@ -220,6 +228,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val serverUrl by mainViewModel.serverUrl.collectAsState()
     val connectionState by mainViewModel.connectionState.collectAsState()
     val sheetState = rememberExpandableSheetState()
+    val hideOnScroll = rememberHideOnScrollState()
+    val touchExplorationEnabled = rememberTouchExplorationEnabled()
     val sharedArtPositions = remember { SharedArtPositions() }
     val density = androidx.compose.ui.platform.LocalDensity.current
 
@@ -318,7 +328,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         val useBottomNav = !isExpanded || isTabletPortrait || isTabletop
         val hasTrack = playbackState.currentTrack != null
         val showSheet = hasTrack
-        val sheetBottomNavPx = if (useBottomNav) {
+        // The top toolbar and the bottom bar hide together on scroll; never on full-screen routes or with a
+        // screen reader, and both come back on navigation.
+        val hideBarsOnScroll = !isFullScreen && !touchExplorationEnabled
+        SideEffect { hideOnScroll.enabled = hideBarsOnScroll }
+        LaunchedEffect(currentRoute) { hideOnScroll.show() }
+        // The collapsed sheet sits on the mini player, which drops by the bar's height when the bar is hidden.
+        // Uses the settled state so the (large) sheet doesn't recompose on every scroll frame.
+        val sheetBottomNavPx = if (useBottomNav && !hideOnScroll.isSettledHidden) {
             with(density) { MellowSpacing.BottomNavHeight.toPx() }
         } else 0f
 
@@ -328,6 +345,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         LocalWindowWidthClass provides windowWidthClass,
         LocalFoldableState provides foldableState,
         LocalMiniPlayerPadding provides miniPlayerPadding,
+        LocalHideOnScrollState provides hideOnScroll,
         LocalBatterySaverActive provides (rememberIsBatterySaverActive() || mainViewModel.lowPowerMode.collectAsState().value),
     ) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -361,10 +379,16 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             ),
                         )
                     }
+                    // The bar slides away on scroll; the system-bar inset below it stays, so the mini
+                    // player comes to rest just above the system navigation.
+                    val barKey = rememberHideOnScrollPart(hideOnScroll)
                     MellowBottomNavBar(
                         selectedRoute = selectedTabRoute,
                         onNavigate = navigateToTab,
+                        windowInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal),
+                        modifier = Modifier.hideOnScrollBottom(hideOnScroll, barKey),
                     )
+                    Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
                 }
             }
         },
@@ -380,6 +404,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 .fillMaxSize()
                 .padding(top = animatedTop)
                 .padding(innerPadding)
+                .nestedScroll(hideOnScroll.nestedScrollConnection)
                 .consumeWindowInsets(innerPadding)
                 .consumeWindowInsets(PaddingValues(top = animatedTop)),
         ) {

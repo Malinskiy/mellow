@@ -66,12 +66,16 @@ fun CollapsibleToolbarLayout(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val density = LocalDensity.current
+    // With an app-wide hide-on-scroll state the toolbar moves together with the bottom bar; that state's
+    // connection is attached by the app shell. Without one, the toolbar collapses on its own.
+    val shared = LocalHideOnScrollState.current
+    val sharedKey = shared?.let { rememberHideOnScrollPart(it) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .clipToBounds()
-            .nestedScroll(state.nestedScrollConnection),
+            .then(if (shared == null) Modifier.nestedScroll(state.nestedScrollConnection) else Modifier),
     ) {
         val topPadding = with(density) {
             if (state.heightPx > 0f) state.heightPx.toDp() else 56.dp
@@ -82,7 +86,10 @@ fun CollapsibleToolbarLayout(
             modifier = Modifier
                 .fillMaxWidth()
                 .onSizeChanged { state.heightPx = it.height.toFloat() }
-                .graphicsLayer { translationY = state.offsetY }
+                .then(if (shared != null && sharedKey != null) Modifier.hideOnScrollTopHeight(shared, sharedKey) else Modifier)
+                .graphicsLayer {
+                    translationY = if (shared != null) -shared.fraction * state.heightPx else state.offsetY
+                }
                 .pointerInput(Unit) { detectTapGestures {} },
         ) {
             toolbar()
