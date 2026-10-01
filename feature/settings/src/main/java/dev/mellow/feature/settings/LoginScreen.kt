@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.mellow.core.designsystem.component.MellowDialog
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -62,6 +63,15 @@ fun LoginScreen(
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showAdvancedSettings by rememberSaveable { mutableStateOf(false) }
+    var showCleartextWarning by rememberSaveable { mutableStateOf(false) }
+
+    val signIn = {
+        if (serverUrl.trim().startsWith("http://", ignoreCase = true)) {
+            showCleartextWarning = true
+        } else {
+            onSignIn(serverUrl, username, password)
+        }
+    }
 
     val caretRotation by animateFloatAsState(
         targetValue = if (showAdvancedSettings) 180f else 0f,
@@ -134,7 +144,7 @@ fun LoginScreen(
                         isLoading = isLoading,
                         error = error,
                         textFieldColors = textFieldColors,
-                        onSignIn = { onSignIn(serverUrl, username, password) },
+                        onSignIn = signIn,
                         showAdvancedSettings = showAdvancedSettings,
                         onToggleAdvancedSettings = { showAdvancedSettings = !showAdvancedSettings },
                         caretRotation = caretRotation,
@@ -178,7 +188,7 @@ fun LoginScreen(
                     isLoading = isLoading,
                     error = error,
                     textFieldColors = textFieldColors,
-                    onSignIn = { onSignIn(serverUrl, username, password) },
+                    onSignIn = signIn,
                     showAdvancedSettings = showAdvancedSettings,
                     onToggleAdvancedSettings = { showAdvancedSettings = !showAdvancedSettings },
                     caretRotation = caretRotation,
@@ -191,6 +201,33 @@ fun LoginScreen(
         }
     }
     }
+
+    if (showCleartextWarning) {
+        CleartextWarningDialog(
+            onConnectAnyway = {
+                showCleartextWarning = false
+                onSignIn(serverUrl, username, password)
+            },
+            onDismiss = { showCleartextWarning = false },
+        )
+    }
+}
+
+@Composable
+private fun CleartextWarningDialog(
+    onConnectAnyway: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    MellowDialog(
+        onDismissRequest = onDismiss,
+        title = "Unencrypted connection",
+        description = "This server address uses http://. Your password and access token will be sent " +
+            "unencrypted and anyone on the same network can read them.",
+        confirmLabel = "Connect anyway",
+        confirmColor = MellowTheme.colors.error,
+        confirmBackground = Color.Transparent,
+        onConfirm = onConnectAnyway,
+    )
 }
 
 @Composable
