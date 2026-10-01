@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -338,10 +340,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
 
     Box(modifier = Modifier.weight(1f)) {
     Scaffold(
-        contentWindowInsets = if (isFullScreen || (isExpanded && !useBottomNav)) {
-            WindowInsets(0)
-        } else {
-            WindowInsets.systemBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+        contentWindowInsets = when {
+            isFullScreen -> WindowInsets(0)
+            // Rail layout: the rail owns the start edge; content keeps clear of a side
+            // navigation bar or cutout on the end edge (landscape) and of the bottom bar.
+            isExpanded && !useBottomNav -> WindowInsets.systemBars
+                .union(WindowInsets.displayCutout)
+                .only(WindowInsetsSides.End + WindowInsetsSides.Bottom)
+            else -> WindowInsets.systemBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
         },
         containerColor = MellowTheme.colors.background,
         bottomBar = {
