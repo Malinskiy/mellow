@@ -2,7 +2,6 @@ package dev.mellow.core.designsystem.component
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,13 +11,17 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -35,6 +38,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -76,20 +81,26 @@ fun MellowNavigationRail(
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.onGloballyPositioned { coordinates ->
-                    val bounds = coordinates.boundsInWindow()
-                    itemsVerticalRange = bounds.top..bounds.bottom
-                },
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .selectableGroup()
+                    .onGloballyPositioned { coordinates ->
+                        val bounds = coordinates.boundsInWindow()
+                        itemsVerticalRange = bounds.top..bounds.bottom
+                    },
             ) {
                 MellowNavDestination.entries.forEach { dest ->
                     val isSelected = dest.route == selectedRoute
                     val tint = if (isSelected) MellowTheme.colors.foreground else MellowTheme.colors.muted
 
+                    // At least 56dp square; grows up to the rail width and in height for large font scales,
+                    // and the label stays on one line (ellipsized) instead of wrapping into a clipped second line.
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier
-                            .size(56.dp)
+                            .widthIn(min = 56.dp)
+                            .heightIn(min = 56.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .then(
                                 if (isSelected) {
@@ -98,13 +109,17 @@ fun MellowNavigationRail(
                                     Modifier
                                 }
                             )
-                            .clickable { onNavigate(dest.route) }
-                            .padding(vertical = 4.dp),
+                            .selectable(
+                                selected = isSelected,
+                                onClick = { onNavigate(dest.route) },
+                                role = Role.Tab,
+                            )
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
                     ) {
                         Crossfade(targetState = isSelected, label = "railIcon") { selected ->
                             Icon(
                                 imageVector = if (selected) dest.selectedIcon else dest.icon,
-                                contentDescription = dest.label,
+                                contentDescription = null,
                                 tint = tint,
                                 modifier = Modifier.size(22.dp),
                             )
@@ -115,6 +130,8 @@ fun MellowNavigationRail(
                             fontSize = 10.sp,
                             color = tint,
                             letterSpacing = 0.02.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     Spacer(Modifier.height(8.dp))
