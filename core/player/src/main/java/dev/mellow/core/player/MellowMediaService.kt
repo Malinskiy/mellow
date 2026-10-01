@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -12,6 +14,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.CacheBitmapLoader
@@ -25,12 +28,14 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import dev.mellow.core.common.jellyfinStreamUrl
+import dev.mellow.core.data.preferences.PlaybackQueuePreferences
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.getTracksById
 import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.PlaylistEntity
@@ -44,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -58,10 +64,25 @@ class MellowMediaService : MediaLibraryService() {
     @Inject lateinit var downloadDao: DownloadDao
     @Inject lateinit var networkStateObserver: NetworkStateObserver
     @Inject lateinit var jellyfinClientWrapper: JellyfinClientWrapper
+    @Inject lateinit var queuePreferences: PlaybackQueuePreferences
 
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    /**
+     * The server the player's tracks come from, kept current so a queue is tagged with its server when it changes
+     * rather than whenever the save runs.
+     */
+    @Volatile private var activeServerId: String? = null
+    private val savePositionPeriodically = object : Runnable {
+        override fun run() {
+            savePosition()
+            handler.postDelayed(this, POSITION_SAVE_INTERVAL_MS)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -104,6 +125,8 @@ class MellowMediaService : MediaLibraryService() {
             }
         })
 
+        exoPlayer.addListener(queuePersistenceListener)
+
         val bitmapLoader = CacheBitmapLoader(ContentBitmapLoader(this))
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, LibrarySessionCallback())
@@ -123,6 +146,99 @@ class MellowMediaService : MediaLibraryService() {
                 networkStateObserver.refresh()
             }
         }
+
+        serviceScope.launch { serverDao.observeActiveServer().collect { activeServerId = it?.id } }
+        serviceScope.launch { restoreQueue(exoPlayer) }
+    }
+
+    /** Saves the play queue as it changes, so [restoreQueue] can bring it back in a new service. */
+    private val queuePersistenceListener = object : Player.Listener {
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) saveQueue()
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = savePosition()
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) savePosition()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            handler.removeCallbacks(savePositionPeriodically)
+            if (isPlaying) {
+                handler.postDelayed(savePositionPeriodically, POSITION_SAVE_INTERVAL_MS)
+            } else {
+                savePosition()
+            }
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = saveQueue()
+
+        override fun onRepeatModeChanged(repeatMode: Int) = saveQueue()
+    }
+
+    private fun saveQueue() {
+        val exoPlayer = player ?: return
+        if (exoPlayer.mediaItemCount == 0) {
+            queuePreferences.clear()
+            return
+        }
+        val serverId = activeServerId ?: return
+        queuePreferences.saveQueue(
+            serverId = serverId,
+            trackIds = (0 until exoPlayer.mediaItemCount).map { exoPlayer.getMediaItemAt(it).mediaId },
+            index = exoPlayer.currentMediaItemIndex,
+            positionMs = exoPlayer.currentPosition,
+            shuffleEnabled = exoPlayer.shuffleModeEnabled,
+            repeatMode = exoPlayer.repeatMode,
+        )
+    }
+
+    private fun savePosition() {
+        val exoPlayer = player ?: return
+        if (exoPlayer.mediaItemCount == 0) return
+        queuePreferences.savePosition(exoPlayer.currentMediaItemIndex, exoPlayer.currentPosition)
+    }
+
+    /**
+     * Puts the saved queue back into an empty [exoPlayer], paused at the saved track and position. The player isn't
+     * prepared, so nothing is fetched until playback starts.
+     */
+    private suspend fun restoreQueue(exoPlayer: ExoPlayer) {
+        val saved = try {
+            queuePreferences.load()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load the saved play queue", e)
+            null
+        } ?: return
+        if (serverDao.getActiveServer()?.id != saved.serverId) return
+
+        // Only tracks of the queue's own server that are still in the library.
+        val tracks = trackDao.getTracksById(saved.trackIds).filterValues { it.serverId == saved.serverId }
+        val plan = planQueueRestore(saved.trackIds.size, saved.index, saved.positionMs) {
+            saved.trackIds[it] in tracks
+        } ?: return
+        val items = enrichMediaItems(
+            plan.keptIndices.map { MediaItem.Builder().setMediaId(saved.trackIds[it]).build() },
+        )
+        // A track removed in the meantime has no stream URI; skip restoring rather than queue an unplayable item.
+        if (items.any { it.localConfiguration == null }) return
+        // The user may have logged out or switched servers while this was loading.
+        if (serverDao.getActiveServer()?.id != saved.serverId) return
+
+        withContext(Dispatchers.Main) {
+            // The player may have been released, or given a queue by the app or Android Auto, meanwhile.
+            if (player !== exoPlayer || exoPlayer.mediaItemCount > 0) return@withContext
+            activeServerId = saved.serverId
+            exoPlayer.shuffleModeEnabled = saved.shuffleEnabled
+            exoPlayer.repeatMode = saved.repeatMode
+            exoPlayer.setMediaItems(items, plan.startIndex, plan.startPositionMs)
+            Log.d(TAG, "Restored a queue of ${items.size} tracks at ${plan.startIndex}")
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
@@ -131,11 +247,14 @@ class MellowMediaService : MediaLibraryService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaLibrarySession?.player ?: return
         if (!player.playWhenReady || player.mediaItemCount == 0) {
+            savePosition()
             stopSelf()
         }
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(savePositionPeriodically)
+        savePosition()
         serviceScope.cancel()
         mediaLibrarySession?.run {
             player.release()
@@ -302,6 +421,9 @@ class MellowMediaService : MediaLibraryService() {
 
         var enrichedCount = 0
         var missCount = 0
+        val tracksById = trackDao.getTracksById(
+            mediaItems.filter { it.localConfiguration == null }.map { it.mediaId },
+        )
         val result = mediaItems.map { item ->
             val trackId = item.mediaId
             if (item.localConfiguration != null) {
@@ -309,7 +431,7 @@ class MellowMediaService : MediaLibraryService() {
                 return@map item
             }
 
-            val track = trackDao.getTrackById(trackId)
+            val track = tracksById[trackId]
             if (track != null) {
                 enrichedCount++
                 MediaItem.Builder()
@@ -822,6 +944,7 @@ class MellowMediaService : MediaLibraryService() {
 
     companion object {
         private const val TAG = "MellowMediaService"
+        private const val POSITION_SAVE_INTERVAL_MS = 10_000L
         private const val ROOT_ID = "mellow_root"
         private const val TAB_HOME = "tab_home"
         private const val TAB_LIBRARY = "tab_library"
