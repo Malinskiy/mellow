@@ -10,6 +10,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.mellow.app.BuildConfig
 import dev.mellow.core.common.DownloadExecutor
 import dev.mellow.core.player.download.MellowDownloadManager
+import dev.mellow.core.update.UpdateConfig
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -24,6 +25,17 @@ object AppModule {
     @Provides
     @Named("appVersion")
     fun provideAppVersion(): String = BuildConfig.VERSION_NAME
+
+    @Provides
+    @Singleton
+    fun provideUpdateConfig(): UpdateConfig = UpdateConfig(
+        githubOwner = "Malinskiy",
+        githubRepo = "mellow",
+        currentVersionName = BuildConfig.VERSION_NAME,
+        currentVersionCode = BuildConfig.VERSION_CODE.toLong(),
+        isDebugBuild = BuildConfig.DEBUG,
+        apiBaseUrl = BuildConfig.UPDATE_API_BASE_URL,
+    )
 }
 
 @Module

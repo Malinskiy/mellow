@@ -28,6 +28,8 @@ android {
         versionCode = (System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1)
         versionName = (System.getenv("VERSION_NAME") ?: gitDescribe())
 
+        buildConfigField("String", "UPDATE_API_BASE_URL", "\"https://api.github.com\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -100,6 +102,7 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:data"))
     implementation(project(":core:player"))
+    implementation(project(":core:update"))
     implementation(project(":feature:home"))
     implementation(project(":feature:library"))
     implementation(project(":feature:player"))
