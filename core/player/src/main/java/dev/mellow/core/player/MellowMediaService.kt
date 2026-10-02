@@ -148,7 +148,6 @@ class MellowMediaService : MediaLibraryService() {
         }
 
         serviceScope.launch { serverDao.observeActiveServer().collect { activeServerId = it?.id } }
-        serviceScope.launch { restoreQueue(exoPlayer) }
     }
 
     /** Saves the play queue as it changes, so [restoreQueue] can bring it back in a new service. */
@@ -204,40 +203,69 @@ class MellowMediaService : MediaLibraryService() {
         queuePreferences.savePosition(exoPlayer.currentMediaItemIndex, exoPlayer.currentPosition)
     }
 
+    /** A saved queue ready to put back into the player. */
+    private class RestorableQueue(
+        val serverId: String,
+        val items: List<MediaItem>,
+        val startIndex: Int,
+        val startPositionMs: Long,
+        val shuffleEnabled: Boolean,
+        val repeatMode: Int,
+    )
+
     /**
-     * Puts the saved queue back into an empty [exoPlayer], paused at the saved track and position. The player isn't
-     * prepared, so nothing is fetched until playback starts.
+     * Loads the saved queue, keeping only tracks of its own server that are still in the library. `null` if there is
+     * nothing to restore, or the user has since logged out or switched servers.
      */
-    private suspend fun restoreQueue(exoPlayer: ExoPlayer) {
+    private suspend fun loadRestorableQueue(): RestorableQueue? {
         val saved = try {
             queuePreferences.load()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load the saved play queue", e)
             null
-        } ?: return
-        if (serverDao.getActiveServer()?.id != saved.serverId) return
+        } ?: return null
+        if (serverDao.getActiveServer()?.id != saved.serverId) return null
 
-        // Only tracks of the queue's own server that are still in the library.
         val tracks = trackDao.getTracksById(saved.trackIds).filterValues { it.serverId == saved.serverId }
         val plan = planQueueRestore(saved.trackIds.size, saved.index, saved.positionMs) {
             saved.trackIds[it] in tracks
-        } ?: return
+        } ?: return null
         val items = enrichMediaItems(
             plan.keptIndices.map { MediaItem.Builder().setMediaId(saved.trackIds[it]).build() },
         )
         // A track removed in the meantime has no stream URI; skip restoring rather than queue an unplayable item.
-        if (items.any { it.localConfiguration == null }) return
+        if (items.any { it.localConfiguration == null }) return null
         // The user may have logged out or switched servers while this was loading.
-        if (serverDao.getActiveServer()?.id != saved.serverId) return
+        if (serverDao.getActiveServer()?.id != saved.serverId) return null
+        return RestorableQueue(
+            serverId = saved.serverId,
+            items = items,
+            startIndex = plan.startIndex,
+            startPositionMs = plan.startPositionMs,
+            shuffleEnabled = saved.shuffleEnabled,
+            repeatMode = saved.repeatMode,
+        )
+    }
 
+    /**
+     * Puts the saved queue back into an empty [exoPlayer], paused at the saved track and position, so the app can
+     * show it. The player isn't prepared, so nothing is fetched until playback starts.
+     *
+     * Only done for the app's own UI (see `onPostConnect`). Other callers that start the service, such as System UI
+     * probing for its resume card or Android Auto browsing, get the queue through `onPlaybackResumption` when they
+     * press play; restoring for them would post a media notification for a player nobody is using.
+     */
+    private suspend fun restoreQueue(exoPlayer: ExoPlayer) {
+        val queue = loadRestorableQueue() ?: return
         withContext(Dispatchers.Main) {
-            // The player may have been released, or given a queue by the app or Android Auto, meanwhile.
+            // The player may have been released, or given a queue by the app, Android Auto or a playback
+            // resumption, meanwhile.
             if (player !== exoPlayer || exoPlayer.mediaItemCount > 0) return@withContext
-            activeServerId = saved.serverId
-            exoPlayer.shuffleModeEnabled = saved.shuffleEnabled
-            exoPlayer.repeatMode = saved.repeatMode
-            exoPlayer.setMediaItems(items, plan.startIndex, plan.startPositionMs)
-            Log.d(TAG, "Restored a queue of ${items.size} tracks at ${plan.startIndex}")
+            activeServerId = queue.serverId
+            exoPlayer.shuffleModeEnabled = queue.shuffleEnabled
+            exoPlayer.repeatMode = queue.repeatMode
+            exoPlayer.setMediaItems(queue.items, queue.startIndex, queue.startPositionMs)
+            Log.i(TAG, "Restored a queue of ${queue.items.size} tracks at ${queue.startIndex}")
         }
     }
 
@@ -572,6 +600,66 @@ class MellowMediaService : MediaLibraryService() {
         ): ListenableFuture<List<MediaItem>> {
             Log.d(TAG, "onAddMediaItems: ${mediaItems.size} items, ids=${mediaItems.map { it.mediaId }}")
             return asyncFuture { enrichMediaItems(mediaItems) }
+        }
+
+        override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
+            if (controller.packageName == packageName && !session.isMediaNotificationController(controller)) {
+                player?.let { exoPlayer -> serviceScope.launch { restoreQueue(exoPlayer) } }
+            }
+        }
+
+        /**
+         * Play was requested while the player has no current item: from a headset or Bluetooth button (via
+         * MediaButtonReceiver) after the app was gone, from the system's media controls after a reboot, or from a
+         * controller such as Android Auto. Media3 sets the returned queue and starts playback; System UI also uses it
+         * to show the last-played track on its resumption card.
+         */
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            serviceScope.launch {
+                val queue = try {
+                    loadRestorableQueue()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to load the queue to resume", e)
+                    null
+                }
+                // Complete on the main thread, where Media3 applies the result in the same turn. If the player got
+                // a queue meanwhile (the app restored it, or Android Auto picked something), answer with that queue
+                // instead of overwriting it with the saved one.
+                withContext(Dispatchers.Main) {
+                    val exoPlayer = player
+                    when {
+                        exoPlayer == null -> future.setException(IllegalStateException("The player was released"))
+                        exoPlayer.mediaItemCount > 0 -> future.set(
+                            MediaSession.MediaItemsWithStartPosition(
+                                (0 until exoPlayer.mediaItemCount).map { exoPlayer.getMediaItemAt(it) },
+                                exoPlayer.currentMediaItemIndex,
+                                exoPlayer.currentPosition,
+                            ),
+                        )
+                        queue == null -> future.setException(UnsupportedOperationException("No play queue to resume"))
+                        else -> {
+                            activeServerId = queue.serverId
+                            exoPlayer.shuffleModeEnabled = queue.shuffleEnabled
+                            exoPlayer.repeatMode = queue.repeatMode
+                            Log.i(
+                                TAG,
+                                "Resuming a queue of ${queue.items.size} tracks at ${queue.startIndex} " +
+                                    "for ${controller.packageName}",
+                            )
+                            future.set(
+                                MediaSession.MediaItemsWithStartPosition(
+                                    queue.items, queue.startIndex, queue.startPositionMs,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+            return future
         }
 
         override fun onGetLibraryRoot(
