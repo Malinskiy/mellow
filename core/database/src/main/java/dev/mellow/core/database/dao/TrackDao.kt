@@ -73,6 +73,10 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE resolvedArtistId = :artistId ORDER BY playCount DESC LIMIT :limit")
     fun getTracksByResolvedArtist(artistId: String, limit: Int = 20): Flow<List<TrackEntity>>
 
+    /** An artist's most played tracks, as the app's artist screen shows and plays them. */
+    @Query("SELECT * FROM tracks WHERE resolvedArtistId = :artistId ORDER BY playCount DESC LIMIT :limit")
+    suspend fun getTracksByResolvedArtistSync(artistId: String, limit: Int = 20): List<TrackEntity>
+
     @Query("SELECT COUNT(*) FROM tracks WHERE resolvedArtistId = :artistId")
     suspend fun countTracksByResolvedArtist(artistId: String): Int
 
