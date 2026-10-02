@@ -64,6 +64,30 @@ Download the latest APK from [GitHub Releases](https://github.com/Malinskiy/mell
 2. Transfer the APK to your Android device (or download directly on device)
 3. Open the APK and install — you may need to allow installation from unknown sources in your device settings
 
+### Updating
+
+Mellow checks GitHub Releases for a newer version at most once a day when it launches (toggle in
+Settings › About › "Check for updates automatically"; "Check for updates" runs it on demand). Updates download
+and install in-app: the APK is checked against the release's SHA-256 and must be signed with the same key as the
+installed build before Android's installer is opened. The first time, Android asks once to allow installs from
+Mellow. Use "Skip this version" in the update dialog to silence a release you don't want.
+
+### Installing on Google-certified devices (developer verification)
+
+Mellow is **not** registered with Google's
+[Android developer verification](https://developer.android.com/developer-verification/guides/faq) program. On
+certified devices where verification is enforced (Brazil, Indonesia, Singapore and Thailand since 2026-09-30;
+everywhere from 2027) you need one of:
+
+- **The one-time "advanced flow"**: Settings › Developer options › enable installs from unverified developers
+  (if Developer options is missing: About phone › tap Build number 7 times), confirm, restart, and wait 24 hours.
+  Pick "indefinitely" when asked — with the 7-day option, updates stop working after it lapses. Every install then
+  shows an "unverified developer" warning with "Install anyway". When Android blocks an update, Mellow's update
+  dialog walks you through these steps and keeps the downloaded APK so you can install it after the wait.
+- **ADB**: `adb install -r app-release.apk` from a computer. ADB installs are exempt from verification and the wait.
+
+De-Googled devices (GrapheneOS, LineageOS without Play Services, …) are unaffected.
+
 ## Build from source
 
 ```bash
