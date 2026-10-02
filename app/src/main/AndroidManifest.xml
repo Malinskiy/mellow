@@ -50,6 +50,16 @@
             </intent-filter>
         </service>
 
+        <!-- Media buttons (headset, Bluetooth) restart playback after the app is gone, and enable the system's
+             playback resumption card; see MellowMediaService.onPlaybackResumption. -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name="dev.mellow.core.player.download.MellowDownloadService"
             android:exported="false"
