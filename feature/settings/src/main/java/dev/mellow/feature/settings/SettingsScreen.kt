@@ -15,9 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import dev.mellow.core.designsystem.icon.PhosphorIcons
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import dev.mellow.core.data.SyncProgress
@@ -77,6 +81,15 @@ fun SettingsScreen(
     lowPowerMode: Boolean = false,
     onLowPowerModeChange: (Boolean) -> Unit = {},
     appVersion: String = "",
+    updateStatusText: String = "",
+    autoCheckUpdates: Boolean = true,
+    showUpdateHelpRow: Boolean = false,
+    onCheckForUpdates: () -> Unit = {},
+    onAutoCheckUpdatesChange: (Boolean) -> Unit = {},
+    onUpdateHelpClick: () -> Unit = {},
+    devApiBaseUrlOverride: String? = null,
+    onDevApiBaseUrlChange: (String) -> Unit = {},
+    onSimulateVerificationBlock: () -> Unit = {},
     onDevToolsClick: () -> Unit = {},
     onLicensesClick: () -> Unit = {},
     onLogout: () -> Unit = {},
@@ -225,9 +238,51 @@ fun SettingsScreen(
                 Toast.makeText(context, "Developer mode enabled", Toast.LENGTH_SHORT).show()
             }
         })
+        SettingsRow(
+            icon = PhosphorIcons.ArrowsClockwise,
+            title = "Check for updates",
+            value = updateStatusText,
+            onClick = onCheckForUpdates
+        )
+        SettingsToggleRow(
+            icon = PhosphorIcons.DownloadSimple,
+            title = "Check for updates automatically",
+            subtitle = "Once a day on launch",
+            checked = autoCheckUpdates,
+            onCheckedChange = onAutoCheckUpdatesChange
+        )
+        if (showUpdateHelpRow) {
+            SettingsRow(
+                icon = PhosphorIcons.WarningCircle,
+                title = "Installing updates",
+                value = "Unverified developer · how it works",
+                onClick = onUpdateHelpClick
+            )
+        }
         SettingsRow(PhosphorIcons.Info, "Licenses", "", onClick = onLicensesClick)
         if (showDevTools) {
             SettingsRow(PhosphorIcons.Info, "Dev Tools", "Icon comparison", onClick = onDevToolsClick)
+            if (BuildConfig.DEBUG) {
+                SettingsSection("App Update Dev Tools")
+                var devUrl by remember(devApiBaseUrlOverride) { mutableStateOf(devApiBaseUrlOverride ?: "") }
+                OutlinedTextField(
+                    value = devUrl,
+                    onValueChange = { devUrl = it },
+                    label = { Text("GitHub API base URL for update checks (blank = api.github.com)") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { onDevApiBaseUrlChange(devUrl) }),
+                )
+                SettingsRow(
+                    icon = PhosphorIcons.WarningCircle,
+                    title = "Simulate verification block",
+                    value = "Developer blocked (reason 2)",
+                    onClick = onSimulateVerificationBlock
+                )
+            }
         }
         Spacer(Modifier.height(MellowSpacing.Sp16))
     }

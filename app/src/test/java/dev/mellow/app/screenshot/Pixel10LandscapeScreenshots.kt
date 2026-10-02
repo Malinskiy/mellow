@@ -45,3 +45,11 @@ class Settings_Pixel10Landscape : SettingsScreenshotTests() {
     override val deviceFolder = "pixel10-landscape"
     override val windowWidthClass = WindowWidthClass.Expanded
 }
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w915dp-h412dp-xxhdpi")
+class UpdateDialog_Pixel10Landscape : UpdateDialogScreenshotTests() {
+    override val deviceFolder = "pixel10-landscape"
+    override val windowWidthClass = WindowWidthClass.Expanded
+}

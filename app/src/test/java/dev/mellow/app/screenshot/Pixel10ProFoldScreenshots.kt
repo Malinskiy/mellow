@@ -110,3 +110,12 @@ class Settings_Pixel10ProFoldLandscape : SettingsScreenshotTests() {
     override val windowWidthClass = WindowWidthClass.Expanded
     override val foldableState = FOLD_LANDSCAPE_TABLETOP
 }
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w876dp-h1023dp-420dpi")
+class UpdateDialog_Pixel10ProFoldPortrait : UpdateDialogScreenshotTests() {
+    override val deviceFolder = "pixel10profold-portrait"
+    override val windowWidthClass = WindowWidthClass.Expanded
+    override val foldableState = FOLD_PORTRAIT_FLAT
+}
