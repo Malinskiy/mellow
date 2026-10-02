@@ -45,3 +45,11 @@ class Settings_Pixel10Portrait : SettingsScreenshotTests() {
     override val deviceFolder = "pixel10-portrait"
     override val windowWidthClass = WindowWidthClass.Compact
 }
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w412dp-h915dp-xxhdpi")
+class UpdateDialog_Pixel10Portrait : UpdateDialogScreenshotTests() {
+    override val deviceFolder = "pixel10-portrait"
+    override val windowWidthClass = WindowWidthClass.Compact
+}

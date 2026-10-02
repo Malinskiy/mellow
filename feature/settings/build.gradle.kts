@@ -25,6 +25,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -34,6 +35,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:network"))
     implementation(project(":core:data"))
+    implementation(project(":core:update"))
 
     implementation(libs.bundles.lifecycle)
     implementation(platform(libs.compose.bom))

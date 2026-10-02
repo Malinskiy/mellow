@@ -67,6 +67,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.mellow.feature.settings.update.AppUpdateDialog
+import dev.mellow.feature.settings.update.AppUpdateEvent
+import dev.mellow.feature.settings.update.AppUpdateHelpDialog
+import dev.mellow.feature.settings.update.AppUpdateUiState
+import dev.mellow.feature.settings.update.AppUpdateViewModel
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -241,6 +258,43 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     var pickerArtists by remember { mutableStateOf<List<PickerArtist>>(emptyList()) }
     val playlistsVm: PlaylistsViewModel = hiltViewModel()
     val playlistsState by playlistsVm.uiState.collectAsState()
+
+    val updateVm: AppUpdateViewModel = hiltViewModel()
+    val updateState by updateVm.uiState.collectAsStateWithLifecycle()
+    val updateDialogVisible by updateVm.dialogVisible.collectAsStateWithLifecycle()
+    val cachedUpdate by updateVm.cachedUpdate.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        updateVm.checkOnStart()
+    }
+
+    LaunchedEffect(Unit) {
+        updateVm.event.collect { event -> handleAppUpdateEvent(context, event) }
+    }
+
+    // Continues an install the "install unknown apps" switch interrupted; the VM ignores unrelated resumes.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) updateVm.onResumed()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    if (updateDialogVisible) AppUpdateDialog(
+        state = updateState,
+        onDismiss = updateVm::dismiss,
+        onUpdate = updateVm::download,
+        onInstall = updateVm::install,
+        onSkip = updateVm::skipVersion,
+        onCancelDownload = updateVm::cancelDownload,
+        onOpenRelease = updateVm::openRelease,
+        onOpenDeveloperOptions = updateVm::openDeveloperOptions,
+        onCopyAdbCommand = updateVm::copyAdbCommand,
+        onMoreInfo = { (updateState as? AppUpdateUiState.Error)?.contextIntent?.let(updateVm::openMoreInfo) },
+        onRetry = updateVm::download,
+    )
 
     LaunchedEffect(serverId) {
         if (serverId.isNotEmpty()) playlistsVm.loadPlaylists(serverId)
@@ -684,9 +738,60 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     val autoCleanupDays by settingsVm.autoCleanupDays.collectAsState()
                     val totalDownloadedBytes by settingsVm.totalDownloadedBytes.collectAsState()
                     val lowPowerMode by settingsVm.lowPowerMode.collectAsState()
+                    val autoCheckUpdates by updateVm.autoCheckEnabled.collectAsStateWithLifecycle(initialValue = true)
+                    var showHelpDialog by remember { mutableStateOf(false) }
+
+                    if (showHelpDialog) {
+                        AppUpdateHelpDialog(
+                            onDismiss = { showHelpDialog = false },
+                            onOpenDeveloperOptions = updateVm::openDeveloperOptions,
+                            onCopyAdbCommand = updateVm::copyAdbCommand
+                        )
+                    }
+
+                    // The cached release outlives the dialog: "Later" must not clear the badge.
+                    val cached = cachedUpdate?.takeUnless { it.skipped }
+                    val cachedText = cached?.let {
+                        if (it.downloaded != null) "${it.release.tagName} ready to install" else "${it.release.tagName} available"
+                    }
+                    val currentUiState = updateState
+                    val appVersionText = when {
+                        currentUiState is AppUpdateUiState.ReadyToInstall -> "${currentUiState.tag} ready to install"
+                        cachedText != null -> "${settingsVm.appVersion}  ·  $cachedText"
+                        else -> settingsVm.appVersion
+                    }
+                    val updateStatusText = when (currentUiState) {
+                        is AppUpdateUiState.Checking -> "Checking…"
+                        is AppUpdateUiState.UpToDate -> cachedText ?: "Up to date"
+                        is AppUpdateUiState.Available -> "${currentUiState.tag} available"
+                        is AppUpdateUiState.ReadyToInstall -> "${currentUiState.tag} ready to install"
+                        is AppUpdateUiState.Downloading -> "Downloading ${currentUiState.tag}…"
+                        is AppUpdateUiState.Verifying -> "Verifying…"
+                        is AppUpdateUiState.Installing -> "Installing…"
+                        is AppUpdateUiState.Error -> "Couldn't check"
+                        AppUpdateUiState.Idle -> cachedText ?: ""
+                    }
+
+                    val devApiBaseUrlOverride by updateVm.devApiBaseUrlOverride.collectAsStateWithLifecycle()
 
                     SettingsScreen(
-                        appVersion = settingsVm.appVersion,
+                        appVersion = appVersionText,
+                        updateStatusText = updateStatusText,
+                        autoCheckUpdates = autoCheckUpdates,
+                        showUpdateHelpRow = updateVm.verifierPresent,
+                        onCheckForUpdates = {
+                            // A known release just needs its dialog back; otherwise hit GitHub.
+                            if (cached != null && currentUiState !is AppUpdateUiState.Error) {
+                                updateVm.showDialog()
+                            } else {
+                                updateVm.checkNow()
+                            }
+                        },
+                        onAutoCheckUpdatesChange = updateVm::setAutoCheck,
+                        onUpdateHelpClick = { showHelpDialog = true },
+                        devApiBaseUrlOverride = devApiBaseUrlOverride,
+                        onDevApiBaseUrlChange = updateVm::setDevApiBaseUrlOverride,
+                        onSimulateVerificationBlock = updateVm::simulateVerificationBlock,
                         onBack = { navController.popBackStack() },
                         serverUrl = serverUrl ?: "",
                         connectionState = connectionState,
@@ -1897,3 +2002,38 @@ private fun StorageCapExceededDialog(
 
 private fun formatTrackDuration(duration: Duration): String =
     dev.mellow.core.common.formatTrackDuration(duration)
+
+private fun handleAppUpdateEvent(context: Context, event: AppUpdateEvent) {
+    val intent = when (event) {
+        is AppUpdateEvent.OpenUrl -> Intent(Intent.ACTION_VIEW, Uri.parse(event.url))
+        AppUpdateEvent.OpenDeveloperOptions -> {
+            // Developer options are hidden until the user taps Build number 7 times; the activity finishes
+            // immediately in that state, so send them to About phone instead.
+            val developerModeOn = Settings.Global.getInt(
+                context.contentResolver,
+                Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+                0,
+            ) == 1
+            if (developerModeOn) {
+                Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+            } else {
+                Intent(Settings.ACTION_DEVICE_INFO_SETTINGS)
+            }
+        }
+        is AppUpdateEvent.CopyToClipboard -> {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("adb command", event.text))
+            return
+        }
+        is AppUpdateEvent.OpenUnknownSources -> event.intent
+        is AppUpdateEvent.OpenIntent -> event.intent
+    }
+    try {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        if (event is AppUpdateEvent.OpenDeveloperOptions) {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        // Otherwise nothing can handle it on this device; the dialog stays open with its other options.
+    }
+}

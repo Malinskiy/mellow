@@ -45,3 +45,11 @@ class Settings_PixelTabletPortrait : SettingsScreenshotTests() {
     override val deviceFolder = "pixel-tablet-portrait"
     override val windowWidthClass = WindowWidthClass.Medium
 }
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w800dp-h1280dp-xhdpi")
+class UpdateDialog_PixelTabletPortrait : UpdateDialogScreenshotTests() {
+    override val deviceFolder = "pixel-tablet-portrait"
+    override val windowWidthClass = WindowWidthClass.Medium
+}

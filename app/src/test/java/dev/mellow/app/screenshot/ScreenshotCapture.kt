@@ -1,7 +1,11 @@
 package dev.mellow.app.screenshot
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.core.graphics.withTranslation
+import org.robolectric.shadows.ShadowDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -47,10 +51,31 @@ abstract class ScreenshotCapture {
 
         val rootView = composeTestRule.activity.window.decorView.rootView
         val bitmap = Bitmap.createBitmap(rootView.width, rootView.height, Bitmap.Config.ARGB_8888)
-        android.graphics.Canvas(bitmap).also { rootView.draw(it) }
+        val canvas = Canvas(bitmap)
+        rootView.draw(canvas)
+        drawTopmostDialog(canvas, rootView.width, rootView.height)
 
         FileOutputStream(File(snapshotDir, "$targetId.png")).use { out ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
+    }
+
+    /**
+     * Compose `Dialog`s live in their own window, which [android.view.View.draw] on the activity's decor view never
+     * reaches. Composite the newest showing dialog on top, centred like the system would place it.
+     */
+    private fun drawTopmostDialog(canvas: Canvas, screenWidth: Int, screenHeight: Int) {
+        val dialog = ShadowDialog.getLatestDialog()?.takeIf { it.isShowing } ?: return
+        val decor = dialog.window?.decorView ?: return
+        if (decor.width == 0 || decor.height == 0) {
+            decor.measure(
+                View.MeasureSpec.makeMeasureSpec(screenWidth, View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec(screenHeight, View.MeasureSpec.AT_MOST),
+            )
+            decor.layout(0, 0, decor.measuredWidth, decor.measuredHeight)
+        }
+        val left = (screenWidth - decor.width) / 2f
+        val top = (screenHeight - decor.height) / 2f
+        canvas.withTranslation(left, top) { decor.draw(this) }
     }
 }

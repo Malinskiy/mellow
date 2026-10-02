@@ -8,6 +8,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Lets VerifierDetector see Google's developer-verification component (in-app update guidance). -->
+    <queries>
+        <package android:name="com.google.android.verifier" />
+    </queries>
 
     <application
         android:name=".MellowApplication"
@@ -59,6 +65,11 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver>
+
+        <!-- PackageInstaller session status for in-app updates; reached only through ApkInstaller's PendingIntent. -->
+        <receiver
+            android:name="dev.mellow.core.update.UpdateInstallReceiver"
+            android:exported="false" />
 
         <service
             android:name="dev.mellow.core.player.download.MellowDownloadService"
