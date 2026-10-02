@@ -2,4 +2,10 @@
 <resources>
     <string name="download_channel_name">Music Downloads</string>
     <string name="download_channel_description">Shows progress while downloading music for offline playback</string>
+    <!-- Playback errors shown by system surfaces (Android Auto, notification, lock screen) -->
+    <string name="playback_error_server_unreachable">Can\'t reach your Jellyfin server. Without it, only downloaded music can play.</string>
+    <string name="playback_error_track_removed">This track is no longer on your Jellyfin server.</string>
+    <string name="playback_error_signed_out">Mellow is no longer signed in to Jellyfin. Sign in again in Mellow on your phone.</string>
+    <string name="playback_error_generic">Mellow couldn\'t play this track.</string>
+    <string name="playback_error_nothing_playable">Mellow couldn\'t find anything to play for this selection.</string>
 </resources>

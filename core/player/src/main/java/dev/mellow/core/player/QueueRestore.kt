@@ -1,5 +1,7 @@
 package dev.mellow.core.player
 
+import androidx.media3.common.C
+
 /**
  * Which saved queue entries to restore, and where to start.
  *
@@ -35,4 +37,18 @@ internal fun planQueueRestore(
         kept[next] == current -> RestorePlan(kept, next, savedPositionMs.coerceAtLeast(0L))
         else -> RestorePlan(kept, next, 0L)
     }
+}
+
+/**
+ * Where to start once items are dropped from a queue: [kept] says which original items remain. Starts at the requested
+ * item and position if it remains, otherwise at the beginning of the next remaining item (or the last one). An unset
+ * start index stays unset. Returns the index into the remaining items and the start position.
+ */
+internal fun remapStart(kept: List<Boolean>, startIndex: Int, startPositionMs: Long): Pair<Int, Long> {
+    if (startIndex == C.INDEX_UNSET) return C.INDEX_UNSET to startPositionMs
+    val remaining = kept.count { it }
+    require(remaining > 0) { "No items remain" }
+    val requested = startIndex.coerceIn(0, kept.lastIndex)
+    val index = kept.take(requested).count { it }.coerceAtMost(remaining - 1)
+    return index to if (kept[requested]) startPositionMs else C.TIME_UNSET
 }

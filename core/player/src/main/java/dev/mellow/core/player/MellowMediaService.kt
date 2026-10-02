@@ -21,6 +21,7 @@ import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionError
 import androidx.media3.session.SimpleBitmapLoader
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
@@ -129,7 +130,8 @@ class MellowMediaService : MediaLibraryService() {
 
         val bitmapLoader = CacheBitmapLoader(ContentBitmapLoader(this))
 
-        mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, LibrarySessionCallback())
+        // The session sees errors with readable messages; the service keeps using exoPlayer directly.
+        mediaLibrarySession = MediaLibrarySession.Builder(this, FriendlyErrorPlayer(exoPlayer, this), LibrarySessionCallback())
             .setBitmapLoader(bitmapLoader)
             .build()
 
@@ -291,6 +293,30 @@ class MellowMediaService : MediaLibraryService() {
         }
         player = null
         super.onDestroy()
+    }
+
+    /**
+     * Keeps only items the player can stream. If none are left, tells [controller] why and fails: Media3 ignores a
+     * failed request, so without the error Android Auto would wait on "Getting your selection…" indefinitely.
+     */
+    private fun playableOrError(
+        controller: MediaSession.ControllerInfo,
+        items: List<MediaItem>,
+        startIndex: Int,
+        startPositionMs: Long,
+    ): MediaSession.MediaItemsWithStartPosition {
+        val playable = items.filter { it.localConfiguration != null }
+        if (playable.isEmpty()) {
+            Log.w(TAG, "Nothing playable among ${items.size} items for ${controller.packageName}")
+            val error = SessionError(SessionError.ERROR_NOT_SUPPORTED, getString(R.string.playback_error_nothing_playable))
+            mediaLibrarySession?.let { session -> handler.post { session.sendError(controller, error) } }
+            throw UnsupportedOperationException("Nothing playable")
+        }
+        if (playable.size < items.size) {
+            Log.w(TAG, "Dropped ${items.size - playable.size} items without a stream")
+        }
+        val (start, position) = remapStart(items.map { it.localConfiguration != null }, startIndex, startPositionMs)
+        return MediaSession.MediaItemsWithStartPosition(playable, start, position)
     }
 
     private fun <T> asyncFuture(block: suspend () -> T): ListenableFuture<T> {
@@ -514,26 +540,21 @@ class MellowMediaService : MediaLibraryService() {
                                 it.toPlayableItem(parentId = "album:$albumId")
                             })
                             Log.d(TAG, "onSetMediaItems: resolved album, returning ${enriched.size} items")
-                            return@asyncFuture MediaSession.MediaItemsWithStartPosition(
-                                enriched, 0, startPositionMs,
-                            )
+                            return@asyncFuture playableOrError(browser, enriched, 0, startPositionMs)
                         }
                     }
                     if (mediaId.startsWith("artist:")) {
+                        // Same as the app's artist Play All: the artist's top tracks by resolved artist, which also
+                        // covers artists that only appear on other artists' albums.
                         val artistId = mediaId.removePrefix("artist:")
-                        val albums = albumDao.getAllAlbumsByArtist(artistId)
-                        if (albums.isNotEmpty()) {
-                            val firstAlbumTracks = trackDao.getTracksByAlbumSync(albums[0].id)
-                            Log.d(TAG, "onSetMediaItems: artist:$artistId → ${albums.size} albums, first album ${firstAlbumTracks.size} tracks")
-                            if (firstAlbumTracks.isNotEmpty()) {
-                                val enriched = enrichMediaItems(firstAlbumTracks.map {
-                                    it.toPlayableItem(parentId = "album:${albums[0].id}")
-                                })
-                                return@asyncFuture MediaSession.MediaItemsWithStartPosition(
-                                    enriched, 0, startPositionMs,
-                                )
-                            }
-                        }
+                        val tracks = trackDao.getTracksByResolvedArtistSync(artistId)
+                        Log.d(TAG, "onSetMediaItems: artist:$artistId → ${tracks.size} tracks")
+                        return@asyncFuture playableOrError(
+                            browser,
+                            enrichMediaItems(tracks.map { it.toPlayableItem(parentId = "artist:$artistId") }),
+                            0,
+                            startPositionMs,
+                        )
                     }
 
                     val trackId = mediaId
@@ -579,16 +600,15 @@ class MellowMediaService : MediaLibraryService() {
                         })
                         val idx = siblings.indexOfFirst { it.id == trackId }.coerceAtLeast(0)
                         Log.d(TAG, "onSetMediaItems: returning ${enriched.size} sibling items, startIdx=$idx")
-                        MediaSession.MediaItemsWithStartPosition(enriched, idx, startPositionMs)
+                        playableOrError(browser, enriched, idx, startPositionMs)
                     } else {
                         val enriched = enrichMediaItems(mediaItems)
                         Log.d(TAG, "onSetMediaItems: no siblings, returning ${enriched.size} single items")
-                        MediaSession.MediaItemsWithStartPosition(enriched, startIndex, startPositionMs)
+                        playableOrError(browser, enriched, startIndex, startPositionMs)
                     }
                 } else {
                     Log.d(TAG, "onSetMediaItems: multi-item (${mediaItems.size}), enriching directly")
-                    val enriched = enrichMediaItems(mediaItems)
-                    MediaSession.MediaItemsWithStartPosition(enriched, startIndex, startPositionMs)
+                    playableOrError(browser, enrichMediaItems(mediaItems), startIndex, startPositionMs)
                 }
             }
         }
@@ -599,7 +619,8 @@ class MellowMediaService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> {
             Log.d(TAG, "onAddMediaItems: ${mediaItems.size} items, ids=${mediaItems.map { it.mediaId }}")
-            return asyncFuture { enrichMediaItems(mediaItems) }
+            // Items that couldn't be resolved to a stream would make the player fail; leave them out.
+            return asyncFuture { enrichMediaItems(mediaItems).filter { it.localConfiguration != null } }
         }
 
         override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
@@ -855,10 +876,17 @@ class MellowMediaService : MediaLibraryService() {
                             .map { it.toPlayableItem() }
                     }
                     parentId.startsWith("artist:") -> {
+                        // Same artist as the app's artist screen: resolved, so duplicates merge and artists that
+                        // only appear on other artists' albums still have their tracks.
                         val artistId = parentId.removePrefix("artist:")
-                        albumDao.getAllAlbumsByArtist(artistId)
+                        val albums = albumDao.getAllAlbumsByResolvedArtist(artistId)
                             .onlineFilter()
                             .map { it.toBrowsableItem() }
+                        albums.ifEmpty {
+                            trackDao.getTracksByResolvedArtistSync(artistId)
+                                .onlineFilter()
+                                .map { it.toPlayableItem(parentId = parentId) }
+                        }
                     }
                     parentId.startsWith("genre:") -> {
                         val genre = parentId.removePrefix("genre:")
@@ -874,6 +902,13 @@ class MellowMediaService : MediaLibraryService() {
                     }
                     else -> emptyList()
                 }
+                // Info level so it survives release builds: Android Auto sometimes shows "No items" right after
+                // connecting, and this records whether the connection state made us filter to downloads only.
+                Log.i(
+                    TAG,
+                    "onGetChildren: parent=$parentId state=${networkStateObserver.connectionState.value} " +
+                        "downloadsOnly=${!isOnline} items=${items.size} controller=${browser.packageName}",
+                )
                 LibraryResult.ofItemList(ImmutableList.copyOf(items), params)
             }
         }
