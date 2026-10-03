@@ -3,6 +3,7 @@ package dev.mellow.core.database.dao
 import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -41,8 +42,34 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE serverId = :serverId AND (name LIKE '%' || :query || '%' OR artistName LIKE '%' || :query || '%') ORDER BY sortName ASC LIMIT :limit")
     suspend fun search(serverId: String, query: String, limit: Int = 20): List<AlbumEntity>
 
+    /**
+     * Saves albums from the server, keeping each row's [AlbumEntity.resolvedArtistId]: it's derived locally from the artist
+     * aliases, so the server's copy never has it. Rows that had none get it from their artist's alias.
+     */
+    @Transaction
+    suspend fun upsertAlbums(albums: List<AlbumEntity>) {
+        val ids = albums.map { it.id }
+        val kept = ids.chunked(BIND_LIMIT)
+            .flatMap { getAlbumResolvedArtistIds(it) }
+            .associate { it.id to it.resolvedArtistId }
+        upsertAlbumRows(albums.map { it.copy(resolvedArtistId = it.resolvedArtistId ?: kept[it.id]) })
+        ids.chunked(BIND_LIMIT).forEach { resolveMissingAlbumArtistAliases(it) }
+    }
+
     @Upsert
-    suspend fun upsertAlbums(albums: List<AlbumEntity>)
+    suspend fun upsertAlbumRows(albums: List<AlbumEntity>)
+
+    @Query("SELECT id, resolvedArtistId FROM albums WHERE id IN (:ids)")
+    suspend fun getAlbumResolvedArtistIds(ids: List<String>): List<ResolvedArtistRow>
+
+    @Query("""
+        UPDATE albums SET resolvedArtistId = (
+            SELECT aa.canonicalArtistId FROM artist_aliases aa
+            WHERE aa.serverId = albums.serverId AND aa.rawArtistId = albums.artistId
+        )
+        WHERE id IN (:ids) AND resolvedArtistId IS NULL AND artistId IS NOT NULL
+    """)
+    suspend fun resolveMissingAlbumArtistAliases(ids: List<String>)
 
     @Query("""
         UPDATE albums SET artistId = (

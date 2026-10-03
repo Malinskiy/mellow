@@ -354,6 +354,7 @@ class LibraryRepositoryImpl @Inject constructor(
             if (favArtists.isNotEmpty()) {
                 artistDao.upsertArtists(favArtists.map { it.toArtistEntity(serverId) })
             }
+            applyFavoriteArtists(serverId, favArtists.map { it.id.toString() }.toSet())
 
             val favTracks = jellyfinDataSource.getFavoriteTracks(userId)
             Log.d(TAG, "syncFavorites: ${favTracks.size} tracks from API")
@@ -483,6 +484,21 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * Makes exactly [serverFavArtistIds] the favorite artists. Returns the added and removed ids.
+     */
+    private suspend fun applyFavoriteArtists(
+        serverId: String,
+        serverFavArtistIds: Set<String>,
+    ): Pair<Set<String>, Set<String>> {
+        val localFavArtistIds = artistDao.getFavoriteArtistIds(serverId).toSet()
+        val added = serverFavArtistIds - localFavArtistIds
+        val removed = localFavArtistIds - serverFavArtistIds
+        added.chunked(ROOM_BIND_LIMIT).forEach { chunk -> artistDao.setFavoriteByIds(chunk, true) }
+        removed.chunked(ROOM_BIND_LIMIT).forEach { chunk -> artistDao.setFavoriteByIds(chunk, false) }
+        return added to removed
+    }
+
     private suspend fun syncFavoritesDiff(serverId: String, userId: UUID) {
         val serverFavAlbumIds = jellyfinDataSource.getFavoriteAlbums(userId).map { it.id.toString() }.toSet()
         val serverFavTrackIds = jellyfinDataSource.getFavoriteTracks(userId).map { it.id.toString() }.toSet()
@@ -490,7 +506,6 @@ class LibraryRepositoryImpl @Inject constructor(
 
         val localFavAlbumIds = albumDao.getFavoriteAlbumIds(serverId).toSet()
         val localFavTrackIds = trackDao.getFavoriteTrackIds(serverId).toSet()
-        val localFavArtistIds = artistDao.getFavoriteArtistIds(serverId).toSet()
 
         val newFavAlbums = serverFavAlbumIds - localFavAlbumIds
         val removedFavAlbums = localFavAlbumIds - serverFavAlbumIds
@@ -510,14 +525,7 @@ class LibraryRepositoryImpl @Inject constructor(
             trackDao.setFavoriteByIds(chunk, false)
         }
 
-        val newFavArtists = serverFavArtistIds - localFavArtistIds
-        val removedFavArtists = localFavArtistIds - serverFavArtistIds
-        newFavArtists.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
-            artistDao.setFavoriteByIds(chunk, true)
-        }
-        removedFavArtists.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
-            artistDao.setFavoriteByIds(chunk, false)
-        }
+        val (newFavArtists, removedFavArtists) = applyFavoriteArtists(serverId, serverFavArtistIds)
 
         Log.d(
             TAG,

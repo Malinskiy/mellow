@@ -3,6 +3,7 @@ package dev.mellow.core.database.dao
 import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import dev.mellow.core.database.entity.ArtistEntity
 import kotlinx.coroutines.flow.Flow
@@ -40,8 +41,22 @@ interface ArtistDao {
     @Query("SELECT * FROM artists WHERE serverId = :serverId AND name LIKE '%' || :query || '%' ORDER BY sortName ASC LIMIT :limit")
     suspend fun search(serverId: String, query: String, limit: Int = 10): List<ArtistEntity>
 
+    /**
+     * Saves artists from the server without clearing a stored favorite: Jellyfin's `/Artists` reports
+     * `IsFavorite = false` even for favorite artists, so favorites are set and removed from the server's favorites
+     * list instead (see [setFavoriteByIds]).
+     */
+    @Transaction
+    suspend fun upsertArtists(artists: List<ArtistEntity>) {
+        val favorites = artists.map { it.id }.chunked(BIND_LIMIT).flatMap { getFavoriteIdsAmong(it) }.toSet()
+        upsertArtistRows(artists.map { it.copy(isFavorite = it.isFavorite || it.id in favorites) })
+    }
+
     @Upsert
-    suspend fun upsertArtists(artists: List<ArtistEntity>)
+    suspend fun upsertArtistRows(artists: List<ArtistEntity>)
+
+    @Query("SELECT id FROM artists WHERE isFavorite = 1 AND id IN (:ids)")
+    suspend fun getFavoriteIdsAmong(ids: List<String>): List<String>
 
     @Query("UPDATE artists SET cleanName = :cleanName WHERE id = :id")
     suspend fun updateCleanName(id: String, cleanName: String)
