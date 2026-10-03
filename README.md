@@ -2,7 +2,7 @@
 
 A fast, offline-first [Jellyfin](https://jellyfin.org/) music player for Android with first-class Android Auto support.
 
-<img width="960" height="540" alt="mellow-showreel" src="https://github.com/user-attachments/assets/3f75f574-995b-4f6c-868b-69cf94675d4a" />
+<img width="960" height="540" alt="mellow-showreel" src="https://github.com/user-attachments/assets/ac179045-d7c8-4e0b-a845-610f260b82fd" />
 
 📖 [Read the story behind Mellow](https://blog.marathonlabs.io/blog/dogfooding-emu-building-mellow/)
 
