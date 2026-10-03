@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -660,8 +662,11 @@ fun PlayerPlaybackControls(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.SpaceEvenly,
         modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .widthIn(max = 420.dp)
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp6, vertical = if (compactVerticalPadding) MellowSpacing.Sp1 else MellowSpacing.Sp5),
     ) {
@@ -673,21 +678,17 @@ fun PlayerPlaybackControls(
                 modifier = Modifier.size(22.dp),
             )
         }
-        Spacer(Modifier.width(MellowSpacing.Sp8))
         IconButton(onClick = onSkipPreviousClick, modifier = Modifier.size(44.dp)) {
             Icon(PhosphorIcons.SkipBack, "Previous", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
         }
-        Spacer(Modifier.width(MellowSpacing.Sp8))
         AnimatedPlayPauseButton(
             isPlaying = isPlaying,
             onToggle = onPlayPauseClick,
             buttonSize = 64.dp,
         )
-        Spacer(Modifier.width(MellowSpacing.Sp8))
         IconButton(onClick = onSkipNextClick, modifier = Modifier.size(44.dp)) {
             Icon(PhosphorIcons.SkipForward, "Next", tint = MellowTheme.colors.foreground, modifier = Modifier.size(28.dp))
         }
-        Spacer(Modifier.width(MellowSpacing.Sp8))
         IconButton(onClick = onRepeatClick, modifier = Modifier.size(36.dp)) {
             Icon(
                 imageVector = if (repeatMode == 1) PhosphorIcons.RepeatOnce else PhosphorIcons.Repeat,
