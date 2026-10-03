@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.RawQuery
 import androidx.room.Upsert
 import androidx.sqlite.db.SimpleSQLiteQuery
@@ -42,8 +43,34 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE serverId = :serverId AND (name LIKE '%' || :query || '%' OR artistName LIKE '%' || :query || '%') ORDER BY sortName ASC LIMIT :limit")
     suspend fun search(serverId: String, query: String, limit: Int = 50): List<TrackEntity>
 
+    /**
+     * Saves tracks from the server, keeping each row's [TrackEntity.resolvedArtistId]: it's derived locally from the artist
+     * aliases, so the server's copy never has it. Rows that had none get it from their artist's alias.
+     */
+    @Transaction
+    suspend fun upsertTracks(tracks: List<TrackEntity>) {
+        val ids = tracks.map { it.id }
+        val kept = ids.chunked(BIND_LIMIT)
+            .flatMap { getTrackResolvedArtistIds(it) }
+            .associate { it.id to it.resolvedArtistId }
+        upsertTrackRows(tracks.map { it.copy(resolvedArtistId = it.resolvedArtistId ?: kept[it.id]) })
+        ids.chunked(BIND_LIMIT).forEach { resolveMissingTrackArtistAliases(it) }
+    }
+
     @Upsert
-    suspend fun upsertTracks(tracks: List<TrackEntity>)
+    suspend fun upsertTrackRows(tracks: List<TrackEntity>)
+
+    @Query("SELECT id, resolvedArtistId FROM tracks WHERE id IN (:ids)")
+    suspend fun getTrackResolvedArtistIds(ids: List<String>): List<ResolvedArtistRow>
+
+    @Query("""
+        UPDATE tracks SET resolvedArtistId = (
+            SELECT aa.canonicalArtistId FROM artist_aliases aa
+            WHERE aa.serverId = tracks.serverId AND aa.rawArtistId = tracks.artistId
+        )
+        WHERE id IN (:ids) AND resolvedArtistId IS NULL AND artistId IS NOT NULL
+    """)
+    suspend fun resolveMissingTrackArtistAliases(ids: List<String>)
 
     @Query("""
         UPDATE tracks SET artistId = (

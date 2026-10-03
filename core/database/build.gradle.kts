@@ -22,6 +22,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 room {
@@ -39,4 +45,5 @@ dependencies {
     ksp(libs.hilt.android.compiler)
 
     testImplementation(libs.bundles.testing)
+    testImplementation(libs.robolectric)
 }
