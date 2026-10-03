@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -165,17 +164,12 @@ private fun TrackHeader(track: TrackMenuData) {
                 .background(MellowTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                PhosphorIcons.MusicNote,
-                contentDescription = null,
-                tint = MellowTheme.colors.muted,
-                modifier = Modifier.size(22.dp),
-            )
-            AsyncImage(
+            MellowImage(
                 model = track.imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
+                fallbackIconSize = 22.dp,
             )
         }
         Spacer(Modifier.width(MellowSpacing.Sp3))

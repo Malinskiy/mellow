@@ -1,5 +1,6 @@
 package dev.mellow.core.designsystem.component
 
+import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.LinearEasing
@@ -34,8 +35,14 @@ fun PixelBlastPlaceholder(
     pixelSizeJitter: Float = 1.15f,
     speed: Float = 1f,
 ) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        PixelBlastAgsl(modifier, color, patternDensity, pixelSizeJitter, speed)
+    val shader = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        // Compiling can fail where AGSL isn't fully supported (e.g. Robolectric); fall back to the shimmer.
+        remember { runCatching { RuntimeShader(PIXEL_BLAST_AGSL) }.getOrNull() }
+    } else {
+        null
+    }
+    if (shader != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        PixelBlastAgsl(shader, modifier, color, patternDensity, pixelSizeJitter, speed)
     } else {
         Shimmer(modifier)
     }
@@ -77,13 +84,13 @@ fun Shimmer(modifier: Modifier = Modifier) {
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 private fun PixelBlastAgsl(
+    shader: RuntimeShader,
     modifier: Modifier,
     color: Color,
     patternDensity: Float,
     pixelSizeJitter: Float,
     speed: Float,
 ) {
-    val shader = remember { android.graphics.RuntimeShader(PIXEL_BLAST_AGSL) }
     val shaderBrush = remember { ShaderBrush(shader) }
     var time by remember { mutableFloatStateOf(0f) }
 

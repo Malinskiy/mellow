@@ -26,7 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -93,19 +92,15 @@ fun ArtistPickerSheet(
                                 .background(MellowTheme.colors.surface),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                PhosphorIcons.User,
-                                contentDescription = null,
-                                tint = MellowTheme.colors.muted,
-                                modifier = Modifier.size(20.dp),
-                            )
-                            AsyncImage(
+                            MellowImage(
                                 model = artist.imageUrl,
                                 contentDescription = artist.name,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clip(MellowShapes.Full),
+                                fallbackIcon = PhosphorIcons.User,
+                                fallbackIconSize = 20.dp,
                             )
                         }
                         Spacer(Modifier.width(MellowSpacing.Sp3))

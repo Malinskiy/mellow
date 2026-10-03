@@ -937,8 +937,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         albumName = albumState.album?.name ?: "",
                         artistName = albumState.album?.artistName ?: "",
                         albumImageUrl = if (serverUrl != null) {
-                            val imgId = albumState.album?.imageId ?: routeAlbumId
-                            artworkUri(imgId)
+                            val imgId = if (albumState.album == null) routeAlbumId else albumState.album?.imageId
+                            if (imgId != null) artworkUri(imgId) else null
                         } else null,
                         year = albumState.album?.year,
                         expectedTrackCount = albumState.album?.trackCount ?: 0,
@@ -1035,7 +1035,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                             PickerArtist(
                                                 id = a.id,
                                                 name = a.name,
-                                                imageUrl = if (serverUrl != null) artworkUri(a.id) else null,
+                                                imageUrl = if (serverUrl != null && a.imageTag != null) artworkUri(a.id) else null,
                                                 albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
                                             )
                                         }
@@ -1754,7 +1754,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             PickerArtist(
                                 id = a.id,
                                 name = a.name,
-                                imageUrl = if (serverUrl != null) artworkUri(a.id) else null,
+                                imageUrl = if (serverUrl != null && a.imageTag != null) artworkUri(a.id) else null,
                                 albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
                             )
                         }

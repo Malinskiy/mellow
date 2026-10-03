@@ -2,7 +2,6 @@ package dev.mellow.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,7 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
-import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -127,32 +126,16 @@ private fun PlaylistRow(
             .clickable(onClick = onClick)
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
-        if (imageUrl != null) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(MellowShapes.Small)
-                    .background(MellowTheme.colors.surface),
-            )
-        } else {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(MellowShapes.Small)
-                    .background(MellowTheme.colors.surface),
-            ) {
-                Icon(
-                    PhosphorIcons.MusicNote,
-                    contentDescription = null,
-                    tint = MellowTheme.colors.muted,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-        }
+        MellowImage(
+            model = imageUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(MellowShapes.Small)
+                .background(MellowTheme.colors.surface),
+            fallbackIconSize = 24.dp,
+        )
 
         Spacer(Modifier.width(MellowSpacing.Sp3))
 

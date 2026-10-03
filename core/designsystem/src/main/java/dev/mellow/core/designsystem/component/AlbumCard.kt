@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -67,6 +66,7 @@ fun AlbumCard(
                 model = imageUrl,
                 contentDescription = "Album art",
                 modifier = Modifier.fillMaxSize(),
+                fallbackIconSize = null,
             )
         }
         Text(

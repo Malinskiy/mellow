@@ -48,7 +48,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.theme.MellowShapes

@@ -51,7 +51,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -60,7 +59,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.graphics.painter.ColorPainter
-import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.BackgroundMode
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
@@ -218,7 +216,7 @@ fun AlbumDetailComponent(
                         MellowImage(
                             model = albumImageUrl,
                             contentDescription = "Album art",
-                            fallbackIconSize = 48.dp,
+                            fallbackIconSize = null,
                             modifier = Modifier
                                 .weight(1f, fill = false)
                                 .padding(horizontal = MellowSpacing.Sp6)
@@ -258,7 +256,7 @@ fun AlbumDetailComponent(
                             MellowImage(
                                 model = albumImageUrl,
                                 contentDescription = "Album art",
-                                fallbackIconSize = 48.dp,
+                                fallbackIconSize = null,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -785,25 +783,12 @@ private fun AlbumHero(
                     .background(MellowTheme.colors.surfaceElevated),
                 contentAlignment = Alignment.Center,
             ) {
-                if (imageUrl != null) {
-                    AsyncImage(
-                        model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                            .data(imageUrl)
-                            .memoryCacheKey(imageUrl)
-                            .placeholderMemoryCacheKey(coil3.memory.MemoryCache.Key(imageUrl))
-                            .build(),
-                        contentDescription = "Album art",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Icon(
-                        PhosphorIcons.MusicNote,
-                        contentDescription = null,
-                        tint = MellowTheme.colors.muted,
-                        modifier = Modifier.size(48.dp),
-                    )
-                }
+                MellowImage(
+                    model = imageUrl,
+                    contentDescription = "Album art",
+                    modifier = Modifier.fillMaxSize(),
+                    fallbackIconSize = null,
+                )
             }
 
             Spacer(Modifier.height(MellowSpacing.Sp5))

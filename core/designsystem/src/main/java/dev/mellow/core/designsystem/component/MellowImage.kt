@@ -13,14 +13,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowTheme
+import kotlin.math.roundToInt
 
+/**
+ * Artwork with a placeholder while loading and [fallbackIcon] when there is no image or it fails to load.
+ *
+ * Pass `fallbackIconSize = null` to size the icon from the image's bounds instead: artwork that animates between
+ * screens (shared elements) then shows the same icon at every size, without a jump when the animation ends.
+ */
 @Composable
 fun MellowImage(
     model: Any?,
@@ -28,30 +37,16 @@ fun MellowImage(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
     fallbackIcon: ImageVector = PhosphorIcons.MusicNote,
-    fallbackIconSize: Dp = 32.dp,
+    fallbackIconSize: Dp? = 32.dp,
 ) {
     if (model == null) {
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Icon(
-                fallbackIcon,
-                contentDescription = null,
-                tint = MellowTheme.colors.muted,
-                modifier = Modifier.size(fallbackIconSize),
-            )
-        }
+        FallbackIcon(fallbackIcon, fallbackIconSize, modifier)
     } else {
         var isError by remember(model) { mutableStateOf(false) }
         var isLoading by remember(model) { mutableStateOf(true) }
 
         if (isError) {
-            Box(modifier = modifier, contentAlignment = Alignment.Center) {
-                Icon(
-                    fallbackIcon,
-                    contentDescription = null,
-                    tint = MellowTheme.colors.muted,
-                    modifier = Modifier.size(fallbackIconSize),
-                )
-            }
+            FallbackIcon(fallbackIcon, fallbackIconSize, modifier)
         } else {
             Box(modifier = modifier) {
                 if (isLoading) {
@@ -76,3 +71,34 @@ fun MellowImage(
         }
     }
 }
+
+@Composable
+private fun FallbackIcon(icon: ImageVector, size: Dp?, modifier: Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MellowTheme.colors.muted,
+            modifier = if (size != null) Modifier.size(size) else Modifier.proportionalIconSize(),
+        )
+    }
+}
+
+/**
+ * A quarter of the available size, 16–56 dp. Measured in a layout modifier rather than with BoxWithConstraints:
+ * during a shared element transition the layout pass sees the animated size, while subcomposition only sees the
+ * final one.
+ */
+private fun Modifier.proportionalIconSize(): Modifier = layout { measurable, constraints ->
+    val available = minOf(constraints.maxWidth, constraints.maxHeight)
+    val side = if (available == Constraints.Infinity) {
+        MAX_ICON.roundToPx()
+    } else {
+        (available * 0.25f).roundToInt().coerceIn(MIN_ICON.roundToPx(), MAX_ICON.roundToPx())
+    }
+    val placeable = measurable.measure(Constraints.fixed(side, side))
+    layout(side, side) { placeable.place(0, 0) }
+}
+
+private val MIN_ICON = 16.dp
+private val MAX_ICON = 56.dp

@@ -46,7 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
-import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
@@ -355,7 +355,7 @@ private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbum
                     .clickable { onAlbumClick(album.id) }
                     .padding(vertical = MellowSpacing.Sp2),
             ) {
-                AsyncImage(
+                MellowImage(
                     model = if (serverUrl != null && album.imageId != null) {
                         artworkUri(album.imageId)
                     } else null,
@@ -365,6 +365,7 @@ private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbum
                         .size(56.dp)
                         .clip(RoundedCornerShape(MellowSpacing.Sp2))
                         .background(MellowTheme.colors.surface),
+                    fallbackIconSize = 24.dp,
                 )
                 Column(
                     modifier = Modifier
@@ -479,7 +480,7 @@ private fun PlaylistsPanel(
                     .clickable { onPlaylistClick(playlist.id) }
                     .padding(vertical = MellowSpacing.Sp2),
             ) {
-                AsyncImage(
+                MellowImage(
                     model = if (serverUrl != null && playlist.imageId != null) {
                         artworkUri(playlist.imageId)
                     } else null,
@@ -489,6 +490,7 @@ private fun PlaylistsPanel(
                         .size(56.dp)
                         .clip(RoundedCornerShape(MellowSpacing.Sp2))
                         .background(MellowTheme.colors.surface),
+                    fallbackIconSize = 24.dp,
                 )
                 Column(
                     modifier = Modifier
