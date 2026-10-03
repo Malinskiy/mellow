@@ -23,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -75,20 +74,13 @@ fun TrackRow(
                         .background(MellowTheme.colors.surfaceElevated),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        PhosphorIcons.MusicNote,
+                    MellowImage(
+                        model = imageUrl,
                         contentDescription = null,
-                        tint = MellowTheme.colors.muted,
-                        modifier = Modifier.size(20.dp),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        fallbackIconSize = 20.dp,
                     )
-                    if (imageUrl != null) {
-                        AsyncImage(
-                            model = imageUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
                 }
                 Box(modifier = Modifier.width(MellowSpacing.Sp3))
             }

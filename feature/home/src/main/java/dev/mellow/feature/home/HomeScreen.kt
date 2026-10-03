@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.common.artworkUri
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.AlbumCard
@@ -424,25 +425,12 @@ private fun CompactAlbumCard(
                 .background(MellowTheme.colors.surfaceElevated),
             contentAlignment = Alignment.Center,
         ) {
-            if (imageUrl != null) {
-                coil3.compose.AsyncImage(
-                    model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                        .data(imageUrl)
-                        .memoryCacheKey(imageUrl)
-                        .placeholderMemoryCacheKey(coil3.memory.MemoryCache.Key(imageUrl))
-                        .build(),
-                    contentDescription = "Album art",
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                androidx.compose.material3.Icon(
-                    dev.mellow.core.designsystem.icon.PhosphorIcons.MusicNote,
-                    contentDescription = null,
-                    tint = MellowTheme.colors.muted,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
+            MellowImage(
+                model = imageUrl,
+                contentDescription = "Album art",
+                modifier = Modifier.fillMaxSize(),
+                fallbackIconSize = null,
+            )
         }
         Column(
             modifier = Modifier

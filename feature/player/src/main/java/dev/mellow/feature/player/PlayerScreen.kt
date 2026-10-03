@@ -57,9 +57,7 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import androidx.compose.ui.platform.LocalContext
+import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -182,11 +180,8 @@ fun PlayerScreen(
                                 .weight(3f, fill = false)
                                 .padding(horizontal = MellowSpacing.Sp8),
                         ) {
-                            AsyncImage(
-                                model = albumImageUrl?.let {
-                                    ImageRequest.Builder(LocalContext.current).data(it)
-                                        .memoryCacheKey(it).placeholderMemoryCacheKey(it).build()
-                                },
+                            MellowImage(
+                                model = albumImageUrl,
                                 contentDescription = "Album art",
                                 contentScale = ContentScale.Crop,
                                 modifier = artModifier
@@ -194,6 +189,7 @@ fun PlayerScreen(
                                     .aspectRatio(1f)
                                     .clip(MellowShapes.Large)
                                     .background(MellowTheme.colors.surface),
+                                fallbackIconSize = 64.dp,
                             )
                         }
                         Spacer(Modifier.weight(1f))
@@ -233,11 +229,8 @@ fun PlayerScreen(
                                 ),
                         ) {
                             NowPlayingCollapseButton(onCollapse)
-                            AsyncImage(
-                                model = albumImageUrl?.let {
-                                    ImageRequest.Builder(LocalContext.current).data(it)
-                                        .memoryCacheKey(it).placeholderMemoryCacheKey(it).build()
-                                },
+                            MellowImage(
+                                model = albumImageUrl,
                                 contentDescription = "Album art",
                                 contentScale = ContentScale.Crop,
                                 modifier = artModifier
@@ -245,6 +238,7 @@ fun PlayerScreen(
                                     .aspectRatio(1f)
                                     .clip(MellowShapes.Large)
                                     .background(MellowTheme.colors.surface),
+                                fallbackIconSize = 48.dp,
                             )
                         }
                         Column(
@@ -462,11 +456,8 @@ private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, artModifier: 
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp8),
     ) {
-        AsyncImage(
-            model = albumImageUrl?.let {
-                ImageRequest.Builder(LocalContext.current).data(it)
-                    .memoryCacheKey(it).placeholderMemoryCacheKey(it).build()
-            },
+        MellowImage(
+            model = albumImageUrl,
             contentDescription = "Album art",
             contentScale = ContentScale.Crop,
             modifier = artModifier
@@ -474,6 +465,7 @@ private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, artModifier: 
                 .aspectRatio(1f)
                 .clip(MellowShapes.Large)
                 .background(MellowTheme.colors.surface),
+            fallbackIconSize = 64.dp,
         )
     }
 }
@@ -821,11 +813,8 @@ private fun TabletopPlayerLayout(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                AsyncImage(
-                    model = albumImageUrl?.let {
-                        ImageRequest.Builder(LocalContext.current).data(it)
-                            .memoryCacheKey(it).placeholderMemoryCacheKey(it).build()
-                    },
+                MellowImage(
+                    model = albumImageUrl,
                     contentDescription = "Album art",
                     contentScale = ContentScale.Crop,
                     modifier = artModifier
@@ -833,6 +822,7 @@ private fun TabletopPlayerLayout(
                         .aspectRatio(1f)
                         .clip(MellowShapes.Large)
                         .background(MellowTheme.colors.surface),
+                    fallbackIconSize = 48.dp,
                 )
                 Spacer(Modifier.width(MellowSpacing.Sp8))
                 Column {

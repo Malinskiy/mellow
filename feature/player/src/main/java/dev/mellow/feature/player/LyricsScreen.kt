@@ -53,7 +53,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.Velocity
-import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseIcon
 import dev.mellow.core.designsystem.theme.MellowPalette
@@ -246,22 +246,17 @@ private fun LyricsTopBar(
 
         Spacer(Modifier.width(MellowSpacing.Sp2))
 
-        if (albumImageUrl != null) {
-            AsyncImage(
-                model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                    .data(albumImageUrl)
-                    .memoryCacheKey(albumImageUrl)
-                    .placeholderMemoryCacheKey(albumImageUrl)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(MellowShapes.Small)
-                    .background(MellowTheme.colors.surface),
-            )
-            Spacer(Modifier.width(MellowSpacing.Sp3))
-        }
+        MellowImage(
+            model = albumImageUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(36.dp)
+                .clip(MellowShapes.Small)
+                .background(MellowTheme.colors.surface),
+            fallbackIconSize = 20.dp,
+        )
+        Spacer(Modifier.width(MellowSpacing.Sp3))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(

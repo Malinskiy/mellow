@@ -46,7 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.compose.AsyncImage
+import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.common.artworkUri
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
@@ -489,7 +489,7 @@ private fun TopResultRow(result: SearchResult, serverUrl: String, onClick: () ->
             .clickable(onClick = onClick)
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
-        AsyncImage(
+        MellowImage(
             model = imageUrl as? String,
             contentDescription = null,
             contentScale = ContentScale.Crop,
@@ -497,6 +497,8 @@ private fun TopResultRow(result: SearchResult, serverUrl: String, onClick: () ->
                 .size(48.dp)
                 .clip(if (isRound as Boolean) CircleShape else MellowShapes.Small)
                 .background(MellowTheme.colors.surface),
+            fallbackIcon = if (isRound) PhosphorIcons.User else PhosphorIcons.MusicNote,
+            fallbackIconSize = 20.dp,
         )
         Spacer(Modifier.width(MellowSpacing.Sp3))
         Column(modifier = Modifier.weight(1f)) {
@@ -534,7 +536,7 @@ private fun ResultRow(
             .clickable(onClick = onClick)
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
-        AsyncImage(
+        MellowImage(
             model = imageUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
@@ -542,6 +544,8 @@ private fun ResultRow(
                 .size(48.dp)
                 .clip(if (isRound) CircleShape else MellowShapes.Small)
                 .background(MellowTheme.colors.surface),
+            fallbackIcon = if (isRound) PhosphorIcons.User else PhosphorIcons.MusicNote,
+            fallbackIconSize = 20.dp,
         )
         Spacer(Modifier.width(MellowSpacing.Sp3))
         Column(modifier = Modifier.weight(1f)) {
