@@ -119,6 +119,22 @@ interface TrackDao {
     )
     suspend fun getRandomFavoriteTracks(serverId: String, downloadedOnly: Boolean, limit: Int): List<TrackEntity>
 
+    /**
+     * The IDs of [limit] tracks picked uniformly at random from the server's library (its downloaded tracks only, if
+     * [downloadedOnly]), in random order. Only IDs: the pick sorts every track, which is cheaper on narrow rows.
+     * [pickRandomTracks] loads the tracks.
+     */
+    @Query(
+        """
+        SELECT id FROM tracks
+        WHERE serverId = :serverId
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
+        ORDER BY RANDOM()
+        LIMIT :limit
+        """,
+    )
+    suspend fun getRandomTrackIds(serverId: String, downloadedOnly: Boolean, limit: Int): List<String>
+
     @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY playCount DESC LIMIT :limit")
     fun getMostPlayed(serverId: String, limit: Int = 50): Flow<List<TrackEntity>>
 
@@ -343,6 +359,16 @@ suspend fun TrackDao.getInstantMix(
     args.add(limit)
 
     return getInstantMixRaw(SimpleSQLiteQuery(sb.toString(), args.toTypedArray()))
+}
+
+/**
+ * [limit] tracks picked at random from the server's library (see [TrackDao.getRandomTrackIds]), in the order they were
+ * picked. A track removed between the pick and the load is left out.
+ */
+suspend fun TrackDao.pickRandomTracks(serverId: String, downloadedOnly: Boolean, limit: Int): List<TrackEntity> {
+    val ids = getRandomTrackIds(serverId, downloadedOnly, limit)
+    val tracks = getTracksById(ids)
+    return ids.mapNotNull { tracks[it] }
 }
 
 /** Looks up tracks by ID in chunks that stay under SQLite's bound-parameter limit; missing IDs are absent. */

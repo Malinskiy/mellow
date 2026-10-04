@@ -64,6 +64,7 @@ import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.component.ShuffleAllButton
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowSpacing
@@ -76,6 +77,9 @@ import kotlinx.coroutines.flow.flowOf
 data class LibraryPlaylistItem(val id: String, val name: String, val trackCount: Int, val imageId: String?)
 
 private val TABS = listOf("Albums", "Artists", "Tracks", "Genres", "Playlists")
+
+/** The shuffle button's height (56dp) and the margin around it. */
+private val SHUFFLE_BUTTON_CLEARANCE = 56.dp + MellowSpacing.Sp4 * 2
 
 data class ArtistItem(val id: String, val name: String, val albumCount: Int, val imageId: String?)
 
@@ -109,6 +113,7 @@ fun LibraryScreen(
     onArtistClick: (String) -> Unit = {},
     onTrackClick: (index: Int, trackId: String) -> Unit = { _, _ -> },
     onTrackMenuClick: (String) -> Unit = {},
+    onShuffleAll: () -> Unit = {},
     onPlaylistClick: (String) -> Unit = {},
     onCreatePlaylist: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -172,7 +177,15 @@ fun LibraryScreen(
                     ArtistsPanel(artists, serverUrl, onArtistClick, topPadding)
                 }
                 2 -> PagedTab(tracks, showLoading, "Syncing tracks…", "No tracks yet", "Couldn't load tracks") {
-                    TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, topPadding)
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, topPadding)
+                        ShuffleAllButton(
+                            onClick = onShuffleAll,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(MellowSpacing.Sp4),
+                        )
+                    }
                 }
                 3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
                      else if (genres.isEmpty()) EmptyContent("No genres yet")
@@ -491,7 +504,8 @@ private fun TracksPanel(
     AdaptiveTrackGrid(
         itemCount = { tracks.itemCount },
         key = tracks.itemKey { it.id },
-        contentPadding = PaddingValues(top = topPadding),
+        // Room below the last row, so the shuffle button never covers its menu.
+        contentPadding = PaddingValues(top = topPadding, bottom = SHUFFLE_BUTTON_CLEARANCE),
         modifier = Modifier.fillMaxSize(),
     ) { index, _ ->
         val track = tracks[index]

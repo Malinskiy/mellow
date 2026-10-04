@@ -21,6 +21,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Duration
@@ -93,10 +94,29 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun `shuffling picks at most 500 tracks of the whole library at random, in the order picked`() = runTest {
+        val picked = tracks(0 until 500).shuffled()
+        coEvery { repository.pickRandomTracks(SERVER, false, 500) } returns MellowResult.Success(picked)
+
+        assertEquals(picked, viewModel().shuffledTracks())
+    }
+
+    @Test
+    fun `the shuffle only picks downloads when the list shows only downloads`() = runTest {
+        downloadedOnly.value = true
+        coEvery { repository.pickRandomTracks(SERVER, true, 500) } returns MellowResult.Success(tracks(0 until 1))
+
+        viewModel().shuffledTracks()
+
+        coVerify { repository.pickRandomTracks(SERVER, true, 500) }
+    }
+
+    @Test
     fun `nothing plays before the library is loaded`() = runTest {
         val viewModel = LibraryViewModel(repository, displayPreferences)
 
         assertNull(viewModel.tracksToPlay(index = 0, trackId = "t0", count = 1))
+        assertTrue(viewModel.shuffledTracks().isEmpty())
     }
 
     @Test

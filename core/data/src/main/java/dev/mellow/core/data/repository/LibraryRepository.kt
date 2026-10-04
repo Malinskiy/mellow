@@ -63,6 +63,9 @@ interface LibraryRepository {
     /** [limit] favorite tracks picked at random from all of them, in random order, to shuffle the favorites. */
     suspend fun pickRandomFavoriteTracks(serverId: String, downloadedOnly: Boolean, limit: Int): MellowResult<List<Track>>
 
+    /** [limit] tracks picked at random from the whole library, in random order, to shuffle the Tracks tab. */
+    suspend fun pickRandomTracks(serverId: String, downloadedOnly: Boolean, limit: Int): MellowResult<List<Track>>
+
     /** [limit] favorite tracks picked at random, for the home screen. */
     fun getRandomFavoriteTracks(serverId: String, limit: Int): Flow<MellowResult<List<Track>>>
     fun getRecentlyAddedAlbums(serverId: String, limit: Int): Flow<MellowResult<List<Album>>>

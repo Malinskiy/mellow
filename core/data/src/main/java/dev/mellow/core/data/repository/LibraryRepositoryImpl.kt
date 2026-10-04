@@ -27,6 +27,7 @@ import dev.mellow.core.database.dao.SyncPassDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.dao.getInstantMix
 import dev.mellow.core.database.dao.mark
+import dev.mellow.core.database.dao.pickRandomTracks
 import dev.mellow.core.database.entity.ArtistAliasEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.SearchQueryEntity
@@ -313,6 +314,17 @@ class LibraryRepositoryImpl @Inject constructor(
             MellowResult.Success(
                 trackDao.getRandomFavoriteTracks(serverId, downloadedOnly, limit).map { it.toModel() },
             )
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun pickRandomTracks(
+        serverId: String,
+        downloadedOnly: Boolean,
+        limit: Int,
+    ): MellowResult<List<Track>> =
+        try {
+            MellowResult.Success(trackDao.pickRandomTracks(serverId, downloadedOnly, limit).map { it.toModel() })
         } catch (e: Exception) {
             MellowResult.Error(e)
         }

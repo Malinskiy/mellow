@@ -583,6 +583,13 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                                 if (toPlay != null) mainViewModel.player.playTracks(toPlay.first, toPlay.second)
                             }
                         },
+                        onShuffleAll = {
+                            scope.launch {
+                                // Already in random order: up to QUEUE_WINDOW_SIZE tracks of the whole library.
+                                val shuffled = libraryVm.shuffledTracks()
+                                if (shuffled.isNotEmpty()) mainViewModel.player.playTracks(shuffled, 0)
+                            }
+                        },
                         onTrackMenuClick = { trackId ->
                             scope.launch {
                                 val track = mainViewModel.getTrack(trackId)
