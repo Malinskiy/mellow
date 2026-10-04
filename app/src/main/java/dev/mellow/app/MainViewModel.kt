@@ -79,7 +79,15 @@ class MainViewModel @Inject constructor(
     val syncProgress: StateFlow<SyncProgress?> = syncScheduler.observeSyncProgress()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val isCleaningUp: StateFlow<Boolean> = syncScheduler.observeCleanupState()
+    /**
+     * The active server's next library sync is a full pass (a rebuild) that hasn't completed yet, including before the
+     * first sync after an update.
+     */
+    val isRebuildPending: StateFlow<Boolean> = syncPreferences.isFullPassPending(userRepository.observeActiveServer())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val isLastSyncFailed: StateFlow<Boolean> = syncPreferences.lastSyncFailedAt
+        .map { it > 0L }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val lastSyncTimestamp: StateFlow<Long> = syncPreferences.lastSyncTimestamp
@@ -104,6 +112,7 @@ class MainViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            syncScheduler.cancelRemovedWork()
             val restored = userRepository.restoreSession()
             if (restored) {
                 val server = userRepository.getActiveServer()
@@ -144,12 +153,12 @@ class MainViewModel @Inject constructor(
 
     fun syncNow() {
         val id = _serverId.value ?: return
-        syncScheduler.syncNow(id)
+        viewModelScope.launch { syncScheduler.syncNow(id) }
     }
 
-    fun cleanupLibrary() {
+    fun rebuildLibrary() {
         val id = _serverId.value ?: return
-        syncScheduler.cleanupNow(id)
+        viewModelScope.launch { syncScheduler.rebuildNow(id) }
     }
 
     fun setForceOffline(enabled: Boolean) {

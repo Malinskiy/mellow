@@ -12,32 +12,42 @@ import dev.mellow.core.data.mapper.toArtistEntity
 import dev.mellow.core.data.mapper.toModel
 import dev.mellow.core.data.mapper.toTrackArtistCrossRefs
 import dev.mellow.core.data.mapper.toTrackEntity
+import dev.mellow.core.data.preferences.PlaybackQueuePreferences
 import dev.mellow.core.data.preferences.SyncPreferences
+import dev.mellow.core.data.preferences.librarySyncScope
 import dev.mellow.core.common.getCleanValue
+import dev.mellow.core.database.DatabaseTransactionRunner
 import dev.mellow.core.database.converter.Converters
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistAliasDao
 import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
+import dev.mellow.core.database.dao.SyncPassDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.dao.getInstantMix
+import dev.mellow.core.database.dao.mark
 import dev.mellow.core.database.entity.ArtistAliasEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.SearchQueryEntity
+import dev.mellow.core.database.entity.ServerEntity
+import dev.mellow.core.database.entity.SyncPassKind
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
 import dev.mellow.core.model.LibrarySort
 import dev.mellow.core.model.Track
 import dev.mellow.core.network.datasource.JellyfinDataSource
 import dev.mellow.core.network.datasource.PagedItems
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import org.jellyfin.sdk.model.api.BaseItemDto
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -53,14 +63,37 @@ class LibraryRepositoryImpl @Inject constructor(
     private val trackDao: TrackDao,
     private val serverDao: ServerDao,
     private val searchQueryDao: SearchQueryDao,
+    private val syncPassDao: SyncPassDao,
+    private val transaction: DatabaseTransactionRunner,
     private val jellyfinDataSource: JellyfinDataSource,
     private val syncPreferences: SyncPreferences,
+    private val playbackQueuePreferences: PlaybackQueuePreferences,
 ) : LibraryRepository {
 
     companion object {
         private const val TAG = "LibraryRepository"
         private const val ROOM_BIND_LIMIT = 900
+        private const val ARTIST_PAGE_SIZE = 500
+        private const val ALBUM_PAGE_SIZE = 500
+        private const val TRACK_PAGE_SIZE = 1000
+
+        /** Unseen items asked about per request when a full pass checks which of them are gone. */
+        private const val GONE_CHECK_BATCH_SIZE = 100
+
+        /**
+         * How long before the start of the last successful sync the next one starts looking for changes. Saving is
+         * idempotent, so the overlap only refetches a few items; it covers changes saved on the server while that sync
+         * ran and small clock differences between the phone and the server.
+         */
+        internal const val INCREMENTAL_SYNC_OVERLAP_MS = 10 * 60 * 1000L
     }
+
+    /**
+     * Library syncs and home screen syncs run one at a time: the scheduled and the on-demand sync are separate
+     * WorkManager jobs, and nothing may save between a full pass's pages and its removal. Not reentrant: each of the
+     * two takes it for itself, and neither calls the other.
+     */
+    private val syncMutex = Mutex()
 
     override fun getPagedAlbums(
         serverId: String,
@@ -321,9 +354,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun syncHomeScreenPriority(
         serverId: String,
         onProgress: (SyncProgress) -> Unit,
-    ): MellowResult<Set<String>> {
-        return try {
-            val server = serverDao.getActiveServer() ?: return MellowResult.Success(emptySet())
+    ): MellowResult<Set<String>> = syncMutex.withLock {
+        try {
+            val server = activeServer(serverId) ?: return@withLock MellowResult.Success(emptySet())
             val userId = UUID.fromString(server.userId)
             val imageIds = mutableSetOf<String>()
 
@@ -379,69 +412,52 @@ class LibraryRepositoryImpl @Inject constructor(
 
             Log.d(TAG, "Home screen priority sync: ${imageIds.size} unique image IDs")
             MellowResult.Success(imageIds)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
     }
 
-    override suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit): MellowResult<Unit> {
-        return try {
-            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
-            val userId = UUID.fromString(server.userId)
-
-            val lastSyncMs = syncPreferences.lastSyncTimestamp.first()
-
-            if (lastSyncMs == 0L) {
-                Log.d(TAG, "First sync — full")
-                fullSync(serverId, userId, onProgress)
-            } else {
-                val albumsOutdated = syncPreferences.albumRevision.first() < SyncPreferences.CURRENT_ALBUM_REVISION
-                val tracksOutdated = syncPreferences.trackRevision.first() < SyncPreferences.CURRENT_TRACK_REVISION
-
-                if (albumsOutdated || tracksOutdated) {
-                    Log.d(TAG, "Data revision outdated (albums=$albumsOutdated, tracks=$tracksOutdated)")
+    override suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit): MellowResult<Unit> =
+        syncMutex.withLock {
+            try {
+                val server = activeServer(serverId) ?: return@withLock MellowResult.Success(Unit)
+                val userId = UUID.fromString(server.userId)
+                val scope = librarySyncScope(serverId, server.userId)
+                val startedAt = System.currentTimeMillis()
+                val state = syncPreferences.readLibrarySyncState()
+                if (state.needsFullPass(scope)) {
+                    val request = syncPreferences.markFullPassPending()
+                    Log.d(TAG, "Full library pass")
+                    fullPass(serverId, userId, onProgress)
+                    syncPreferences.recordSyncSucceeded(scope, startedAt, System.currentTimeMillis(), request)
+                } else {
+                    val since = (state.lastStartedAt - INCREMENTAL_SYNC_OVERLAP_MS).coerceAtLeast(0L)
+                    Log.d(TAG, "Library changes since ${since.toUtcDateTime()} UTC")
+                    syncChanges(serverId, userId, since.toUtcDateTime(), onProgress)
+                    syncPreferences.recordSyncSucceeded(scope, startedAt, System.currentTimeMillis(), null)
                 }
-
-                val since = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastSyncMs), ZoneOffset.UTC)
-                syncAllArtists(serverId, userId, onProgress)
-                if (albumsOutdated) syncAllAlbums(serverId, userId, onProgress) else syncAlbumsIncremental(serverId, userId, since, onProgress)
-                if (tracksOutdated) syncAllTracks(serverId, userId, onProgress) else syncTracksIncremental(serverId, userId, since, onProgress)
+                MellowResult.Success(Unit)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Library sync failed, nothing recorded", e)
+                MellowResult.Error(e)
             }
-
-            resolveArtistAliases(serverId)
-            albumDao.resolveArtistIds(serverId)
-            trackDao.resolveArtistIds(serverId)
-            albumDao.resolveArtistAliases(serverId)
-            trackDao.resolveArtistAliases(serverId)
-
-            onProgress(SyncProgress("favorites", 0, 0))
-            syncFavoritesDiff(serverId, userId)
-            syncRecentlyPlayed(serverId, userId)
-
-            syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
-            syncPreferences.setAlbumRevision(SyncPreferences.CURRENT_ALBUM_REVISION)
-            syncPreferences.setArtistRevision(SyncPreferences.CURRENT_ARTIST_REVISION)
-            syncPreferences.setTrackRevision(SyncPreferences.CURRENT_TRACK_REVISION)
-            syncPreferences.incrementSyncCount()
-            MellowResult.Success(Unit)
-        } catch (e: Exception) {
-            MellowResult.Error(e)
         }
-    }
 
-    override suspend fun cleanupOrphans(serverId: String, onProgress: (SyncProgress) -> Unit): MellowResult<Unit> {
-        return try {
-            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
-            val userId = UUID.fromString(server.userId)
-
-            onProgress(SyncProgress("albums", 0, 0))
-            detectOrphanedAlbums(serverId, userId)
-            onProgress(SyncProgress("artists", 0, 0))
-            detectOrphanedArtists(serverId, userId)
-            MellowResult.Success(Unit)
-        } catch (e: Exception) {
-            MellowResult.Error(e)
+    /**
+     * The active server, if it's [serverId]. A sync scheduled for a server that is no longer active (logged out, or
+     * another one logged in) must not fetch or save anything: it would save the active server's items under [serverId].
+     */
+    private suspend fun activeServer(serverId: String): ServerEntity? {
+        val server = serverDao.getActiveServer()
+        if (server?.id != serverId) {
+            Log.d(TAG, "Sync skipped: $serverId is not the active server")
+            return null
         }
+        return server
     }
 
     override suspend fun syncFavorites(serverId: String): MellowResult<Unit> {
@@ -542,54 +558,262 @@ class LibraryRepositoryImpl @Inject constructor(
         artistAliasDao.upsertAliases(aliases)
     }
 
-    private suspend fun fullSync(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
-        syncAllArtists(serverId, userId, onProgress)
-        syncAllAlbums(serverId, userId, onProgress)
-        syncAllTracks(serverId, userId, onProgress)
+    /**
+     * Fetches the whole library and deletes what the server no longer has. It completes as a unit: when any step fails
+     * the pass is abandoned, and the next sync starts a new one from scratch.
+     *
+     * Pages are saved as they arrive (it's current server data), each replacing the artist links of its own items
+     * only, so an interrupted pass leaves every album and track with links. Every item a page holds is recorded as
+     * seen; at the end, one transaction deletes the unseen ones the server confirms are gone.
+     */
+    private suspend fun fullPass(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) {
+        syncPassDao.clear()
+
+        val artists = pageThrough("artists", ARTIST_PAGE_SIZE, onProgress, { startIndex, limit ->
+            jellyfinDataSource.getArtistsPaged(userId, startIndex, limit)
+        }) { items ->
+            transaction {
+                artistDao.upsertArtists(items.map { it.toArtistEntity(serverId) })
+                syncPassDao.mark(SyncPassKind.ARTIST, items.ids())
+            }
+        }
+        val albums = pageThrough("albums", ALBUM_PAGE_SIZE, onProgress, { startIndex, limit ->
+            jellyfinDataSource.getAlbumsPaged(userId, startIndex, limit)
+        }) { items ->
+            transaction {
+                saveAlbums(serverId, items)
+                syncPassDao.mark(SyncPassKind.ALBUM, items.ids())
+            }
+        }
+        val tracks = pageThrough("tracks", TRACK_PAGE_SIZE, onProgress, { startIndex, limit ->
+            jellyfinDataSource.getTracksPaged(userId, startIndex, limit)
+        }) { items ->
+            transaction {
+                saveTracks(serverId, items)
+                syncPassDao.mark(SyncPassKind.TRACK, items.ids())
+            }
+        }
+
+        // Paging by offset skips or repeats items when the library changes underneath it. Only a pass that saw
+        // exactly what the server reports, before and after, may delete anything.
+        checkSawEverything("artists", artists, syncPassDao.count(SyncPassKind.ARTIST)) {
+            jellyfinDataSource.getArtistsPaged(userId, 0, 1).totalRecordCount
+        }
+        checkSawEverything("albums", albums, syncPassDao.count(SyncPassKind.ALBUM)) {
+            jellyfinDataSource.getAlbumsPaged(userId, 0, 1).totalRecordCount
+        }
+        checkSawEverything("tracks", tracks, syncPassDao.count(SyncPassKind.TRACK)) {
+            jellyfinDataSource.getTracksPaged(userId, 0, 1).totalRecordCount
+        }
+
+        onProgress(SyncProgress("favorites", 0, 0))
+        syncFavoritesDiff(serverId, userId)
+        syncRecentlyPlayed(serverId, userId)
+
+        val goneAlbumIds = findGoneAlbums(serverId, userId, onProgress)
+        val goneTrackIds = findGoneTracks(serverId, userId, onProgress)
+
+        transaction {
+            // The play queue is read here rather than earlier: a track queued while the pass asked the server about
+            // its unseen items is kept too. If the queue can't be read, no track is deleted.
+            val queued = queuedTrackIds()
+            syncPassDao.mark(SyncPassKind.GONE_TRACK, if (queued == null) emptyList() else goneTrackIds - queued)
+            syncPassDao.mark(SyncPassKind.GONE_ALBUM, goneAlbumIds)
+            val deletedTracks = syncPassDao.deleteGoneTracks(serverId)
+            val deletedAlbums = syncPassDao.deleteGoneAlbums(serverId)
+            val deletedArtists = syncPassDao.deleteUnseenArtists(serverId)
+            syncPassDao.deleteOrphanedLyrics(serverId)
+            resolveArtists(serverId)
+            syncPassDao.clear()
+            Log.d(TAG, "Full pass removed $deletedArtists artists, $deletedAlbums albums, $deletedTracks tracks")
+        }
     }
 
-
-    private suspend fun syncAlbumsIncremental(
+    /**
+     * Fetches what changed on the server since [since]. Artists are always fetched whole. Deletions aren't visible
+     * this way; the next full pass removes them.
+     */
+    private suspend fun syncChanges(
         serverId: String,
         userId: UUID,
         since: LocalDateTime,
         onProgress: (SyncProgress) -> Unit,
     ) {
+        pageThrough("artists", ARTIST_PAGE_SIZE, onProgress, { startIndex, limit ->
+            jellyfinDataSource.getArtistsPaged(userId, startIndex, limit)
+        }) { items ->
+            artistDao.upsertArtists(items.map { it.toArtistEntity(serverId) })
+        }
+
+        val albumIds = HashSet<String>()
+        val albums = pageThrough("albums", ALBUM_PAGE_SIZE, onProgress, { startIndex, limit ->
+            jellyfinDataSource.getAlbumsPaged(userId, startIndex, limit, minDateLastSaved = since)
+        }) { items ->
+            transaction { saveAlbums(serverId, items) }
+            albumIds += items.ids()
+        }
+        if (!albums.isSnapshot(albumIds.size)) {
+            checkSawEverything("changed albums", albums, albumIds.size) {
+                jellyfinDataSource.getAlbumsPaged(userId, 0, 1, minDateLastSaved = since).totalRecordCount
+            }
+        }
+
+        val trackIds = HashSet<String>()
+        val tracks = pageThrough("tracks", TRACK_PAGE_SIZE, onProgress, { startIndex, limit ->
+            jellyfinDataSource.getTracksPaged(userId, startIndex, limit, minDateLastSaved = since)
+        }) { items ->
+            transaction { saveTracks(serverId, items) }
+            trackIds += items.ids()
+        }
+        if (!tracks.isSnapshot(trackIds.size)) {
+            checkSawEverything("changed tracks", tracks, trackIds.size) {
+                jellyfinDataSource.getTracksPaged(userId, 0, 1, minDateLastSaved = since).totalRecordCount
+            }
+        }
+        Log.d(TAG, "Changes: ${albumIds.size} albums, ${trackIds.size} tracks")
+
+        transaction { resolveArtists(serverId) }
+
+        onProgress(SyncProgress("favorites", 0, 0))
+        syncFavoritesDiff(serverId, userId)
+        syncRecentlyPlayed(serverId, userId)
+    }
+
+    /**
+     * Pages through a listing from the start, saving each page while the next one is fetched. Returns the total the
+     * server reported with the first page and the number of pages fetched.
+     */
+    private suspend fun pageThrough(
+        phase: String,
+        pageSize: Int,
+        onProgress: (SyncProgress) -> Unit,
+        fetch: suspend (startIndex: Int, limit: Int) -> PagedItems,
+        save: suspend (List<BaseItemDto>) -> Unit,
+    ): Listing = coroutineScope {
+        var total = -1
+        var pages = 0
         var startIndex = 0
-        val pageSize = 500
-        while (true) {
-            val items = jellyfinDataSource.getAlbums(userId, startIndex, pageSize, minDateLastSaved = since)
-            if (items.isEmpty()) break
-            Log.d(TAG, "Incremental album sync: ${items.size} changed items at offset $startIndex")
-            albumDao.upsertAlbums(items.map { it.toAlbumEntity(serverId) })
-            items.forEach { albumDao.clearAlbumArtists(it.id.toString()) }
-            albumDao.insertAlbumArtists(items.flatMap { it.toAlbumArtistCrossRefs() })
-            startIndex += items.size
-            onProgress(SyncProgress("albums", startIndex, startIndex))
-            if (items.size < pageSize) break
+        var next: Deferred<PagedItems>? = async { fetch(0, pageSize) }
+        while (next != null) {
+            val page = next.await()
+            pages++
+            if (total < 0) total = page.totalRecordCount
+            val nextStart = startIndex + page.items.size
+            next = if (page.items.size == pageSize) async { fetch(nextStart, pageSize) } else null
+            if (page.items.isNotEmpty()) {
+                save(page.items)
+                onProgress(SyncProgress(phase, nextStart, maxOf(total, nextStart)))
+            }
+            startIndex = nextStart
+        }
+        Listing(total = total.coerceAtLeast(0), pages = pages)
+    }
+
+    /**
+     * Throws unless [seen] distinct items is what the server reported when the listing started and reports now: if the
+     * library changed while it was paged, items may have been skipped.
+     */
+    private suspend fun checkSawEverything(phase: String, listing: Listing, seen: Int, countNow: suspend () -> Int) {
+        val now = countNow()
+        if (seen != now || listing.total != now) {
+            throw LibraryChangedDuringSyncException(
+                "$phase: saw $seen, the server listed ${listing.total} at the start and lists $now now",
+            )
         }
     }
 
-
-    private suspend fun syncTracksIncremental(
+    /**
+     * This server's albums the full pass didn't see that the server confirms are gone. Ones it still has are saved
+     * instead of being deleted.
+     */
+    private suspend fun findGoneAlbums(
         serverId: String,
         userId: UUID,
-        since: LocalDateTime,
         onProgress: (SyncProgress) -> Unit,
-    ) {
-        var startIndex = 0
-        val pageSize = 1000
-        while (true) {
-            val items = jellyfinDataSource.getTracks(userId, startIndex, pageSize, minDateLastSaved = since)
-            if (items.isEmpty()) break
-            Log.d(TAG, "Incremental track sync: ${items.size} changed items at offset $startIndex")
-            trackDao.upsertTracks(items.map { it.toTrackEntity(serverId) })
-            items.forEach { trackDao.clearTrackArtists(it.id.toString()) }
-            trackDao.insertTrackArtists(items.flatMap { it.toTrackArtistCrossRefs() })
-            startIndex += items.size
-            onProgress(SyncProgress("tracks", startIndex, startIndex))
-            if (items.size < pageSize) break
+    ): List<String> = findGone(
+        phase = "removed albums",
+        unseenIds = syncPassDao.getUnseenAlbumIds(serverId),
+        onProgress = onProgress,
+        fetch = { ids -> jellyfinDataSource.getAlbumsByIds(userId, ids) },
+    ) { items ->
+        saveAlbums(serverId, items)
+        syncPassDao.mark(SyncPassKind.ALBUM, items.ids())
+    }
+
+    /**
+     * This server's tracks the full pass didn't see that the server confirms are gone, except downloaded ones, which
+     * are kept. Ones the server still has are saved instead of being deleted. Queued tracks are left out when the gone
+     * ones are deleted.
+     */
+    private suspend fun findGoneTracks(
+        serverId: String,
+        userId: UUID,
+        onProgress: (SyncProgress) -> Unit,
+    ): List<String> = findGone(
+        phase = "removed tracks",
+        unseenIds = syncPassDao.getUnseenTrackIds(serverId),
+        onProgress = onProgress,
+        fetch = { ids -> jellyfinDataSource.getTracksByIds(userId, ids) },
+    ) { items ->
+        saveTracks(serverId, items)
+        syncPassDao.mark(SyncPassKind.TRACK, items.ids())
+    }
+
+    /** Asks the server which of [unseenIds] it still has, saving those; returns the rest. */
+    private suspend fun findGone(
+        phase: String,
+        unseenIds: List<String>,
+        onProgress: (SyncProgress) -> Unit,
+        fetch: suspend (List<UUID>) -> List<BaseItemDto>,
+        save: suspend (List<BaseItemDto>) -> Unit,
+    ): List<String> {
+        val gone = mutableListOf<String>()
+        unseenIds.chunked(GONE_CHECK_BATCH_SIZE).forEachIndexed { index, chunk ->
+            onProgress(SyncProgress(phase, index * GONE_CHECK_BATCH_SIZE, unseenIds.size))
+            // Jellyfin item IDs are GUIDs; anything else can't exist on the server.
+            val ids = chunk.mapNotNull { it.toUuidOrNull() }
+            val stillThere = if (ids.isEmpty()) emptyList() else fetch(ids)
+            if (stillThere.isNotEmpty()) transaction { save(stillThere) }
+            val stillThereIds = stillThere.map { it.id }.toSet()
+            chunk.filterTo(gone) { id -> id.toUuidOrNull().let { it == null || it !in stillThereIds } }
         }
+        Log.d(TAG, "${unseenIds.size} unseen, ${gone.size} gone ($phase)")
+        return gone
+    }
+
+    /**
+     * The tracks of the saved play queue, which a full pass never deletes; null if the queue can't be read. Read inside
+     * the removal transaction: it's a small DataStore read that doesn't touch the database.
+     */
+    private suspend fun queuedTrackIds(): Set<String>? =
+        try {
+            playbackQueuePreferences.load()?.trackIds?.toSet().orEmpty()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't read the play queue, so no track is deleted this pass", e)
+            null
+        }
+
+    /** Saves albums from the server with the artist links they have there. */
+    private suspend fun saveAlbums(serverId: String, items: List<BaseItemDto>) {
+        albumDao.upsertAlbums(items.map { it.toAlbumEntity(serverId) })
+        albumDao.replaceAlbumArtists(items.ids(), items.flatMap { it.toAlbumArtistCrossRefs() })
+    }
+
+    /** Saves tracks from the server with the artist links they have there. */
+    private suspend fun saveTracks(serverId: String, items: List<BaseItemDto>) {
+        trackDao.upsertTracks(items.map { it.toTrackEntity(serverId) })
+        trackDao.replaceTrackArtists(items.ids(), items.flatMap { it.toTrackArtistCrossRefs() })
+    }
+
+    /** Rebuilds the artist aliases and points albums and tracks at their (canonical) artists. */
+    private suspend fun resolveArtists(serverId: String) {
+        resolveArtistAliases(serverId)
+        albumDao.resolveArtistIds(serverId)
+        trackDao.resolveArtistIds(serverId)
+        albumDao.resolveArtistAliases(serverId)
+        trackDao.resolveArtistAliases(serverId)
     }
 
     /**
@@ -651,108 +875,6 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun detectOrphanedAlbums(serverId: String, userId: UUID) {
-        val serverAlbumIds = mutableSetOf<String>()
-        var startIndex = 0
-        while (true) {
-            val items = jellyfinDataSource.getAlbums(userId, startIndex, 500)
-            if (items.isEmpty()) break
-            serverAlbumIds.addAll(items.map { it.id.toString() })
-            if (items.size < 500) break
-            startIndex += 500
-        }
-        if (serverAlbumIds.isNotEmpty()) {
-            val localAlbumIds = albumDao.getAllAlbumIdsByServer(serverId).toSet()
-            val orphanIds = localAlbumIds - serverAlbumIds
-            if (orphanIds.isNotEmpty()) {
-                orphanIds.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
-                    albumDao.deleteByIds(chunk)
-                }
-                Log.d(TAG, "Orphan detection: removed ${orphanIds.size} albums")
-            }
-        }
-    }
-
-    private suspend fun detectOrphanedArtists(serverId: String, userId: UUID) {
-        val serverArtistIds = mutableSetOf<String>()
-        var startIndex = 0
-        while (true) {
-            val items = jellyfinDataSource.getArtists(userId, startIndex, 500)
-            if (items.isEmpty()) break
-            serverArtistIds.addAll(items.map { it.id.toString() })
-            if (items.size < 500) break
-            startIndex += 500
-        }
-        if (serverArtistIds.isNotEmpty()) {
-            val localArtistIds = artistDao.getAllArtistIdsByServer(serverId).toSet()
-            val orphanIds = localArtistIds - serverArtistIds
-            if (orphanIds.isNotEmpty()) {
-                orphanIds.chunked(ROOM_BIND_LIMIT).forEach { chunk ->
-                    artistDao.deleteByIds(chunk)
-                }
-                Log.d(TAG, "Orphan detection: removed ${orphanIds.size} artists")
-            }
-        }
-    }
-
-    private suspend fun syncAllAlbums(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) = coroutineScope {
-        albumDao.clearAllAlbumArtistsByServer(serverId)
-        var startIndex = 0
-        val pageSize = 500
-        var totalCount = 0
-        var prefetch: Deferred<PagedItems>? = async { jellyfinDataSource.getAlbumsPaged(userId, 0, pageSize) }
-        while (true) {
-            val paged = (prefetch ?: async { jellyfinDataSource.getAlbumsPaged(userId, startIndex, pageSize) }).await()
-            if (paged.items.isEmpty()) break
-            if (totalCount == 0) totalCount = paged.totalRecordCount
-            val nextStart = startIndex + paged.items.size
-            prefetch = if (paged.items.size == pageSize) async { jellyfinDataSource.getAlbumsPaged(userId, nextStart, pageSize) } else null
-            albumDao.upsertAlbums(paged.items.map { it.toAlbumEntity(serverId) })
-            albumDao.insertAlbumArtists(paged.items.flatMap { it.toAlbumArtistCrossRefs() })
-            startIndex = nextStart
-            onProgress(SyncProgress("albums", startIndex, totalCount))
-            if (paged.items.size < pageSize) break
-        }
-    }
-
-    private suspend fun syncAllArtists(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) = coroutineScope {
-        var startIndex = 0
-        val pageSize = 500
-        var totalCount = 0
-        var prefetch: Deferred<PagedItems>? = async { jellyfinDataSource.getArtistsPaged(userId, 0, pageSize) }
-        while (true) {
-            val paged = (prefetch ?: async { jellyfinDataSource.getArtistsPaged(userId, startIndex, pageSize) }).await()
-            if (paged.items.isEmpty()) break
-            if (totalCount == 0) totalCount = paged.totalRecordCount
-            val nextStart = startIndex + paged.items.size
-            prefetch = if (paged.items.size == pageSize) async { jellyfinDataSource.getArtistsPaged(userId, nextStart, pageSize) } else null
-            artistDao.upsertArtists(paged.items.map { it.toArtistEntity(serverId) })
-            startIndex = nextStart
-            onProgress(SyncProgress("artists", startIndex, totalCount))
-            if (paged.items.size < pageSize) break
-        }
-    }
-
-    private suspend fun syncAllTracks(serverId: String, userId: UUID, onProgress: (SyncProgress) -> Unit) = coroutineScope {
-        trackDao.clearAllTrackArtistsByServer(serverId)
-        var startIndex = 0
-        val pageSize = 1000
-        var totalCount = 0
-        var prefetch: Deferred<PagedItems>? = async { jellyfinDataSource.getTracksPaged(userId, 0, pageSize) }
-        while (true) {
-            val paged = (prefetch ?: async { jellyfinDataSource.getTracksPaged(userId, startIndex, pageSize) }).await()
-            if (paged.items.isEmpty()) break
-            if (totalCount == 0) totalCount = paged.totalRecordCount
-            val nextStart = startIndex + paged.items.size
-            prefetch = if (paged.items.size == pageSize) async { jellyfinDataSource.getTracksPaged(userId, nextStart, pageSize) } else null
-            trackDao.upsertTracks(paged.items.map { it.toTrackEntity(serverId) })
-            trackDao.insertTrackArtists(paged.items.flatMap { it.toTrackArtistCrossRefs() })
-            startIndex = nextStart
-            onProgress(SyncProgress("tracks", startIndex, totalCount))
-            if (paged.items.size < pageSize) break
-        }
-    }
-
     override suspend fun getInstantMix(serverId: String, trackId: String): MellowResult<List<Track>> {
         return try {
             val server = serverDao.getActiveServer()
@@ -798,4 +920,25 @@ class LibraryRepositoryImpl @Inject constructor(
             downloadedOnly = downloadedOnly,
         ).map { it.toModel() }
     }
+
+    /** What paging through a listing found: the total the server reported first, and the number of pages. */
+    private data class Listing(val total: Int, val pages: Int) {
+        /** One page held the whole listing, so it's a consistent snapshot of the server. */
+        fun isSnapshot(distinctItems: Int): Boolean = pages == 1 && distinctItems == total
+    }
 }
+
+/** The library changed on the server while a sync paged through it, so the sync may have missed items. */
+internal class LibraryChangedDuringSyncException(message: String) : IllegalStateException(message)
+
+private fun List<BaseItemDto>.ids(): List<String> = map { it.id.toString() }
+
+private fun String.toUuidOrNull(): UUID? =
+    try {
+        UUID.fromString(this)
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+
+private fun Long.toUtcDateTime(): LocalDateTime =
+    LocalDateTime.ofInstant(Instant.ofEpochMilli(this), ZoneOffset.UTC)

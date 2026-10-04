@@ -242,7 +242,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val positionState by mainViewModel.player.positionState.collectAsState()
     val isSyncing by mainViewModel.isSyncing.collectAsState()
     val syncProgress by mainViewModel.syncProgress.collectAsState()
-    val isCleaningUp by mainViewModel.isCleaningUp.collectAsState()
     val serverUrl by mainViewModel.serverUrl.collectAsState()
     val connectionState by mainViewModel.connectionState.collectAsState()
     val sheetState = rememberExpandableSheetState()
@@ -754,11 +753,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         lastSyncTimestamp = mainViewModel.lastSyncTimestamp.collectAsState().value,
                         isSyncing = isSyncing,
                         syncProgress = syncProgress,
-                        isCleaningUp = isCleaningUp,
+                        isRebuildPending = mainViewModel.isRebuildPending.collectAsState().value,
+                        isLastSyncFailed = mainViewModel.isLastSyncFailed.collectAsState().value,
                         isForceOffline = mainViewModel.isForceOffline.collectAsState().value,
                         autoSyncIntervalHours = mainViewModel.autoSyncIntervalHours.collectAsState().value,
                         onSyncNow = mainViewModel::syncNow,
-                        onCleanup = mainViewModel::cleanupLibrary,
+                        onRebuildLibrary = mainViewModel::rebuildLibrary,
                         onForceOfflineChange = mainViewModel::setForceOffline,
                         onAutoSyncIntervalChange = mainViewModel::setAutoSyncInterval,
                         downloadQuality = downloadQuality,

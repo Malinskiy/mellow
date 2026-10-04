@@ -274,8 +274,15 @@ interface TrackDao {
     @Query("DELETE FROM track_artists WHERE trackId = :trackId")
     suspend fun clearTrackArtists(trackId: String)
 
-    @Query("DELETE FROM track_artists WHERE trackId IN (SELECT id FROM tracks WHERE serverId = :serverId)")
-    suspend fun clearAllTrackArtistsByServer(serverId: String)
+    @Query("DELETE FROM track_artists WHERE trackId IN (:trackIds)")
+    suspend fun clearTrackArtistsByIds(trackIds: List<String>)
+
+    /** Makes [refs] the artist links of [trackIds]; other tracks keep theirs. */
+    @Transaction
+    suspend fun replaceTrackArtists(trackIds: List<String>, refs: List<TrackArtistCrossRef>) {
+        trackIds.chunked(BIND_LIMIT).forEach { clearTrackArtistsByIds(it) }
+        insertTrackArtists(refs)
+    }
 
     @Query("""
         SELECT a.* FROM artists a

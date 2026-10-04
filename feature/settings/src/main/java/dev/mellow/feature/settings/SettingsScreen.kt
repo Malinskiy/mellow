@@ -61,11 +61,12 @@ fun SettingsScreen(
     lastSyncTimestamp: Long = 0L,
     isSyncing: Boolean = false,
     syncProgress: SyncProgress? = null,
-    isCleaningUp: Boolean = false,
+    isRebuildPending: Boolean = false,
+    isLastSyncFailed: Boolean = false,
     isForceOffline: Boolean = false,
     autoSyncIntervalHours: Int = 6,
     onSyncNow: () -> Unit = {},
-    onCleanup: () -> Unit = {},
+    onRebuildLibrary: () -> Unit = {},
     onForceOfflineChange: (Boolean) -> Unit = {},
     onAutoSyncIntervalChange: (Int) -> Unit = {},
     downloadQuality: String = "original",
@@ -99,6 +100,14 @@ fun SettingsScreen(
     var showStorageCapPicker by remember { mutableStateOf(false) }
     var showClearConfirmation by remember { mutableStateOf(false) }
     var showLogoutConfirmation by remember { mutableStateOf(false) }
+    var showRebuildConfirmation by remember { mutableStateOf(false) }
+
+    if (showRebuildConfirmation) {
+        RebuildConfirmationDialog(
+            onConfirm = onRebuildLibrary,
+            onDismiss = { showRebuildConfirmation = false },
+        )
+    }
 
     if (showIntervalPicker) {
         SyncIntervalPickerDialog(
@@ -167,7 +176,12 @@ fun SettingsScreen(
         SettingsSection("Sync")
         ConnectionStatusRow(connectionState)
         LastSyncedRow(lastSyncTimestamp, isSyncing, syncProgress, onSyncNow)
-        CleanupRow(isCleaningUp, onCleanup)
+        RebuildLibraryRow(
+            state = libraryRebuildState(isSyncing, isRebuildPending, isLastSyncFailed),
+            syncProgress = syncProgress,
+            onRebuild = { showRebuildConfirmation = true },
+            onRetry = onRebuildLibrary,
+        )
         SettingsRow(
             icon = PhosphorIcons.ArrowsClockwise,
             title = "Auto-Sync Frequency",
@@ -585,7 +599,21 @@ private fun LastSyncedRow(
 }
 
 @Composable
-private fun CleanupRow(isCleaningUp: Boolean, onCleanup: () -> Unit) {
+private fun RebuildLibraryRow(
+    state: LibraryRebuildState,
+    syncProgress: SyncProgress?,
+    onRebuild: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val progress = syncProgress?.takeIf { state == LibraryRebuildState.Running && it.total > 0 }
+    val status = when (state) {
+        LibraryRebuildState.Idle -> "Re-download the whole library from the server and remove anything deleted there"
+        LibraryRebuildState.Running -> progress?.let { "Rebuilding… ${it.phase} ${it.current}/${it.total}" }
+            ?: "Rebuilding…"
+        LibraryRebuildState.Pending -> "Pending · runs with the next sync"
+        LibraryRebuildState.Failed -> "Didn't finish · retries with the next sync"
+    }
+    val statusColor = if (state == LibraryRebuildState.Failed) MellowTheme.colors.warning else MellowTheme.colors.muted
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -598,24 +626,54 @@ private fun CleanupRow(isCleaningUp: Boolean, onCleanup: () -> Unit) {
                 .weight(1f)
                 .padding(horizontal = MellowSpacing.Sp3),
         ) {
-            Text("Clean Up Library", style = MaterialTheme.typography.titleMedium, color = MellowTheme.colors.foreground)
-            Text(
-                "Remove items deleted from server",
-                style = MaterialTheme.typography.bodySmall,
-                color = MellowTheme.colors.muted,
-            )
+            Text("Rebuild Library", style = MaterialTheme.typography.titleMedium, color = MellowTheme.colors.foreground)
+            Text(status, style = MaterialTheme.typography.bodySmall, color = statusColor)
         }
-        if (isCleaningUp) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-        } else {
-            FilledTonalButton(
-                onClick = onCleanup,
+        when (state) {
+            LibraryRebuildState.Running -> if (progress != null) {
+                CircularProgressIndicator(
+                    progress = { progress.current.toFloat() / progress.total },
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+            LibraryRebuildState.Idle -> FilledTonalButton(
+                onClick = onRebuild,
                 contentPadding = ButtonDefaults.ContentPadding,
             ) {
-                Text("Clean Up", style = MaterialTheme.typography.labelMedium)
+                Text("Rebuild", style = MaterialTheme.typography.labelMedium)
+            }
+            LibraryRebuildState.Pending, LibraryRebuildState.Failed -> FilledTonalButton(
+                onClick = onRetry,
+                contentPadding = ButtonDefaults.ContentPadding,
+            ) {
+                Text(
+                    if (state == LibraryRebuildState.Failed) "Retry" else "Start Now",
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
         }
     }
+}
+
+@Composable
+private fun RebuildConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    MellowDialog(
+        onDismissRequest = onDismiss,
+        title = "Rebuild Library",
+        description = "Mellow will download your whole library from the server again and remove anything that was " +
+            "deleted there. Large libraries can take a few minutes. Downloads and your play queue are kept.",
+        confirmLabel = "Rebuild",
+        onConfirm = {
+            onConfirm()
+            onDismiss()
+        },
+    )
 }
 
 @Composable

@@ -77,12 +77,24 @@ class JellyfinDataSource @Inject constructor(
         response.items.orEmpty()
     }
 
-    suspend fun getAlbums(
+    suspend fun getAlbumsByIds(userId: UUID, ids: List<UUID>): List<BaseItemDto> = io {
+        if (ids.isEmpty()) return@io emptyList()
+        val response by client.api.itemsApi.getItems(
+            userId = userId,
+            ids = ids,
+            fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
+            enableUserData = true,
+        )
+        response.items.orEmpty()
+    }
+
+    /** Albums, or with [minDateLastSaved] only those whose metadata was saved since then. */
+    suspend fun getAlbumsPaged(
         userId: UUID,
         startIndex: Int = 0,
         limit: Int = 200,
         minDateLastSaved: LocalDateTime? = null,
-    ): List<BaseItemDto> = io {
+    ): PagedItems = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
@@ -95,54 +107,7 @@ class JellyfinDataSource @Inject constructor(
             limit = limit,
             minDateLastSaved = minDateLastSaved,
         )
-        response.items.orEmpty()
-    }
-
-    suspend fun getAlbumsByIds(userId: UUID, ids: List<UUID>): List<BaseItemDto> = io {
-        if (ids.isEmpty()) return@io emptyList()
-        val response by client.api.itemsApi.getItems(
-            userId = userId,
-            ids = ids,
-            fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
-            enableUserData = true,
-        )
-        response.items.orEmpty()
-    }
-
-    suspend fun getAlbumsPaged(
-        userId: UUID,
-        startIndex: Int = 0,
-        limit: Int = 200,
-    ): PagedItems = io {
-        val response by client.api.itemsApi.getItems(
-            userId = userId,
-            includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
-            recursive = true,
-            sortBy = listOf(ItemSortBy.SORT_NAME),
-            sortOrder = listOf(SortOrder.ASCENDING),
-            fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
-            enableUserData = true,
-            startIndex = startIndex,
-            limit = limit,
-        )
         PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
-    }
-
-    suspend fun getArtists(
-        userId: UUID,
-        startIndex: Int = 0,
-        limit: Int = 200,
-    ): List<BaseItemDto> = io {
-        val response by client.api.artistsApi.getArtists(
-            userId = userId,
-            sortBy = listOf(ItemSortBy.SORT_NAME),
-            sortOrder = listOf(SortOrder.ASCENDING),
-            fields = listOf(ItemFields.GENRES, ItemFields.OVERVIEW, ItemFields.PROVIDER_IDS),
-            enableUserData = true,
-            startIndex = startIndex,
-            limit = limit,
-        )
-        response.items.orEmpty()
     }
 
     suspend fun getArtistsPaged(
@@ -162,12 +127,13 @@ class JellyfinDataSource @Inject constructor(
         PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
     }
 
-    suspend fun getTracks(
+    /** Tracks, or with [minDateLastSaved] only those whose metadata was saved since then. */
+    suspend fun getTracksPaged(
         userId: UUID,
         startIndex: Int = 0,
         limit: Int = 500,
         minDateLastSaved: LocalDateTime? = null,
-    ): List<BaseItemDto> = io {
+    ): PagedItems = io {
         val response by client.api.itemsApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
@@ -180,26 +146,19 @@ class JellyfinDataSource @Inject constructor(
             limit = limit,
             minDateLastSaved = minDateLastSaved,
         )
-        response.items.orEmpty()
+        PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
     }
 
-    suspend fun getTracksPaged(
-        userId: UUID,
-        startIndex: Int = 0,
-        limit: Int = 500,
-    ): PagedItems = io {
+    /** The items among [ids] that still exist and the user can see, with the fields tracks are saved with. */
+    suspend fun getTracksByIds(userId: UUID, ids: List<UUID>): List<BaseItemDto> = io {
+        if (ids.isEmpty()) return@io emptyList()
         val response by client.api.itemsApi.getItems(
             userId = userId,
-            includeItemTypes = listOf(BaseItemKind.AUDIO),
-            recursive = true,
-            sortBy = listOf(ItemSortBy.SORT_NAME),
-            sortOrder = listOf(SortOrder.ASCENDING),
+            ids = ids,
             fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS, ItemFields.DATE_CREATED),
             enableUserData = true,
-            startIndex = startIndex,
-            limit = limit,
         )
-        PagedItems(response.items.orEmpty(), response.totalRecordCount ?: 0)
+        response.items.orEmpty()
     }
 
     suspend fun getRecentlyPlayedItems(userId: UUID, limit: Int = 200): List<BaseItemDto> = io {
