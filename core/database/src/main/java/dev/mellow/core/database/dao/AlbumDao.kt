@@ -290,12 +290,6 @@ interface AlbumDao {
     @Query("UPDATE albums SET isFavorite = :isFavorite WHERE id IN (:ids)")
     suspend fun setFavoriteByIds(ids: List<String>, isFavorite: Boolean)
 
-    @Query("SELECT id FROM albums WHERE serverId = :serverId")
-    suspend fun getAllAlbumIdsByServer(serverId: String): List<String>
-
-    @Query("DELETE FROM albums WHERE id IN (:ids)")
-    suspend fun deleteByIds(ids: List<String>)
-
     @Query("DELETE FROM albums WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 
@@ -308,8 +302,15 @@ interface AlbumDao {
     @Query("DELETE FROM album_artists WHERE albumId = :albumId")
     suspend fun clearAlbumArtists(albumId: String)
 
-    @Query("DELETE FROM album_artists WHERE albumId IN (SELECT id FROM albums WHERE serverId = :serverId)")
-    suspend fun clearAllAlbumArtistsByServer(serverId: String)
+    @Query("DELETE FROM album_artists WHERE albumId IN (:albumIds)")
+    suspend fun clearAlbumArtistsByIds(albumIds: List<String>)
+
+    /** Makes [refs] the artist links of [albumIds]; other albums keep theirs. */
+    @Transaction
+    suspend fun replaceAlbumArtists(albumIds: List<String>, refs: List<AlbumArtistCrossRef>) {
+        albumIds.chunked(BIND_LIMIT).forEach { clearAlbumArtistsByIds(it) }
+        insertAlbumArtists(refs)
+    }
 
     @Query("""
         SELECT a.* FROM artists a

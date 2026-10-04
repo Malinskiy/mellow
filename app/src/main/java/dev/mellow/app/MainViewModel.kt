@@ -79,7 +79,12 @@ class MainViewModel @Inject constructor(
     val syncProgress: StateFlow<SyncProgress?> = syncScheduler.observeSyncProgress()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val isCleaningUp: StateFlow<Boolean> = syncScheduler.observeCleanupState()
+    /** A library rebuild (full pass) is requested or required and hasn't completed yet. */
+    val isRebuildPending: StateFlow<Boolean> = syncPreferences.isFullPassPending
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val isLastSyncFailed: StateFlow<Boolean> = syncPreferences.lastSyncFailedAt
+        .map { it > 0L }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val lastSyncTimestamp: StateFlow<Long> = syncPreferences.lastSyncTimestamp
@@ -144,12 +149,12 @@ class MainViewModel @Inject constructor(
 
     fun syncNow() {
         val id = _serverId.value ?: return
-        syncScheduler.syncNow(id)
+        viewModelScope.launch { syncScheduler.syncNow(id) }
     }
 
-    fun cleanupLibrary() {
+    fun rebuildLibrary() {
         val id = _serverId.value ?: return
-        syncScheduler.cleanupNow(id)
+        viewModelScope.launch { syncScheduler.rebuildNow(id) }
     }
 
     fun setForceOffline(enabled: Boolean) {

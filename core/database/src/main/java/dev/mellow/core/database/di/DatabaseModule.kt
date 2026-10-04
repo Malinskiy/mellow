@@ -7,7 +7,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.mellow.core.database.DatabaseTransactionRunner
 import dev.mellow.core.database.MellowDatabase
+import dev.mellow.core.database.RoomTransactionRunner
 import dev.mellow.core.database.migration.Migrations
 import javax.inject.Singleton
 
@@ -33,8 +35,12 @@ object DatabaseModule {
                 Migrations.MIGRATION_8_9,
                 Migrations.MIGRATION_9_10,
                 Migrations.MIGRATION_10_11,
+                Migrations.MIGRATION_11_12,
             )
             .build()
+
+    @Provides
+    fun provideTransactionRunner(db: MellowDatabase): DatabaseTransactionRunner = RoomTransactionRunner(db)
 
     @Provides
     fun provideServerDao(db: MellowDatabase) = db.serverDao()
@@ -65,4 +71,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSearchQueryDao(db: MellowDatabase) = db.searchQueryDao()
+
+    @Provides
+    fun provideSyncPassDao(db: MellowDatabase) = db.syncPassDao()
 }

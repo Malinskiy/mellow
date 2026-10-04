@@ -1,6 +1,7 @@
 package dev.mellow.sync
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -17,7 +18,6 @@ import dev.mellow.core.data.preferences.SyncPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,32 +29,38 @@ class SyncScheduler @Inject constructor(
 ) {
     private val workManager = WorkManager.getInstance(context)
 
-    fun syncNow(serverId: String): UUID {
+    private val connected = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    /**
+     * Syncs now. A sync that is running carries on; one that is waiting, e.g. to retry after a failure, starts over
+     * right away.
+     */
+    suspend fun syncNow(serverId: String) {
+        val running = workManager.getWorkInfosForUniqueWorkFlow(SYNC_CHAIN_NAME).first()
+            .any { it.state == WorkInfo.State.RUNNING }
+        enqueueSync(serverId, if (running) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE)
+    }
+
+    /**
+     * Rebuilds the library: a full pass that re-fetches everything and removes what the server deleted. It stays
+     * pending until a pass completes, so an interrupted rebuild is retried as one. Restarts a sync that is running.
+     */
+    suspend fun rebuildNow(serverId: String) {
+        syncPreferences.requestFullPass()
+        enqueueSync(serverId, ExistingWorkPolicy.REPLACE)
+    }
+
+    private fun enqueueSync(serverId: String, policy: ExistingWorkPolicy) {
         val syncRequest = OneTimeWorkRequestBuilder<LibrarySyncWorker>()
             .setInputData(workDataOf(LibrarySyncWorker.KEY_SERVER_ID to serverId))
+            .setConstraints(connected)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, RETRY_BACKOFF_MINUTES, TimeUnit.MINUTES)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag(TAG_SYNC)
             .build()
-        workManager.beginUniqueWork(
-            SYNC_CHAIN_NAME,
-            ExistingWorkPolicy.KEEP,
-            syncRequest,
-        ).enqueue()
-        return syncRequest.id
-    }
-
-    fun cleanupNow(serverId: String): UUID {
-        val cleanupRequest = OneTimeWorkRequestBuilder<LibraryCleanupWorker>()
-            .setInputData(workDataOf(LibraryCleanupWorker.KEY_SERVER_ID to serverId))
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .addTag(TAG_CLEANUP)
-            .build()
-        workManager.beginUniqueWork(
-            SYNC_CHAIN_NAME,
-            ExistingWorkPolicy.APPEND,
-            cleanupRequest,
-        ).enqueue()
-        return cleanupRequest.id
+        workManager.enqueueUniqueWork(SYNC_CHAIN_NAME, policy, syncRequest)
     }
 
     suspend fun schedulePeriodicSync(serverId: String) {
@@ -63,13 +69,11 @@ class SyncScheduler @Inject constructor(
             cancelPeriodicSync()
             return
         }
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
         val request = PeriodicWorkRequestBuilder<LibrarySyncWorker>(
             intervalHours.toLong(), TimeUnit.HOURS,
         )
-            .setConstraints(constraints)
+            .setConstraints(connected)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, RETRY_BACKOFF_MINUTES, TimeUnit.MINUTES)
             .setInputData(workDataOf(LibrarySyncWorker.KEY_SERVER_ID to serverId))
             .addTag(TAG_SYNC)
             .build()
@@ -106,17 +110,12 @@ class SyncScheduler @Inject constructor(
             }
     }
 
-    fun observeCleanupState(): Flow<Boolean> {
-        return workManager.getWorkInfosByTagFlow(TAG_CLEANUP)
-            .map { workInfos ->
-                workInfos.any { it.state == WorkInfo.State.RUNNING }
-            }
-    }
-
     companion object {
         private const val SYNC_CHAIN_NAME = "mellow_sync_chain"
         private const val PERIODIC_SYNC_WORK_NAME = "mellow_periodic_sync"
         private const val TAG_SYNC = "mellow_sync"
-        private const val TAG_CLEANUP = "mellow_cleanup"
+
+        /** First retry after a failed sync; WorkManager doubles it for each further retry. */
+        private const val RETRY_BACKOFF_MINUTES = 1L
     }
 }

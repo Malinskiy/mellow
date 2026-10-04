@@ -28,6 +28,11 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    // MigrationTestHelper reads the exported schemas from the test assets.
+    sourceSets {
+        getByName("test").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 room {
@@ -46,4 +51,5 @@ dependencies {
 
     testImplementation(libs.bundles.testing)
     testImplementation(libs.robolectric)
+    testImplementation(libs.room.testing)
 }

@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -20,9 +21,14 @@ import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.network.JellyfinClientWrapper
+import kotlinx.coroutines.CancellationException
 import org.jellyfin.sdk.model.DeviceInfo
 import java.util.UUID
 
+/**
+ * Syncs the library, then pre-caches artwork. A sync that doesn't complete is retried with WorkManager's backoff, up
+ * to [MAX_ATTEMPTS] runs; after that the next scheduled sync tries again. Only the library sync records completion.
+ */
 @HiltWorker
 class LibrarySyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
@@ -37,44 +43,85 @@ class LibrarySyncWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val serverId = inputData.getString(KEY_SERVER_ID) ?: return Result.failure()
         return try {
-            setForeground(createForegroundInfo("Syncing library…", 0, 0))
-            ensureConnected()
-
-            val homeImageIdsResult = libraryRepository.syncHomeScreenPriority(serverId) { progress ->
-                setForegroundAsync(createForegroundInfo(progress))
+            showNotification()
+            if (syncLibrary(serverId)) {
+                // The library sync is recorded by now, so a retry for artwork syncs only what changed meanwhile
+                // (no full pass is pending any more) and then pre-caches again.
+                artworkPreCacher.preCacheArtwork(serverId) { progress -> report(progress) }
+                Result.success()
+            } else {
+                retryOrGiveUp()
             }
-            val homeImageIds = (homeImageIdsResult as? MellowResult.Success)?.data ?: emptySet()
-            prefetchImages(homeImageIds)
-
-            libraryRepository.syncLibrary(serverId) { progress ->
-                setForegroundAsync(createForegroundInfo(progress))
-                setProgressAsync(
-                    workDataOf(
-                        KEY_PHASE to progress.phase,
-                        KEY_CURRENT to progress.current,
-                        KEY_TOTAL to progress.total,
-                    ),
-                )
-            }
-            artworkPreCacher.preCacheArtwork(serverId) { progress ->
-                setForegroundAsync(createForegroundInfo(progress))
-                setProgressAsync(
-                    workDataOf(
-                        KEY_PHASE to progress.phase,
-                        KEY_CURRENT to progress.current,
-                        KEY_TOTAL to progress.total,
-                    ),
-                )
-            }
-            syncPreferences.setLastSyncTimestamp(System.currentTimeMillis())
-            Result.success()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            if (runAttemptCount < 3) Result.retry() else Result.failure()
+            Log.w(TAG, "Sync attempt ${runAttemptCount + 1} failed", e)
+            retryOrGiveUp()
         }
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo =
         createForegroundInfo("Syncing library…", 0, 0)
+
+    /** Brings the library up to date. False if it couldn't, in which case nothing was recorded as synced. */
+    private suspend fun syncLibrary(serverId: String): Boolean {
+        val result = try {
+            ensureConnected()
+            prefetchHomeScreen(serverId)
+            libraryRepository.syncLibrary(serverId) { progress -> report(progress) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+        if (result is MellowResult.Success) return true
+        Log.w(TAG, "Library sync attempt ${runAttemptCount + 1} failed", (result as? MellowResult.Error)?.exception)
+        syncPreferences.recordSyncFailed(System.currentTimeMillis())
+        return false
+    }
+
+    /**
+     * Saves what the home screen shows and fetches its artwork first, so a fresh install gets a home screen quickly.
+     * Best effort: covers can fail to download while the API works, and that must never hold up the library sync.
+     * The artwork step after the library sync fetches them again.
+     */
+    private suspend fun prefetchHomeScreen(serverId: String) {
+        val home = libraryRepository.syncHomeScreenPriority(serverId) { progress ->
+            setForegroundAsync(createForegroundInfo(progress))
+        }
+        val imageIds = (home as? MellowResult.Success)?.data.orEmpty()
+        if (imageIds.isEmpty()) return
+        try {
+            artworkPreCacher.preCacheIds(imageIds)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Home screen artwork failed, syncing the library anyway", e)
+        }
+    }
+
+    /** Shows the sync notification. Android may refuse a foreground service in the background; the sync runs anyway. */
+    private suspend fun showNotification() {
+        try {
+            setForeground(createForegroundInfo("Syncing library…", 0, 0))
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "Couldn't show the sync notification", e)
+        }
+    }
+
+    private fun report(progress: SyncProgress) {
+        setForegroundAsync(createForegroundInfo(progress))
+        setProgressAsync(
+            workDataOf(
+                KEY_PHASE to progress.phase,
+                KEY_CURRENT to progress.current,
+                KEY_TOTAL to progress.total,
+            ),
+        )
+    }
+
+    private fun retryOrGiveUp(): Result =
+        if (runAttemptCount + 1 < MAX_ATTEMPTS) Result.retry() else Result.failure()
 
     private fun createForegroundInfo(progress: SyncProgress): ForegroundInfo {
         val text = if (progress.total > 0) {
@@ -116,11 +163,6 @@ class LibrarySyncWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun prefetchImages(itemIds: Set<String>) {
-        if (itemIds.isEmpty()) return
-        artworkPreCacher.preCacheIds(itemIds)
-    }
-
     private suspend fun ensureConnected() {
         if (jellyfinClient.isConnected) return
         val server = serverDao.getActiveServer() ?: return
@@ -133,6 +175,10 @@ class LibrarySyncWorker @AssistedInject constructor(
         const val KEY_PHASE = "phase"
         const val KEY_CURRENT = "current"
         const val KEY_TOTAL = "total"
+
+        /** Runs of one sync request, the first included, before it gives up until the next scheduled sync. */
+        const val MAX_ATTEMPTS = 5
+        private const val TAG = "LibrarySyncWorker"
         private const val CHANNEL_ID = "mellow_sync"
         private const val NOTIFICATION_ID = 42
     }

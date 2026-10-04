@@ -133,12 +133,6 @@ interface ArtistDao {
     @Query("UPDATE artists SET isFavorite = :isFavorite WHERE id IN (:ids)")
     suspend fun setFavoriteByIds(ids: List<String>, isFavorite: Boolean)
 
-    @Query("SELECT id FROM artists WHERE serverId = :serverId")
-    suspend fun getAllArtistIdsByServer(serverId: String): List<String>
-
-    @Query("DELETE FROM artists WHERE id IN (:ids)")
-    suspend fun deleteByIds(ids: List<String>)
-
     @Query("DELETE FROM artists WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 

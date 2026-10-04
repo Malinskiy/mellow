@@ -75,8 +75,14 @@ interface LibraryRepository {
     fun getRecentlyPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>>
     fun getMostPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>>
     suspend fun syncHomeScreenPriority(serverId: String, onProgress: (SyncProgress) -> Unit = {}): MellowResult<Set<String>>
+
+    /**
+     * Brings the library of [serverId] up to date: a full pass that also removes what the server deleted when one is
+     * pending (first sync, data revision bump, rebuild requested), otherwise just what changed since the last
+     * successful sync. Success is recorded only when every step succeeded; on error nothing is recorded, so the next
+     * sync covers the same ground again.
+     */
     suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit = {}): MellowResult<Unit>
     suspend fun syncFavorites(serverId: String): MellowResult<Unit>
-    suspend fun cleanupOrphans(serverId: String, onProgress: (SyncProgress) -> Unit = {}): MellowResult<Unit>
     suspend fun getInstantMix(serverId: String, trackId: String): MellowResult<List<Track>>
 }
