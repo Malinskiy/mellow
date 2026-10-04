@@ -8,6 +8,8 @@ import dev.mellow.core.database.dao.ArtistDao
 import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.network.NetworkPreferences
+import dev.mellow.core.network.openHttpConnection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -24,6 +26,7 @@ class ArtworkPreCacher @Inject constructor(
     private val artistDao: ArtistDao,
     private val playlistDao: PlaylistDao,
     private val trackDao: TrackDao,
+    private val networkPreferences: NetworkPreferences,
 ) {
     private val cacheDir = File(context.cacheDir, "artwork")
 
@@ -92,7 +95,8 @@ class ArtworkPreCacher @Inject constructor(
         val imageUrl = "$serverUrl/Items/$itemId/Images/Primary?maxWidth=600&quality=90&format=Webp&api_key=$apiKey"
 
         return try {
-            val connection = URL(imageUrl).openConnection() as HttpURLConnection
+            // Same certificate trust as the API client and streaming, so self-signed servers get artwork too.
+            val connection = openHttpConnection(URL(imageUrl), networkPreferences.isTrustSelfSignedSync())
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
             connection.instanceFollowRedirects = true
