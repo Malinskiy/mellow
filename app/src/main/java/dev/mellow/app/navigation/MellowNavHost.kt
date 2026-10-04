@@ -176,6 +176,7 @@ import dev.mellow.feature.settings.LoginScreen
 import dev.mellow.feature.settings.LoginViewModel
 import dev.mellow.feature.settings.SettingsScreen
 import dev.mellow.feature.settings.SettingsViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -320,7 +321,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         )
     }
 
+    // Tapping the Search tab while Search is showing focuses its field; opening Search doesn't, so the keyboard
+    // doesn't cover recent searches or the genre grid.
+    val searchFocusRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
+
     val navigateToTab: (String) -> Unit = { route ->
+        if (route == MellowNavDestination.Search.route && baseRoute == route) {
+            searchFocusRequests.tryEmit(Unit)
+        }
         if (baseRoute !in tabRoutes) {
             navController.popBackStack(route, inclusive = false)
         }
@@ -638,6 +646,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         },
                         isExpanded = isSearchExpanded,
                         hingeSplitWidth = searchHingeSplitWidth,
+                        focusRequests = searchFocusRequests,
                     )
                 }
                 composable(MellowNavDestination.Favorites.route) {

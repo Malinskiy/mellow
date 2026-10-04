@@ -36,16 +36,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.common.artworkUri
 import dev.mellow.core.model.Album
@@ -79,6 +85,7 @@ fun SearchScreen(
     onGenreClick: (String) -> Unit = {},
     isExpanded: Boolean = false,
     hingeSplitWidth: Dp? = null,
+    focusRequests: Flow<Unit> = emptyFlow(),
 ) {
     val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -118,6 +125,7 @@ fun SearchScreen(
         onClearRecentSearches = viewModel::onClearRecentSearches,
         isExpanded = isExpanded,
         hingeSplitWidth = hingeSplitWidth,
+        focusRequests = focusRequests,
         modifier = modifier,
     )
 }
@@ -152,8 +160,19 @@ fun SearchContent(
     onClearRecentSearches: () -> Unit = {},
     isExpanded: Boolean = false,
     hingeSplitWidth: Dp? = null,
+    /** Each emission focuses the search field and shows the keyboard, e.g. when the Search tab is tapped again. */
+    focusRequests: Flow<Unit> = emptyFlow(),
     modifier: Modifier = Modifier,
 ) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(focusRequests) {
+        focusRequests.collect {
+            focusRequester.requestFocus()
+            // The field may already have focus with the keyboard dismissed.
+            keyboard?.show()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -215,7 +234,8 @@ fun SearchContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = MellowSpacing.Sp4)
-                .border(1.dp, MellowTheme.colors.border, MellowShapes.Large),
+                .border(1.dp, MellowTheme.colors.border, MellowShapes.Large)
+                .focusRequester(focusRequester),
         )
 
         Spacer(Modifier.height(MellowSpacing.Sp4))
