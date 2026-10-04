@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -463,8 +464,8 @@ private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, artModifier: 
             contentDescription = "Album art",
             contentScale = ContentScale.Crop,
             modifier = artModifier
-                .width(artSize)
-                .aspectRatio(1f)
+                .sizeIn(maxWidth = artSize, maxHeight = artSize)
+                .aspectRatio(1f, matchHeightConstraintsFirst = true)
                 .clip(MellowShapes.Large)
                 .background(MellowTheme.colors.surface),
             fallbackIconSize = 64.dp,
