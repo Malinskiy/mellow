@@ -177,7 +177,7 @@ class MellowPlayer @Inject constructor(
     }
 
     fun skipNext() { controller?.seekToNextMediaItem() }
-    fun skipPrevious() { controller?.seekToPreviousMediaItem() }
+    fun skipPrevious() { controller?.skipToPrevious() }
     fun seekTo(positionMs: Long) { controller?.seekTo(positionMs) }
 
     fun playFromQueue(index: Int) {
@@ -546,3 +546,9 @@ class MellowPlayer @Inject constructor(
         private const val PROGRESS_REPORT_INTERVAL = 40 // ~10s at 250ms intervals
     }
 }
+
+/**
+ * Previous as the system controls do it (notification, lock screen, Android Auto, headsets): restarts the current track
+ * once it has played a few seconds, otherwise goes to the previous track.
+ */
+internal fun Player.skipToPrevious() = seekToPrevious()
