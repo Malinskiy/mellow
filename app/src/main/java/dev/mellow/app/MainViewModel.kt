@@ -79,8 +79,11 @@ class MainViewModel @Inject constructor(
     val syncProgress: StateFlow<SyncProgress?> = syncScheduler.observeSyncProgress()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** A library rebuild (full pass) is requested or required and hasn't completed yet. */
-    val isRebuildPending: StateFlow<Boolean> = syncPreferences.isFullPassPending
+    /**
+     * The active server's next library sync is a full pass (a rebuild) that hasn't completed yet, including before the
+     * first sync after an update.
+     */
+    val isRebuildPending: StateFlow<Boolean> = syncPreferences.isFullPassPending(userRepository.observeActiveServer())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val isLastSyncFailed: StateFlow<Boolean> = syncPreferences.lastSyncFailedAt
@@ -109,6 +112,7 @@ class MainViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            syncScheduler.cancelRemovedWork()
             val restored = userRepository.restoreSession()
             if (restored) {
                 val server = userRepository.getActiveServer()

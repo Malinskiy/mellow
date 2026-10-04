@@ -1,11 +1,13 @@
 package dev.mellow.core.data.preferences
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import dev.mellow.core.model.Server
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -37,6 +39,13 @@ class SyncPreferencesTest {
     fun tearDown() = scope.cancel()
 
     @Test
+    fun `a full pass shows as pending before the first sync, also right after an update`() = runTest {
+        // Nothing recorded yet: a fresh install, or an update from a version that didn't record sync starts.
+        assertTrue(isPending(ACTIVE))
+        assertFalse("nothing to rebuild while logged out", isPending(null))
+    }
+
+    @Test
     fun `a full pass is needed until one succeeds for this server and user`() = runTest {
         assertTrue(preferences.readLibrarySyncState().needsFullPass(SCOPE))
 
@@ -48,7 +57,9 @@ class SyncPreferencesTest {
         assertTrue(state.needsFullPass("other server/user"))
         assertEquals(100L, state.lastStartedAt)
         assertEquals(200L, preferences.lastSyncTimestamp.first())
-        assertFalse(preferences.isFullPassPending.first())
+        assertFalse(isPending(ACTIVE))
+        assertTrue("another server's library", isPending(ACTIVE.copy(id = "other server")))
+        assertTrue("another user's library", isPending(ACTIVE.copy(userId = "other user")))
     }
 
     @Test
@@ -72,11 +83,11 @@ class SyncPreferencesTest {
         preferences.requestFullPass()
 
         preferences.recordSyncFailed(300)
-        assertTrue(preferences.isFullPassPending.first())
+        assertTrue(isPending(ACTIVE))
         assertEquals(300L, preferences.lastSyncFailedAt.first())
 
         preferences.recordSyncSucceeded(SCOPE, startedAt = 400, completedAt = 500, fullPassRequest = null)
-        assertTrue(preferences.isFullPassPending.first())
+        assertTrue(isPending(ACTIVE))
         assertTrue(preferences.readLibrarySyncState().needsFullPass(SCOPE))
         assertEquals(0L, preferences.lastSyncFailedAt.first())
     }
@@ -88,7 +99,7 @@ class SyncPreferencesTest {
 
         preferences.recordSyncSucceeded(SCOPE, startedAt = 100, completedAt = 200, fullPassRequest = running)
 
-        assertTrue(preferences.isFullPassPending.first())
+        assertTrue(isPending(ACTIVE))
     }
 
     @Test
@@ -103,7 +114,11 @@ class SyncPreferencesTest {
         assertEquals(200L, preferences.lastSyncTimestamp.first())
     }
 
+    private suspend fun isPending(activeServer: Server?): Boolean =
+        preferences.isFullPassPending(flowOf(activeServer)).first()
+
     private companion object {
-        const val SCOPE = "server/user"
+        val ACTIVE = Server("server", "Home", "https://jellyfin.example", userId = "user", accessToken = "token")
+        val SCOPE = librarySyncScope(ACTIVE.id, ACTIVE.userId)
     }
 }

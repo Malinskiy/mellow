@@ -14,6 +14,7 @@ import dev.mellow.core.data.mapper.toTrackArtistCrossRefs
 import dev.mellow.core.data.mapper.toTrackEntity
 import dev.mellow.core.data.preferences.PlaybackQueuePreferences
 import dev.mellow.core.data.preferences.SyncPreferences
+import dev.mellow.core.data.preferences.librarySyncScope
 import dev.mellow.core.common.getCleanValue
 import dev.mellow.core.database.DatabaseTransactionRunner
 import dev.mellow.core.database.converter.Converters
@@ -29,6 +30,7 @@ import dev.mellow.core.database.dao.mark
 import dev.mellow.core.database.entity.ArtistAliasEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.SearchQueryEntity
+import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.database.entity.SyncPassKind
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
@@ -86,7 +88,11 @@ class LibraryRepositoryImpl @Inject constructor(
         internal const val INCREMENTAL_SYNC_OVERLAP_MS = 10 * 60 * 1000L
     }
 
-    /** One library sync at a time: the scheduled and the on-demand sync are separate WorkManager jobs. */
+    /**
+     * Library syncs and home screen syncs run one at a time: the scheduled and the on-demand sync are separate
+     * WorkManager jobs, and nothing may save between a full pass's pages and its removal. Not reentrant: each of the
+     * two takes it for itself, and neither calls the other.
+     */
     private val syncMutex = Mutex()
 
     override fun getPagedAlbums(
@@ -348,9 +354,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun syncHomeScreenPriority(
         serverId: String,
         onProgress: (SyncProgress) -> Unit,
-    ): MellowResult<Set<String>> {
-        return try {
-            val server = serverDao.getActiveServer() ?: return MellowResult.Success(emptySet())
+    ): MellowResult<Set<String>> = syncMutex.withLock {
+        try {
+            val server = activeServer(serverId) ?: return@withLock MellowResult.Success(emptySet())
             val userId = UUID.fromString(server.userId)
             val imageIds = mutableSetOf<String>()
 
@@ -406,6 +412,8 @@ class LibraryRepositoryImpl @Inject constructor(
 
             Log.d(TAG, "Home screen priority sync: ${imageIds.size} unique image IDs")
             MellowResult.Success(imageIds)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
@@ -414,13 +422,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun syncLibrary(serverId: String, onProgress: (SyncProgress) -> Unit): MellowResult<Unit> =
         syncMutex.withLock {
             try {
-                val server = serverDao.getActiveServer()
-                if (server == null || server.id != serverId) {
-                    Log.d(TAG, "Library sync skipped: $serverId is not the active server")
-                    return@withLock MellowResult.Success(Unit)
-                }
+                val server = activeServer(serverId) ?: return@withLock MellowResult.Success(Unit)
                 val userId = UUID.fromString(server.userId)
-                val scope = "$serverId/${server.userId}"
+                val scope = librarySyncScope(serverId, server.userId)
                 val startedAt = System.currentTimeMillis()
                 val state = syncPreferences.readLibrarySyncState()
                 if (state.needsFullPass(scope)) {
@@ -442,6 +446,19 @@ class LibraryRepositoryImpl @Inject constructor(
                 MellowResult.Error(e)
             }
         }
+
+    /**
+     * The active server, if it's [serverId]. A sync scheduled for a server that is no longer active (logged out, or
+     * another one logged in) must not fetch or save anything: it would save the active server's items under [serverId].
+     */
+    private suspend fun activeServer(serverId: String): ServerEntity? {
+        val server = serverDao.getActiveServer()
+        if (server?.id != serverId) {
+            Log.d(TAG, "Sync skipped: $serverId is not the active server")
+            return null
+        }
+        return server
+    }
 
     override suspend fun syncFavorites(serverId: String): MellowResult<Unit> {
         return try {
@@ -597,7 +614,10 @@ class LibraryRepositoryImpl @Inject constructor(
         val goneTrackIds = findGoneTracks(serverId, userId, onProgress)
 
         transaction {
-            syncPassDao.mark(SyncPassKind.GONE_TRACK, goneTrackIds)
+            // The play queue is read here rather than earlier: a track queued while the pass asked the server about
+            // its unseen items is kept too. If the queue can't be read, no track is deleted.
+            val queued = queuedTrackIds()
+            syncPassDao.mark(SyncPassKind.GONE_TRACK, if (queued == null) emptyList() else goneTrackIds - queued)
             syncPassDao.mark(SyncPassKind.GONE_ALBUM, goneAlbumIds)
             val deletedTracks = syncPassDao.deleteGoneTracks(serverId)
             val deletedAlbums = syncPassDao.deleteGoneAlbums(serverId)
@@ -721,26 +741,22 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     /**
-     * This server's tracks the full pass didn't see that the server confirms are gone, except downloaded ones and
-     * ones in the saved play queue, which are kept. Ones the server still has are saved instead of being deleted.
+     * This server's tracks the full pass didn't see that the server confirms are gone, except downloaded ones, which
+     * are kept. Ones the server still has are saved instead of being deleted. Queued tracks are left out when the gone
+     * ones are deleted.
      */
     private suspend fun findGoneTracks(
         serverId: String,
         userId: UUID,
         onProgress: (SyncProgress) -> Unit,
-    ): List<String> {
-        val unseen = syncPassDao.getUnseenTrackIds(serverId)
-        if (unseen.isEmpty()) return emptyList()
-        val queued = queuedTrackIds() ?: return emptyList()
-        return findGone(
-            phase = "removed tracks",
-            unseenIds = unseen.filterNot { it in queued },
-            onProgress = onProgress,
-            fetch = { ids -> jellyfinDataSource.getTracksByIds(userId, ids) },
-        ) { items ->
-            saveTracks(serverId, items)
-            syncPassDao.mark(SyncPassKind.TRACK, items.ids())
-        }
+    ): List<String> = findGone(
+        phase = "removed tracks",
+        unseenIds = syncPassDao.getUnseenTrackIds(serverId),
+        onProgress = onProgress,
+        fetch = { ids -> jellyfinDataSource.getTracksByIds(userId, ids) },
+    ) { items ->
+        saveTracks(serverId, items)
+        syncPassDao.mark(SyncPassKind.TRACK, items.ids())
     }
 
     /** Asks the server which of [unseenIds] it still has, saving those; returns the rest. */
@@ -765,7 +781,10 @@ class LibraryRepositoryImpl @Inject constructor(
         return gone
     }
 
-    /** The tracks of the saved play queue, which a full pass never deletes; null if the queue can't be read. */
+    /**
+     * The tracks of the saved play queue, which a full pass never deletes; null if the queue can't be read. Read inside
+     * the removal transaction: it's a small DataStore read that doesn't touch the database.
+     */
     private suspend fun queuedTrackIds(): Set<String>? =
         try {
             playbackQueuePreferences.load()?.trackIds?.toSet().orEmpty()

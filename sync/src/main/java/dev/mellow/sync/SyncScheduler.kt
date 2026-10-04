@@ -88,6 +88,14 @@ class SyncScheduler @Inject constructor(
         workManager.cancelUniqueWork(PERIODIC_SYNC_WORK_NAME)
     }
 
+    /**
+     * Cancels requests that older versions queued for the removed Clean Up Library worker, which WorkManager could no
+     * longer load. Does nothing when there are none.
+     */
+    fun cancelRemovedWork() {
+        workManager.cancelAllWorkByTag(REMOVED_CLEANUP_TAG)
+    }
+
     fun observeSyncState(): Flow<Boolean> {
         return workManager.getWorkInfosByTagFlow(TAG_SYNC)
             .map { workInfos ->
@@ -114,6 +122,9 @@ class SyncScheduler @Inject constructor(
         private const val SYNC_CHAIN_NAME = "mellow_sync_chain"
         private const val PERIODIC_SYNC_WORK_NAME = "mellow_periodic_sync"
         private const val TAG_SYNC = "mellow_sync"
+
+        /** The tag of Clean Up Library's requests, which shared the sync chain. */
+        private const val REMOVED_CLEANUP_TAG = "mellow_cleanup"
 
         /** First retry after a failed sync; WorkManager doubles it for each further retry. */
         private const val RETRY_BACKOFF_MINUTES = 1L

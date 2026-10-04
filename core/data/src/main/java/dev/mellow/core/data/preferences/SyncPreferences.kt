@@ -10,7 +10,10 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.mellow.core.model.Server
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -19,6 +22,9 @@ import javax.inject.Singleton
 private val Context.syncDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "sync_preferences",
 )
+
+/** Which library a recorded sync is for: one server, as one user. */
+fun librarySyncScope(serverId: String, userId: String): String = "$serverId/$userId"
 
 /** What the last successful library sync recorded, read when a sync starts. */
 data class LibrarySyncState(
@@ -67,13 +73,27 @@ class SyncPreferences(
         preferences[SYNC_COUNT] ?: 0
     }
 
-    /**
-     * Whether a full library pass is required and hasn't completed yet: on the first sync, after a data revision bump,
-     * or when the user asked to rebuild the library.
-     */
-    val isFullPassPending: Flow<Boolean> = dataStore.data.map { preferences ->
-        preferences[FULL_PASS_REQUESTED_AT] != null
+    val librarySyncState: Flow<LibrarySyncState> = dataStore.data.map { preferences ->
+        LibrarySyncState(
+            scope = preferences[LAST_SYNC_SCOPE],
+            lastStartedAt = preferences[LAST_SYNC_STARTED_AT] ?: 0L,
+            albumRevision = preferences[ALBUM_REVISION] ?: 0,
+            artistRevision = preferences[ARTIST_REVISION] ?: 0,
+            trackRevision = preferences[TRACK_REVISION] ?: 0,
+            fullPassRequest = preferences[FULL_PASS_REQUESTED_AT],
+        )
     }
+
+    /**
+     * Whether the library of the [activeServer] needs a full pass that hasn't completed yet, by the rule a sync starts
+     * with ([LibrarySyncState.needsFullPass]): before its first sync (also the first after an update from a version
+     * that didn't record syncs this way), after a data revision bump, for another server or user, or when the user
+     * asked to rebuild the library. False while no server is active.
+     */
+    fun isFullPassPending(activeServer: Flow<Server?>): Flow<Boolean> =
+        combine(activeServer, librarySyncState) { server, state ->
+            server != null && state.needsFullPass(librarySyncScope(server.id, server.userId))
+        }.distinctUntilChanged()
 
     /** When the last library sync attempt failed, or 0 if the last attempt succeeded. */
     val lastSyncFailedAt: Flow<Long> = dataStore.data.map { preferences ->
@@ -92,17 +112,7 @@ class SyncPreferences(
         }
     }
 
-    suspend fun readLibrarySyncState(): LibrarySyncState {
-        val preferences = dataStore.data.first()
-        return LibrarySyncState(
-            scope = preferences[LAST_SYNC_SCOPE],
-            lastStartedAt = preferences[LAST_SYNC_STARTED_AT] ?: 0L,
-            albumRevision = preferences[ALBUM_REVISION] ?: 0,
-            artistRevision = preferences[ARTIST_REVISION] ?: 0,
-            trackRevision = preferences[TRACK_REVISION] ?: 0,
-            fullPassRequest = preferences[FULL_PASS_REQUESTED_AT],
-        )
-    }
+    suspend fun readLibrarySyncState(): LibrarySyncState = librarySyncState.first()
 
     /**
      * Keeps a full pass pending until one completes, so an interrupted pass is retried as a full pass. Returns the

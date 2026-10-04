@@ -15,6 +15,7 @@ import dev.mellow.core.data.repository.LibraryRepositoryImpl
 import dev.mellow.core.database.MellowDatabase
 import dev.mellow.core.database.RoomTransactionRunner
 import dev.mellow.core.database.entity.ServerEntity
+import dev.mellow.core.model.Server
 import dev.mellow.core.network.JellyfinClientWrapper
 import dev.mellow.core.network.datasource.JellyfinDataSource
 import dev.mellow.core.network.datasource.PagedItems
@@ -27,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -142,7 +144,7 @@ class LibrarySyncWorkerArtworkTest {
         coVerify { artwork.preCacheIds(setOf(album.id.toString())) }
         assertNotNull(db.trackDao().getTrackById(track.id.toString()))
         assertTrue(preferences.lastSyncTimestamp.first() > 0)
-        assertFalse(preferences.isFullPassPending.first())
+        assertFalse(isRebuildPending())
         assertEquals(0L, preferences.lastSyncFailedAt.first())
     }
 
@@ -155,7 +157,7 @@ class LibrarySyncWorkerArtworkTest {
         // The full pass is complete and recorded although the attempt is retried.
         val completedAt = preferences.lastSyncTimestamp.first()
         assertTrue(completedAt > 0)
-        assertFalse(preferences.isFullPassPending.first())
+        assertFalse(isRebuildPending())
         assertFalse(preferences.readLibrarySyncState().needsFullPass("$SERVER/$USER"))
         assertEquals(0L, preferences.lastSyncFailedAt.first())
         assertNotNull(db.trackDao().getTrackById(track.id.toString()))
@@ -171,6 +173,10 @@ class LibrarySyncWorkerArtworkTest {
         coVerify(exactly = 2) { artwork.preCacheArtwork(SERVER, any()) }
         assertTrue(preferences.lastSyncTimestamp.first() >= completedAt)
     }
+
+    private suspend fun isRebuildPending(): Boolean =
+        preferences.isFullPassPending(flowOf(Server(SERVER, "Home", "https://jellyfin.example", USER.toString(), "t")))
+            .first()
 
     private fun worker(runAttemptCount: Int = 0): LibrarySyncWorker =
         TestListenableWorkerBuilder<LibrarySyncWorker>(RuntimeEnvironment.getApplication())
