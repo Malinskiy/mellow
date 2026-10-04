@@ -11,25 +11,11 @@ import androidx.room.Upsert
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery
 import dev.mellow.core.database.entity.ArtistEntity
+import dev.mellow.core.database.entity.DownloadEntity
 import dev.mellow.core.database.entity.TrackArtistCrossRef
 import dev.mellow.core.database.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
-
-/**
- * The library's tracks tab in [LibraryOrder] `:sort` order. Ties keep the newest-first order, and the ID makes the
- * order total, so pages never overlap or skip a track.
- */
-private const val LIBRARY_TRACKS_QUERY = """
-    SELECT * FROM tracks
-    WHERE serverId = :serverId
-        AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
-    ORDER BY
-        CASE WHEN :sort = ${LibraryOrder.NAME_ASC} THEN name END COLLATE NOCASE ASC,
-        CASE WHEN :sort = ${LibraryOrder.NAME_DESC} THEN name END COLLATE NOCASE DESC,
-        CASE WHEN :sort = ${LibraryOrder.YEAR} THEN COALESCE(albumName, '') END DESC,
-        dateAdded DESC,
-        id ASC
-"""
+import kotlin.random.Random
 
 /** The favorite tracks, in the order they were first saved. */
 private const val FAVORITE_TRACKS_QUERY = """
@@ -42,20 +28,15 @@ private const val FAVORITE_TRACKS_QUERY = """
 @Dao
 interface TrackDao {
 
-    @Query(LIBRARY_TRACKS_QUERY)
-    fun getLibraryTracks(serverId: String, sort: Int, downloadedOnly: Boolean): PagingSource<Int, TrackEntity>
+    /** Pages of a [LibraryTracksQuery]: use [getLibraryTracks]. */
+    @RawQuery(observedEntities = [TrackEntity::class, DownloadEntity::class])
+    fun getLibraryTracksPaged(query: SupportSQLiteQuery): PagingSource<Int, TrackEntity>
 
-    /** [limit] tracks of [getLibraryTracks] from position [offset]. */
-    @Query("$LIBRARY_TRACKS_QUERY LIMIT :limit OFFSET :offset")
-    suspend fun getLibraryTracksSlice(
-        serverId: String,
-        sort: Int,
-        downloadedOnly: Boolean,
-        limit: Int,
-        offset: Int,
-    ): List<TrackEntity>
+    /** Tracks of a query over the tracks table that selects whole rows. */
+    @RawQuery(observedEntities = [TrackEntity::class, DownloadEntity::class])
+    suspend fun getTracksRaw(query: SupportSQLiteQuery): List<TrackEntity>
 
-    @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber ASC, trackNumber ASC")
+    @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber ASC, trackNumber ASC, id ASC")
     fun getTracksByAlbum(albumId: String): Flow<List<TrackEntity>>
 
     @Query("SELECT * FROM tracks WHERE id = :id")
@@ -134,6 +115,34 @@ interface TrackDao {
         """,
     )
     suspend fun getRandomTrackIds(serverId: String, downloadedOnly: Boolean, limit: Int): List<String>
+
+    /**
+     * The lowest and highest internal row number of the tracks table (all servers); nulls when it's empty. Two
+     * subqueries: SQLite finds a lone MIN or MAX of the row number at once, but scans the table for both together.
+     */
+    @Query("SELECT (SELECT MIN(rowid) FROM tracks) AS low, (SELECT MAX(rowid) FROM tracks) AS high")
+    suspend fun getRowidRange(): RowidRange
+
+    /**
+     * The server's tracks among the rows [rowids], in row order. `+serverId` keeps SQLite looking the rows up by
+     * number: with hundreds of them it would otherwise read every track of the server from an index.
+     */
+    @Query("SELECT * FROM tracks WHERE rowid IN (:rowids) AND +serverId = :serverId")
+    suspend fun getTracksByRowids(serverId: String, rowids: List<Long>): List<TrackEntity>
+
+    /**
+     * The IDs of [limit] of the server's downloaded tracks, picked uniformly at random, in random order. Starts from
+     * the downloads (CROSS JOIN keeps that order), so it sorts only the downloaded tracks.
+     */
+    @Query(
+        """
+        SELECT t.id FROM downloads d CROSS JOIN tracks t ON t.id = d.trackId
+        WHERE d.status = ${DownloadEntity.STATUS_COMPLETED} AND d.serverId = :serverId AND t.serverId = :serverId
+        ORDER BY RANDOM()
+        LIMIT :limit
+        """,
+    )
+    suspend fun getRandomDownloadedTrackIds(serverId: String, limit: Int): List<String>
 
     @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY playCount DESC LIMIT :limit")
     fun getMostPlayed(serverId: String, limit: Int = 50): Flow<List<TrackEntity>>
@@ -229,7 +238,7 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE serverId = :serverId AND lastPlayedAt > 0 ORDER BY lastPlayedAt DESC LIMIT :limit")
     suspend fun getRecentlyPlayedTracks(serverId: String, limit: Int = 50): List<TrackEntity>
 
-    @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber ASC, trackNumber ASC")
+    @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber ASC, trackNumber ASC, id ASC")
     suspend fun getTracksByAlbumSync(albumId: String): List<TrackEntity>
 
     @Query("SELECT id FROM tracks WHERE isFavorite = 1 AND serverId = :serverId")
@@ -361,15 +370,90 @@ suspend fun TrackDao.getInstantMix(
     return getInstantMixRaw(SimpleSQLiteQuery(sb.toString(), args.toTypedArray()))
 }
 
+/** The Library's Tracks tab in [LibraryOrder] [sort] order (see [LibraryTracksQuery]). */
+fun TrackDao.getLibraryTracks(serverId: String, sort: Int, downloadedOnly: Boolean): PagingSource<Int, TrackEntity> =
+    getLibraryTracksPaged(LibraryTracksQuery.page(serverId, sort, downloadedOnly))
+
+/** [limit] tracks of [getLibraryTracks] from position [offset]. */
+suspend fun TrackDao.getLibraryTracksSlice(
+    serverId: String,
+    sort: Int,
+    downloadedOnly: Boolean,
+    limit: Int,
+    offset: Int,
+): List<TrackEntity> = getTracksRaw(LibraryTracksQuery.slice(serverId, sort, downloadedOnly, limit, offset))
+
 /**
- * [limit] tracks picked at random from the server's library (see [TrackDao.getRandomTrackIds]), in the order they were
- * picked. A track removed between the pick and the load is left out.
+ * [limit] tracks picked uniformly at random from the server's library (its downloaded tracks only, if
+ * [downloadedOnly]), in random order. A track removed while picking is left out.
+ *
+ * The whole library is sampled by internal row number ([sampleByRowid]), which reads only the rows it picks; sorting
+ * every track by RANDOM() took a quarter of a second at a million tracks. Small libraries, and rows mostly of another
+ * server, are sorted instead: that's cheap for them and always finds every track.
  */
-suspend fun TrackDao.pickRandomTracks(serverId: String, downloadedOnly: Boolean, limit: Int): List<TrackEntity> {
-    val ids = getRandomTrackIds(serverId, downloadedOnly, limit)
+suspend fun TrackDao.pickRandomTracks(
+    serverId: String,
+    downloadedOnly: Boolean,
+    limit: Int,
+    random: Random = Random.Default,
+): List<TrackEntity> {
+    if (limit <= 0) return emptyList()
+    if (downloadedOnly) return loadInOrder(getRandomDownloadedTrackIds(serverId, limit))
+    return sampleByRowid(serverId, limit, random) ?: loadInOrder(getRandomTrackIds(serverId, false, limit))
+}
+
+/**
+ * [limit] of the server's tracks, drawn by internal row number: random row numbers in the table's range, keeping the
+ * rows that are this server's tracks. Every track is equally likely, since every row number is, and only the drawn
+ * rows are read. Draws in rounds until it has [limit]; `null` if the rows are too few or too sparse for that (row
+ * numbers left by deleted tracks, another server's tracks), for the caller to sort instead.
+ */
+private suspend fun TrackDao.sampleByRowid(serverId: String, limit: Int, random: Random): List<TrackEntity>? {
+    val range = getRowidRange()
+    val low = range.low ?: return emptyList()
+    val high = range.high ?: return emptyList()
+    val span = high - low + 1
+    if (span < limit.toLong() * ROWID_SAMPLE_MIN_SPAN) return null
+    val picked = LinkedHashMap<String, TrackEntity>()
+    val drawn = HashSet<Long>()
+    var hitRate = 1.0
+    repeat(ROWID_SAMPLE_ROUNDS) {
+        val missing = limit - picked.size
+        if (missing == 0) return picked.values.shuffled(random)
+        // Never more row numbers than are left to draw, or the draw below would never finish.
+        val wanted = minOf((missing / hitRate * 1.25 + 8).toLong(), ROWID_SAMPLE_BATCH.toLong(), span - drawn.size)
+            .toInt()
+        if (wanted <= 0) return null
+        val candidates = ArrayList<Long>(wanted)
+        while (candidates.size < wanted) {
+            val rowid = random.nextLong(low, high + 1)
+            if (drawn.add(rowid)) candidates += rowid
+        }
+        val found = getTracksByRowids(serverId, candidates)
+        hitRate = (found.size.coerceAtLeast(1).toDouble() / candidates.size).coerceAtMost(1.0)
+        // Found in row order: shuffle before taking some, so the cut doesn't favor low row numbers.
+        found.shuffled(random).forEach { if (picked.size < limit) picked.putIfAbsent(it.id, it) }
+    }
+    return if (picked.size == limit) picked.values.shuffled(random) else null
+}
+
+/** The tracks [ids], in that order; IDs of tracks removed meanwhile are left out. */
+private suspend fun TrackDao.loadInOrder(ids: List<String>): List<TrackEntity> {
     val tracks = getTracksById(ids)
     return ids.mapNotNull { tracks[it] }
 }
+
+/** The row-number range has to be this many times the tracks to pick, or sorting is as cheap. */
+private const val ROWID_SAMPLE_MIN_SPAN = 20
+
+/** Rounds of row numbers to draw before giving up on sampling. */
+private const val ROWID_SAMPLE_ROUNDS = 6
+
+/** Row numbers per round: SQLite allows 999 bound parameters on old Android versions. */
+private const val ROWID_SAMPLE_BATCH = 900
+
+/** The tracks table's internal row-number range. */
+data class RowidRange(val low: Long?, val high: Long?)
 
 /** Looks up tracks by ID in chunks that stay under SQLite's bound-parameter limit; missing IDs are absent. */
 suspend fun TrackDao.getTracksById(ids: Collection<String>): Map<String, TrackEntity> =

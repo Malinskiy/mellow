@@ -62,7 +62,7 @@ class LibraryPagingQueriesTest {
     }
 
     @Test
-    fun `name orders ignore case and keep the newest first among equal names`() = runTest {
+    fun `name orders ignore case, and Z to A is the exact reverse of A to Z`() = runTest {
         db.trackDao().upsertTracks(
             listOf(
                 track("old-a", name = "A", dateAdded = 1),
@@ -73,7 +73,8 @@ class LibraryPagingQueriesTest {
         )
 
         assertEquals(listOf("new-a", "old-a", "b", "c"), libraryTrackIds(LibraryOrder.NAME_ASC))
-        assertEquals(listOf("c", "b", "new-a", "old-a"), libraryTrackIds(LibraryOrder.NAME_DESC))
+        // The reverse order reads the same index backwards, so equal names come oldest first.
+        assertEquals(listOf("c", "b", "old-a", "new-a"), libraryTrackIds(LibraryOrder.NAME_DESC))
     }
 
     @Test

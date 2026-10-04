@@ -1,9 +1,104 @@
 package dev.mellow.core.database.migration
 
+import android.util.Log
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+private const val TAG = "Migrations"
+
+/** The tracks table's columns, as of version 13. */
+private const val TRACK_COLUMNS =
+    "`id`, `serverId`, `name`, `sortName`, `albumId`, `albumName`, `artistId`, `artistName`, " +
+    "`trackNumber`, `discNumber`, `durationMs`, `genres`, `imageTag`, `isFavorite`, `playCount`, " +
+    "`lastPlayedAt`, `normalizationGain`, `container`, `codec`, `bitrate`, `sampleRate`, `channels`, " +
+    "`resolvedArtistId`, `dateAdded`, `lastSynced`"
+
 object Migrations {
+
+    /**
+     * Speeds the library up on large libraries (measured on a million tracks by QueryBenchmark):
+     * - Track names compare ignoring case (COLLATE NOCASE), as the name orders always sorted them, so an index can do
+     *   that sorting. SQLite can't change a column's collation, so the tracks table is rebuilt.
+     * - Indexes for the Tracks tab's orders, Android Auto's Songs, album and artist screens, Home and favorites, and
+     *   the downloads (see TrackEntity and DownloadEntity).
+     *
+     * playlist_tracks references tracks with ON DELETE CASCADE, so dropping the old table would empty every playlist
+     * while foreign keys are on: its rows are set aside and put back.
+     */
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val started = System.nanoTime()
+            db.execSQL("CREATE TABLE `playlist_tracks_kept` AS SELECT * FROM `playlist_tracks`")
+            db.execSQL(
+                """
+                CREATE TABLE `tracks_new` (
+                    `id` TEXT NOT NULL,
+                    `serverId` TEXT NOT NULL,
+                    `name` TEXT NOT NULL COLLATE NOCASE,
+                    `sortName` TEXT NOT NULL,
+                    `albumId` TEXT,
+                    `albumName` TEXT,
+                    `artistId` TEXT,
+                    `artistName` TEXT,
+                    `trackNumber` INTEGER,
+                    `discNumber` INTEGER,
+                    `durationMs` INTEGER NOT NULL,
+                    `genres` TEXT NOT NULL,
+                    `imageTag` TEXT,
+                    `isFavorite` INTEGER NOT NULL,
+                    `playCount` INTEGER NOT NULL,
+                    `lastPlayedAt` INTEGER NOT NULL,
+                    `normalizationGain` REAL,
+                    `container` TEXT,
+                    `codec` TEXT,
+                    `bitrate` INTEGER,
+                    `sampleRate` INTEGER,
+                    `channels` INTEGER,
+                    `resolvedArtistId` TEXT,
+                    `dateAdded` INTEGER NOT NULL,
+                    `lastSynced` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL("INSERT INTO `tracks_new` ($TRACK_COLUMNS) SELECT $TRACK_COLUMNS FROM `tracks`")
+            db.execSQL("DROP TABLE `tracks`")
+            db.execSQL("ALTER TABLE `tracks_new` RENAME TO `tracks`")
+            db.execSQL("DELETE FROM `playlist_tracks`")
+            db.execSQL("INSERT INTO `playlist_tracks` SELECT * FROM `playlist_tracks_kept`")
+            db.execSQL("DROP TABLE `playlist_tracks_kept`")
+            db.execSQL("CREATE INDEX `index_tracks_artistName` ON `tracks` (`artistName`)")
+            db.execSQL(
+                "CREATE INDEX `index_tracks_serverId_dateAdded_id` " +
+                    "ON `tracks` (`serverId` ASC, `dateAdded` DESC, `id` ASC)",
+            )
+            db.execSQL(
+                "CREATE INDEX `index_tracks_serverId_name_dateAdded_id` " +
+                    "ON `tracks` (`serverId` ASC, `name` ASC, `dateAdded` DESC, `id` ASC)",
+            )
+            db.execSQL(
+                "CREATE INDEX `index_tracks_serverId_albumName_dateAdded_id` " +
+                    "ON `tracks` (`serverId` ASC, `albumName` DESC, `dateAdded` DESC, `id` ASC)",
+            )
+            db.execSQL("CREATE INDEX `index_tracks_serverId_sortName_id` ON `tracks` (`serverId`, `sortName`, `id`)")
+            db.execSQL(
+                "CREATE INDEX `index_tracks_albumId_discNumber_trackNumber_id` " +
+                    "ON `tracks` (`albumId`, `discNumber`, `trackNumber`, `id`)",
+            )
+            db.execSQL(
+                "CREATE INDEX `index_tracks_resolvedArtistId_playCount` " +
+                    "ON `tracks` (`resolvedArtistId` ASC, `playCount` DESC)",
+            )
+            db.execSQL("CREATE INDEX `index_tracks_serverId_lastPlayedAt` ON `tracks` (`serverId`, `lastPlayedAt`)")
+            db.execSQL("CREATE INDEX `index_tracks_serverId_playCount` ON `tracks` (`serverId`, `playCount`)")
+            db.execSQL("CREATE INDEX `index_tracks_serverId_isFavorite` ON `tracks` (`serverId`, `isFavorite`)")
+            db.execSQL(
+                "CREATE INDEX `index_downloads_status_serverId_trackId` " +
+                    "ON `downloads` (`status`, `serverId`, `trackId`)",
+            )
+            Log.i(TAG, "Migrated 12 to 13 in ${(System.nanoTime() - started) / 1_000_000} ms")
+        }
+    }
 
     /** Adds the bookkeeping table of the full library pass. */
     val MIGRATION_11_12 = object : Migration(11, 12) {

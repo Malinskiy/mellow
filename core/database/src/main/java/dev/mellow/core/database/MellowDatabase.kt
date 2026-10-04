@@ -47,7 +47,7 @@ import dev.mellow.core.database.entity.TrackEntity
         SearchQueryEntity::class,
         SyncPassItemEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
