@@ -675,7 +675,7 @@ fun PlayerPlaybackControls(
             Icon(
                 PhosphorIcons.Shuffle,
                 "Shuffle",
-                tint = if (shuffleEnabled) MellowTheme.colors.accentStrong else MellowTheme.colors.muted,
+                tint = if (shuffleEnabled) MellowTheme.colors.accentStrong else MellowTheme.colors.muted.copy(alpha = 0.4f),
                 modifier = Modifier.size(22.dp),
             )
         }
@@ -694,7 +694,7 @@ fun PlayerPlaybackControls(
             Icon(
                 imageVector = if (repeatMode == 1) PhosphorIcons.RepeatOnce else PhosphorIcons.Repeat,
                 contentDescription = "Repeat",
-                tint = if (repeatMode != 0) MellowTheme.colors.accentStrong else MellowTheme.colors.muted,
+                tint = if (repeatMode != 0) MellowTheme.colors.accentStrong else MellowTheme.colors.muted.copy(alpha = 0.4f),
                 modifier = Modifier.size(22.dp),
             )
         }
