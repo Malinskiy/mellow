@@ -104,6 +104,9 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
     suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String)
 
-    @Query("SELECT id FROM playlists WHERE serverId = :serverId AND imageTag IS NOT NULL")
-    suspend fun getIdsWithImage(serverId: String): List<String>
+    @Query("SELECT id, imageTag FROM playlists WHERE serverId = :serverId AND imageTag IS NOT NULL")
+    suspend fun getImageTags(serverId: String): List<ImageTagRow>
+
+    @Query("SELECT imageTag FROM playlists WHERE id = :id")
+    suspend fun getImageTag(id: String): String?
 }

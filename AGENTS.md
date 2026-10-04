@@ -235,7 +235,10 @@ Two delivery mechanisms — use the right one for the context:
 2. **System surfaces** (notification, Android Auto, MediaSession):
    - Use `content://` URIs via `ArtworkProvider` ContentProvider
    - URI format: `content://${packageName}.artwork/${itemId}`
-   - ArtworkProvider fetches from Jellyfin API, caches to `cacheDir/artwork/{itemId}.jpg`
+   - ArtworkProvider fetches from Jellyfin API via `ArtworkPreCacher`, caches to `noBackupFilesDir/artwork/{itemId}.webp`
+     (durable, unlike `cacheDir`, and not backed up); `{itemId}.tag` records the image tag it was downloaded for. A cover
+     whose tag isn't Room's current one (or that has none) is still served, but sync downloads it again, and so does
+     the provider, in the background, when it serves one
    - Cached images survive offline — Android Auto works without server
    - `ContentBitmapLoader` on MediaSession resolves `content://` URIs (default Media3 BitmapLoader only handles HTTPS)
 
