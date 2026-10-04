@@ -39,6 +39,7 @@ import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.database.entity.TrackEntity
 import dev.mellow.core.network.ConnectionState
+import dev.mellow.core.network.NetworkPreferences
 import dev.mellow.core.network.NetworkStateObserver
 
 class ArtworkPreCacherTest {
@@ -48,6 +49,8 @@ class ArtworkPreCacherTest {
     private lateinit var artworkDir: File
     private lateinit var context: Context
     private lateinit var networkStateObserver: NetworkStateObserver
+    // The fake servers are plain HTTP; self-signed trust only changes HTTPS connections (see SelfSignedTrustTest).
+    private val networkPreferences = mockk<NetworkPreferences> { every { isTrustSelfSignedSync() } returns false }
     private val serverDao = mockk<ServerDao>()
     private val albumDao = mockk<AlbumDao>()
     private val artistDao = mockk<ArtistDao>()
@@ -569,7 +572,9 @@ class ArtworkPreCacherTest {
 
     /** A new instance over the same storage, as after an app restart. */
     private fun newPreCacher() =
-        ArtworkPreCacher(context, serverDao, albumDao, artistDao, playlistDao, trackDao, networkStateObserver)
+        ArtworkPreCacher(
+            context, serverDao, albumDao, artistDao, playlistDao, trackDao, networkStateObserver, networkPreferences,
+        )
 
     /**
      * What Room knows: the active server at [url] and the items (id → image tag) that have an image. [tracks] are

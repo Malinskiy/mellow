@@ -29,7 +29,9 @@ import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.network.ConnectionState
+import dev.mellow.core.network.NetworkPreferences
 import dev.mellow.core.network.NetworkStateObserver
+import dev.mellow.core.network.openHttpConnection
 
 /**
  * Keeps local copies of item artwork for the artwork provider, so covers show offline. Per item, in durable storage:
@@ -47,6 +49,7 @@ class ArtworkPreCacher @Inject constructor(
     private val playlistDao: PlaylistDao,
     private val trackDao: TrackDao,
     private val networkStateObserver: NetworkStateObserver,
+    private val networkPreferences: NetworkPreferences,
 ) {
     /**
      * Not in `cacheDir`, which Android clears when storage runs low, and excluded from backups: it's large and can be
@@ -360,7 +363,10 @@ class ArtworkPreCacher @Inject constructor(
     private fun isServerReachable(serverUrl: String): Boolean {
         var connection: HttpURLConnection? = null
         return try {
-            connection = URL("$serverUrl/System/Info/Public").openConnection() as HttpURLConnection
+            connection = openHttpConnection(
+                URL("$serverUrl/System/Info/Public"),
+                networkPreferences.isTrustSelfSignedSync(),
+            )
             connection.connectTimeout = PROBE_TIMEOUT_MS
             connection.readTimeout = PROBE_TIMEOUT_MS
             connection.responseCode in 200..299 &&
@@ -386,7 +392,10 @@ class ArtworkPreCacher @Inject constructor(
     private fun downloadLocked(serverUrl: String, apiKey: String, itemId: String, tag: String?): DownloadResult {
         var connection: HttpURLConnection? = null
         return try {
-            connection = URL(imageUrl(serverUrl, apiKey, itemId, tag)).openConnection() as HttpURLConnection
+            connection = openHttpConnection(
+                URL(imageUrl(serverUrl, apiKey, itemId, tag)),
+                networkPreferences.isTrustSelfSignedSync(),
+            )
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
             connection.instanceFollowRedirects = true
