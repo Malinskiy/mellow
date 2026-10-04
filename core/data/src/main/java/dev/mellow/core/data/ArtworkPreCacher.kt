@@ -5,9 +5,13 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -30,8 +34,8 @@ import dev.mellow.core.network.NetworkStateObserver
 /**
  * Keeps local copies of item artwork for the artwork provider, so covers show offline. Per item, in durable storage:
  * - `{id}.webp`: the image. A download replaces it only once complete, so readers get either the old or the new one.
- * - `{id}.tag`: the Room image tag the image was downloaded for. Missing when unknown (fetched on demand, or kept from
- *   an older version's cache): precache then takes the image to be the current one rather than downloading it again.
+ * - `{id}.tag`: the Room image tag the image was downloaded for. An image without one (kept from an older version's
+ *   cache, or downloaded while Room had no tag) is still served, but downloaded again once Room has a tag for it.
  * - `{id}.noart`: the server has no image for the item; holds the tag that was checked (empty when unknown).
  */
 @Singleton
@@ -65,12 +69,24 @@ class ArtworkPreCacher @Inject constructor(
     private var skipNetworkUntil: Long? = null
 
     /**
+     * Refreshes of outdated cached images, which outlive the request that found them: owned by this app-wide
+     * singleton, [REFRESH_PARALLELISM] at a time.
+     */
+    private val refreshScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO.limitedParallelism(REFRESH_PARALLELISM) +
+            CoroutineExceptionHandler { _, e -> Log.w(TAG, "Artwork refresh failed", e) },
+    )
+
+    /** Items with a refresh queued or running. */
+    private val refreshing: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /**
      * Caches artwork for the albums, artists, playlists and album-less tracks with an image in Room: images that aren't
-     * cached yet, and ones cached for an older image tag (still served until the new image is in place). Items the
-     * server had no image for are checked again. Downloads run [PARALLEL_DOWNLOADS] at a time.
+     * cached yet, and ones cached for an older image tag or without a tag (still served until the new image is in
+     * place). Items the server had no image for are checked again. Downloads run [PARALLEL_DOWNLOADS] at a time.
      *
-     * @throws ArtworkServerUnreachableException if the server can't be reached: the run stops there and leaves the
-     *   remaining items to the next one.
+     * @throws ArtworkServerUnreachableException if the server can't be reached (right away while the app's heartbeat
+     *   reports it unreachable): the run stops there and leaves the remaining items to the next one.
      */
     suspend fun preCacheArtwork(
         serverId: String,
@@ -78,6 +94,7 @@ class ArtworkPreCacher @Inject constructor(
     ): Unit = withContext(Dispatchers.IO) {
         val server = serverDao.getActiveServer() ?: return@withContext
         ensureStorage()
+        checkServerNotReportedUnreachable()
         deleteAbandonedTempFiles()
 
         val items = imageTags(serverId).map { (id, tag) -> ArtworkItem(id, tag) }
@@ -96,13 +113,15 @@ class ArtworkPreCacher @Inject constructor(
      * Caches artwork for [itemIds] (what the home screen shows) like [preCacheArtwork], except that items the server
      * had no image for are skipped, unless Room now has an image tag they weren't checked for.
      *
-     * @throws ArtworkServerUnreachableException if the server can't be reached.
+     * @throws ArtworkServerUnreachableException if the server can't be reached (right away while the app's heartbeat
+     *   reports it unreachable).
      */
     suspend fun preCacheIds(
         itemIds: Set<String>,
     ): Unit = withContext(Dispatchers.IO) {
         val server = serverDao.getActiveServer() ?: return@withContext
         ensureStorage()
+        checkServerNotReportedUnreachable()
         val tags = imageTags(server.id)
         val missing = itemsToDownload(itemIds.map { ArtworkItem(it, tags[it]) }, recheckNoArt = false)
         if (missing.isEmpty()) return@withContext
@@ -113,17 +132,54 @@ class ArtworkPreCacher @Inject constructor(
     /**
      * Artwork file for [itemId], downloading it if needed. A track whose own artwork can't be had (none on the server,
      * or not cached while the server is unreachable) falls back to its album's artwork. A cached image is served even
-     * if Room has a newer tag for it; precache replaces it.
+     * if Room has a newer image tag for it, and replaced in the background.
      *
      * While the server is known to be unreachable, uncached items fail fast instead of each waiting for the connection
      * timeout, so cached artwork (including album art for tracks) shows up immediately.
      */
     fun resolveArtwork(serverUrl: String, apiKey: String, itemId: String): File? {
         ensureStorage()
-        cachedArtwork(itemId)?.let { return it }
-        download(serverUrl, apiKey, itemId)?.let { return it }
+        artworkFor(serverUrl, apiKey, itemId)?.let { return it }
         val albumId = runBlocking { trackDao.getTrackById(itemId) }?.albumId?.takeIf { it != itemId } ?: return null
-        return cachedArtwork(albumId) ?: download(serverUrl, apiKey, albumId)
+        return artworkFor(serverUrl, apiKey, albumId)
+    }
+
+    /**
+     * [itemId]'s own artwork. A cached image or no-art marker is answered at once, and refreshed in the background if
+     * Room has an image tag it wasn't fetched for; anything else is downloaded now.
+     */
+    private fun artworkFor(serverUrl: String, apiKey: String, itemId: String): File? {
+        val tag = runBlocking { currentImageTag(itemId) }
+        val cached = cachedArtwork(itemId)
+        if (cached == null && !noArtFile(itemId).exists()) return download(serverUrl, apiKey, itemId, tag)
+        if (needsDownload(itemId, tag, recheckNoArt = false)) refreshInBackground(serverUrl, apiKey, itemId, tag)
+        return cached
+    }
+
+    /** Room's image tag for [itemId], whichever kind of item it is; `null` if it has none. */
+    private suspend fun currentImageTag(itemId: String): String? =
+        albumDao.getImageTag(itemId) ?: trackDao.getImageTag(itemId) ?: artistDao.getImageTag(itemId)
+            ?: playlistDao.getImageTag(itemId)
+
+    /**
+     * Downloads [itemId]'s image for [tag] off the caller's thread, which goes on serving what's cached meanwhile. One
+     * refresh per item at a time, and none while the server is known to be unreachable.
+     */
+    private fun refreshInBackground(serverUrl: String, apiKey: String, itemId: String, tag: String?) {
+        if (isServerUnreachable() || !refreshing.add(itemId)) return
+        refreshScope.launch {
+            try {
+                val result = synchronized(lockFor(itemId)) {
+                    if (isServerUnreachable() || !needsDownload(itemId, tag, recheckNoArt = false)) {
+                        return@synchronized null
+                    }
+                    downloadLocked(serverUrl, apiKey, itemId, tag)
+                }
+                if (result is DownloadResult.Unreachable) markServerUnreachable()
+            } finally {
+                refreshing.remove(itemId)
+            }
+        }
     }
 
     /**
@@ -140,7 +196,10 @@ class ArtworkPreCacher @Inject constructor(
         }
     }
 
-    /** Moves images and no-art markers out of the old cache directory, so they needn't be downloaded again. */
+    /**
+     * Moves images and no-art markers out of the old cache directory. Without tags, the images are downloaded again,
+     * but keep showing (offline too) until then.
+     */
     private fun moveLegacyCache() {
         val legacyDir = File(context.cacheDir, ARTWORK_DIR)
         val files = legacyDir.listFiles() ?: return
@@ -192,44 +251,24 @@ class ArtworkPreCacher @Inject constructor(
         return rows.associate { it.id to it.imageTag }
     }
 
-    /**
-     * The [items] whose image needs downloading. An image cached without a tag is taken to be the current one: its
-     * tag is recorded instead.
-     */
     private fun itemsToDownload(items: List<ArtworkItem>, recheckNoArt: Boolean): List<ArtworkItem> =
-        items.filter { item ->
-            when (actionFor(item, recheckNoArt)) {
-                CacheAction.NONE -> false
-                CacheAction.ADOPT_TAG -> {
-                    synchronized(lockFor(item.id)) {
-                        if (actionFor(item, recheckNoArt) == CacheAction.ADOPT_TAG) writeTag(item.id, item.tag)
-                    }
-                    false
-                }
-                CacheAction.DOWNLOAD -> true
-            }
-        }
+        items.filter { needsDownload(it.id, it.tag, recheckNoArt) }
 
     /**
-     * What precache has to do for [item]: nothing if its image is cached for its current tag (or there's no tag to
-     * compare with), only record the tag for an image cached without one, or download the image if it's missing or
-     * cached for an older tag. A no-art marker rules out the download, unless [recheckNoArt] is set or the marker
-     * wasn't written for the current tag.
+     * Whether [itemId]'s image has to be downloaded for [tag], its image tag in Room (`null`: none to compare with):
+     * no image is cached for that tag (an image cached without a tag may be the wrong one), and the server wasn't
+     * found to have none for it either — or [recheckNoArt].
      */
-    private fun actionFor(item: ArtworkItem, recheckNoArt: Boolean): CacheAction {
-        if (cachedArtwork(item.id) != null) {
-            val cachedTag = readTag(tagFile(item.id))
-            if (item.tag == null || cachedTag == item.tag) return CacheAction.NONE
-            if (cachedTag == null) return CacheAction.ADOPT_TAG
-        }
-        val noArt = noArtFile(item.id)
-        val noArtIsCurrent = noArt.exists() && (item.tag == null || readTag(noArt) == item.tag)
-        return if (noArtIsCurrent && !recheckNoArt) CacheAction.NONE else CacheAction.DOWNLOAD
+    private fun needsDownload(itemId: String, tag: String?, recheckNoArt: Boolean): Boolean {
+        if (cachedArtwork(itemId) != null && (tag == null || readTag(tagFile(itemId)) == tag)) return false
+        val noArt = noArtFile(itemId)
+        val noArtIsCurrent = noArt.exists() && (tag == null || readTag(noArt) == tag)
+        return recheckNoArt || !noArtIsCurrent
     }
 
     /**
-     * Downloads [items] [PARALLEL_DOWNLOADS] at a time, reporting progress as they finish. When a download gets no
-     * response, the run stops if the server turns out to be unreachable; otherwise just that item failed.
+     * Downloads [items] [PARALLEL_DOWNLOADS] at a time, reporting progress as they finish. When a download fails in a
+     * way that may be the server's trouble rather than the item's, the run stops if Jellyfin doesn't answer either.
      */
     private suspend fun downloadAll(
         server: ServerEntity,
@@ -246,13 +285,9 @@ class ArtworkPreCacher @Inject constructor(
                     ensureActive()
                     val item = items.getOrNull(next.getAndIncrement()) ?: break
                     var result = cacheItem(server, item, recheckNoArt)
-                    if (result is DownloadResult.Unreachable) {
+                    if (result is DownloadResult.Unreachable || result is DownloadResult.BadResponse) {
                         ensureActive()
-                        if (!isServerReachable(server.url)) {
-                            markServerUnreachable()
-                            throw ArtworkServerUnreachableException(result.cause)
-                        }
-                        Log.w(TAG, "Artwork download failed for ${item.id}", result.cause)
+                        checkServerAfter(server.url, item.id, result)
                         result = DownloadResult.Failed
                     }
                     tally.record(result)
@@ -262,33 +297,51 @@ class ArtworkPreCacher @Inject constructor(
         tally
     }
 
+    /**
+     * After a download that failed in a way that may be the server's trouble rather than the item's: throws if
+     * Jellyfin doesn't answer either, so the run stops instead of failing every remaining item.
+     */
+    private fun checkServerAfter(serverUrl: String, itemId: String, result: DownloadResult) {
+        if (isServerReachable(serverUrl)) {
+            Log.w(TAG, "Artwork download failed for $itemId: $result")
+            return
+        }
+        markServerUnreachable()
+        throw ArtworkServerUnreachableException("$result for $itemId", (result as? DownloadResult.Unreachable)?.cause)
+    }
+
+    /** Fails fast while the app's heartbeat finds the server unreachable, rather than trying every item. */
+    private fun checkServerNotReportedUnreachable() {
+        if (networkStateObserver.connectionState.value is ConnectionState.ServerUnreachable) {
+            throw ArtworkServerUnreachableException("the app's heartbeat reports it unreachable")
+        }
+    }
+
     /** Brings [item]'s cached artwork up to date, under its lock: the artwork provider may be fetching it meanwhile. */
     private fun cacheItem(server: ServerEntity, item: ArtworkItem, recheckNoArt: Boolean): DownloadResult =
         synchronized(lockFor(item.id)) {
-            when (actionFor(item, recheckNoArt)) {
-                CacheAction.NONE -> if (cachedArtwork(item.id) != null) DownloadResult.Cached else DownloadResult.NoArt
-                CacheAction.ADOPT_TAG -> {
-                    writeTag(item.id, item.tag)
-                    DownloadResult.Cached
-                }
-                CacheAction.DOWNLOAD -> downloadLocked(server.url, server.accessToken, item.id, item.tag)
+            when {
+                needsDownload(item.id, item.tag, recheckNoArt) ->
+                    downloadLocked(server.url, server.accessToken, item.id, item.tag)
+                cachedArtwork(item.id) != null -> DownloadResult.Cached
+                else -> DownloadResult.NoArt
             }
         }
 
     private fun cachedArtwork(itemId: String): File? = imageFile(itemId).takeIf { it.exists() && it.length() > 0 }
 
     /** On-demand download: callers waiting on the same item reuse its outcome (cached file or no-art marker). */
-    private fun download(serverUrl: String, apiKey: String, itemId: String): File? =
+    private fun download(serverUrl: String, apiKey: String, itemId: String, tag: String?): File? =
         synchronized(lockFor(itemId)) {
             cachedArtwork(itemId)?.let { return@synchronized it }
             if (noArtFile(itemId).exists() || isServerUnreachable()) return@synchronized null
-            when (downloadLocked(serverUrl, apiKey, itemId, tag = null)) {
+            when (downloadLocked(serverUrl, apiKey, itemId, tag)) {
                 DownloadResult.Cached -> cachedArtwork(itemId)
                 is DownloadResult.Unreachable -> {
                     markServerUnreachable()
                     null
                 }
-                DownloadResult.NoArt, DownloadResult.Failed -> null
+                DownloadResult.NoArt, DownloadResult.Failed, is DownloadResult.BadResponse -> null
             }
         }
 
@@ -300,14 +353,18 @@ class ArtworkPreCacher @Inject constructor(
         skipNetworkUntil = System.nanoTime() + UNREACHABLE_BACKOFF_NANOS
     }
 
-    /** Whether the server answers HTTP at all, which tells a download that failed apart from a lost connection. */
+    /**
+     * Whether Jellyfin itself answers, checked like the app's heartbeat: a 2xx from its public info endpoint, whose
+     * body is that info rather than a page from a proxy or a Wi-Fi login answering in its place.
+     */
     private fun isServerReachable(serverUrl: String): Boolean {
         var connection: HttpURLConnection? = null
         return try {
             connection = URL("$serverUrl/System/Info/Public").openConnection() as HttpURLConnection
             connection.connectTimeout = PROBE_TIMEOUT_MS
             connection.readTimeout = PROBE_TIMEOUT_MS
-            connection.responseCode > 0
+            connection.responseCode in 200..299 &&
+                isPublicInfo(connection.inputStream.bufferedReader().use { it.readText() })
         } catch (_: IOException) {
             false
         } finally {
@@ -315,11 +372,16 @@ class ArtworkPreCacher @Inject constructor(
         }
     }
 
+    /** Jellyfin's public info: a JSON object with, among others, the server's `Id` and `Version`. */
+    private fun isPublicInfo(body: String): Boolean =
+        body.trimStart().startsWith("{") && PUBLIC_INFO_FIELDS.all { it.containsMatchIn(body) }
+
     private fun lockFor(itemId: String): Any = downloadLocks[(itemId.hashCode() and Int.MAX_VALUE) % LOCK_STRIPES]
 
     /**
      * Downloads one item's image for [tag] (its image tag in Room, `null` if unknown). Callers hold the item's lock.
      * Only network failures are [DownloadResult.Unreachable]: the response is read in full before anything is saved.
+     * A 4xx is this item's failure; any other answer that isn't the image is a [DownloadResult.BadResponse].
      */
     private fun downloadLocked(serverUrl: String, apiKey: String, itemId: String, tag: String?): DownloadResult {
         var connection: HttpURLConnection? = null
@@ -333,11 +395,13 @@ class ArtworkPreCacher @Inject constructor(
             val contentType = connection.contentType
             when {
                 status == HttpURLConnection.HTTP_NOT_FOUND -> saveNoArt(itemId, tag)
-                // Not an image: an HTTP error, or e.g. a Wi-Fi login page answering in the server's place.
-                status != HttpURLConnection.HTTP_OK || contentType?.startsWith("image/") == false -> {
-                    Log.w(TAG, "Artwork download failed for $itemId: HTTP $status, $contentType")
+                status in 400..499 -> {
+                    Log.w(TAG, "Artwork download failed for $itemId: HTTP $status")
                     DownloadResult.Failed
                 }
+                // Not the image: e.g. a server error, or a proxy's or Wi-Fi login page answering in the server's place.
+                status != HttpURLConnection.HTTP_OK || contentType?.startsWith("image/") == false ->
+                    DownloadResult.BadResponse(status, contentType)
                 else -> saveImage(itemId, tag, connection.inputStream.use { it.readBytes() })
             }
         } catch (e: IOException) {
@@ -385,7 +449,7 @@ class ArtworkPreCacher @Inject constructor(
         return "$serverUrl/Items/$itemId/Images/Primary?maxWidth=600&quality=90&format=Webp$tagParam&api_key=$apiKey"
     }
 
-    /** Records the tag an item's image is for (`null`: unknown). Best effort: an untagged image is adopted later. */
+    /** Records the tag an item's image is for (`null`: unknown). Best effort: an untagged image is downloaded again. */
     private fun writeTag(itemId: String, tag: String?) {
         val file = tagFile(itemId)
         try {
@@ -412,8 +476,6 @@ class ArtworkPreCacher @Inject constructor(
     /** An item to cache artwork for, with its image tag in Room (`null` if there's none to compare with). */
     private data class ArtworkItem(val id: String, val tag: String?)
 
-    private enum class CacheAction { NONE, ADOPT_TAG, DOWNLOAD }
-
     private sealed interface DownloadResult {
         /** The image is cached. */
         data object Cached : DownloadResult
@@ -421,11 +483,14 @@ class ArtworkPreCacher @Inject constructor(
         /** The server has no image. */
         data object NoArt : DownloadResult
 
-        /** An HTTP error, a response that isn't an image, or the image couldn't be saved. */
+        /** A client error (4xx) for this item, or its image couldn't be saved. */
         data object Failed : DownloadResult
 
         /** No complete response: the connection failed or dropped. */
         data class Unreachable(val cause: IOException) : DownloadResult
+
+        /** Neither the image nor a client error: a server error, or a page answering in the server's place. */
+        data class BadResponse(val status: Int, val contentType: String?) : DownloadResult
     }
 
     /** Counts finished downloads and reports progress in order: never backwards, and the total once all finished. */
@@ -440,7 +505,7 @@ class ArtworkPreCacher @Inject constructor(
             when (result) {
                 DownloadResult.Cached -> cached++
                 DownloadResult.NoArt -> noArt++
-                DownloadResult.Failed, is DownloadResult.Unreachable -> failed++
+                DownloadResult.Failed, is DownloadResult.Unreachable, is DownloadResult.BadResponse -> failed++
             }
             done++
             if (done % PROGRESS_STEP == 0 || done == total) onProgress(SyncProgress(PROGRESS_PHASE, done, total))
@@ -461,9 +526,11 @@ class ArtworkPreCacher @Inject constructor(
         private const val PROBE_TIMEOUT_MS = 5_000
         private const val LOCK_STRIPES = 64
         private const val PARALLEL_DOWNLOADS = 4
+        private const val REFRESH_PARALLELISM = 2
         private const val PROGRESS_PHASE = "artwork"
         private const val PROGRESS_STEP = 50
         private val UNREACHABLE_BACKOFF_NANOS = TimeUnit.SECONDS.toNanos(30)
         private val ABANDONED_TEMP_FILE_AGE_MS = TimeUnit.HOURS.toMillis(1)
+        private val PUBLIC_INFO_FIELDS = listOf(Regex("\"Id\"\\s*:"), Regex("\"Version\"\\s*:"))
     }
 }

@@ -106,4 +106,7 @@ interface PlaylistDao {
 
     @Query("SELECT id, imageTag FROM playlists WHERE serverId = :serverId AND imageTag IS NOT NULL")
     suspend fun getImageTags(serverId: String): List<ImageTagRow>
+
+    @Query("SELECT imageTag FROM playlists WHERE id = :id")
+    suspend fun getImageTag(id: String): String?
 }

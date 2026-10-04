@@ -296,6 +296,9 @@ interface AlbumDao {
     @Query("SELECT id, imageTag FROM albums WHERE serverId = :serverId AND imageTag IS NOT NULL")
     suspend fun getImageTags(serverId: String): List<ImageTagRow>
 
+    @Query("SELECT imageTag FROM albums WHERE id = :id")
+    suspend fun getImageTag(id: String): String?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAlbumArtists(refs: List<AlbumArtistCrossRef>)
 

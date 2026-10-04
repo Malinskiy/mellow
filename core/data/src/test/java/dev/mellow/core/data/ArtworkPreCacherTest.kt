@@ -77,6 +77,10 @@ class ArtworkPreCacherTest {
         networkStateObserver = mockk { every { connectionState } returns this@ArtworkPreCacherTest.connectionState }
         coEvery { trackDao.getTrackById(any()) } returns null
         coEvery { trackDao.getTrackById(TRACK_ID) } returns track(TRACK_ID, albumId = ALBUM_ID)
+        coEvery { albumDao.getImageTag(any()) } returns null
+        coEvery { artistDao.getImageTag(any()) } returns null
+        coEvery { playlistDao.getImageTag(any()) } returns null
+        coEvery { trackDao.getImageTag(any()) } returns null
         preCacher = newPreCacher()
     }
 
@@ -177,7 +181,83 @@ class ArtworkPreCacherTest {
     }
 
     @Test
-    fun `artwork cached by an earlier version is moved to durable storage instead of downloaded again`() {
+    fun `image downloaded on demand records the item's current image tag`() {
+        val server = FakeServer(mapOf(ALBUM_ID to ALBUM_BYTES))
+        library(server.url, albums = mapOf(ALBUM_ID to "t1"))
+
+        preCacher.resolveArtwork(server.url, API_KEY, ALBUM_ID)
+
+        assertEquals("t1", File(artworkDir, "$ALBUM_ID.tag").readText())
+        assertTrue(server.requestedPaths.single().contains("tag=t1"))
+    }
+
+    @Test
+    fun `outdated image of a track with an album is served at once and replaced in the background`() {
+        // The track's own image, cached without a tag (wrong, as it turns out); Room has its tag.
+        cache(TRACK_ID, WRONG_BYTES)
+        val gate = CountDownLatch(1)
+        val server = FakeServer(mapOf(TRACK_ID to TRACK_BYTES), gate = gate)
+        library(server.url, tracks = mapOf(TRACK_ID to "t1"))
+
+        // Answered from the cache while the server is still sending the new image.
+        assertArrayEquals(WRONG_BYTES, preCacher.resolveArtwork(server.url, API_KEY, TRACK_ID)!!.readBytes())
+        assertTrue(server.received.await(5, TimeUnit.SECONDS))
+        gate.countDown()
+
+        eventually { File(artworkDir, "$TRACK_ID.tag").readTextOrNull() == "t1" }
+        assertArrayEquals(TRACK_BYTES, File(artworkDir, "$TRACK_ID.webp").readBytes())
+        assertTrue(server.requestedPaths.single().contains("tag=t1"))
+    }
+
+    @Test
+    fun `concurrent requests for an outdated image refresh it once`() {
+        cache(ALBUM_ID, WRONG_BYTES, tag = "old")
+        val gate = CountDownLatch(1)
+        val server = FakeServer(mapOf(ALBUM_ID to ALBUM_BYTES), gate = gate)
+        library(server.url, albums = mapOf(ALBUM_ID to "new"))
+
+        val files = resolveConcurrently(server.url, ALBUM_ID)
+        files.forEach { assertArrayEquals(WRONG_BYTES, it!!.readBytes()) }
+        assertTrue(server.received.await(5, TimeUnit.SECONDS))
+        gate.countDown()
+
+        eventually { File(artworkDir, "$ALBUM_ID.tag").readTextOrNull() == "new" }
+        assertArrayEquals(ALBUM_BYTES, File(artworkDir, "$ALBUM_ID.webp").readBytes())
+        assertEquals(1, server.requests.get())
+    }
+
+    @Test
+    fun `no-art marker is checked again in the background once Room has an image tag it wasn't checked for`() {
+        File(artworkDir, "$ALBUM_ID.noart").createNewFile() // checked before Room had a tag for the item
+        val server = FakeServer(mapOf(ALBUM_ID to ALBUM_BYTES))
+        library(server.url, albums = mapOf(ALBUM_ID to "t1"))
+
+        assertNull(preCacher.resolveArtwork(server.url, API_KEY, ALBUM_ID))
+
+        eventually { File(artworkDir, "$ALBUM_ID.tag").readTextOrNull() == "t1" }
+        assertArrayEquals(ALBUM_BYTES, preCacher.resolveArtwork(server.url, API_KEY, ALBUM_ID)!!.readBytes())
+        assertFalse(File(artworkDir, "$ALBUM_ID.noart").exists())
+    }
+
+    @Test
+    fun `cached images aren't refreshed while current, nor while the server is unreachable`() {
+        cache("album-1", ALBUM_BYTES, tag = "t1")
+        File(artworkDir, "album-2.noart").writeText("t2")
+        cache("album-3", WRONG_BYTES, tag = "old")
+        val server = FakeServer((1..3).associate { "album-$it" to ALBUM_BYTES })
+        library(server.url, albums = mapOf("album-1" to "t1", "album-2" to "t2", "album-3" to "t3"))
+        connectionState.value = ConnectionState.ServerUnreachable
+
+        assertArrayEquals(ALBUM_BYTES, preCacher.resolveArtwork(server.url, API_KEY, "album-1")!!.readBytes())
+        assertNull(preCacher.resolveArtwork(server.url, API_KEY, "album-2"))
+        assertArrayEquals(WRONG_BYTES, preCacher.resolveArtwork(server.url, API_KEY, "album-3")!!.readBytes())
+
+        Thread.sleep(300)
+        assertEquals(0, server.requests.get())
+    }
+
+    @Test
+    fun `artwork cached by an earlier version is moved to durable storage and served without the network`() {
         legacyDir.mkdirs()
         File(legacyDir, "$ALBUM_ID.webp").writeBytes(ALBUM_BYTES)
         File(legacyDir, "$TRACK_ID.noart").createNewFile()
@@ -278,16 +358,25 @@ class ArtworkPreCacherTest {
     }
 
     @Test
-    fun `image cached without a tag is kept for the current tag instead of downloaded again`() {
-        cache(ALBUM_ID, ALBUM_BYTES)
-        val server = FakeServer(mapOf(ALBUM_ID to NEW_BYTES))
+    fun `image cached without a tag is downloaded again by precache, and served until the new one is in place`() {
+        // Moved from an older version's cache, which held the wrong image for the album.
+        cache(ALBUM_ID, WRONG_BYTES)
+        val gate = CountDownLatch(1)
+        val server = FakeServer(mapOf(ALBUM_ID to ALBUM_BYTES), gate = gate)
         library(server.url, albums = mapOf(ALBUM_ID to "t1"))
+        connectionState.value = ConnectionState.ServerUnreachable
+        assertArrayEquals(WRONG_BYTES, preCacher.resolveArtwork(server.url, API_KEY, ALBUM_ID)!!.readBytes())
 
-        preCache()
+        connectionState.value = ConnectionState.Connected
+        val run = background { preCache() }
+        assertTrue(server.received.await(5, TimeUnit.SECONDS))
+        assertArrayEquals(WRONG_BYTES, File(artworkDir, "$ALBUM_ID.webp").readBytes())
+        gate.countDown()
+        run.get(10, TimeUnit.SECONDS)
 
-        assertEquals(0, server.requests.get())
         assertArrayEquals(ALBUM_BYTES, File(artworkDir, "$ALBUM_ID.webp").readBytes())
         assertEquals("t1", File(artworkDir, "$ALBUM_ID.tag").readText())
+        assertEquals(listOf(ALBUM_ID), server.requestedIds())
     }
 
     @Test
@@ -339,6 +428,74 @@ class ArtworkPreCacherTest {
 
         assertEquals(setOf("album-3.webp", "album-3.tag"), artworkDir.list()!!.toSet())
         assertEquals(SyncProgress("artwork", 3, 3), progress.last())
+        assertEquals("Jellyfin was checked once per failed item", 2, server.probes.get())
+    }
+
+    @Test
+    fun `precache stops when a proxy answers for a server that is down`() {
+        val ids = (1..40).map { "album-$it" }
+        val server = FakeServer(
+            images = emptyMap(),
+            statuses = ids.associateWith { 502 },
+            contentTypes = ids.associateWith { "text/html" },
+            probeStatus = 502,
+            probeContentType = "text/html",
+            probeBody = "<html>502 Bad Gateway</html>",
+        )
+        library(server.url, albums = ids.associateWith { "t1" })
+        val progress = Collections.synchronizedList(mutableListOf<SyncProgress>())
+
+        assertThrows(ArtworkServerUnreachableException::class.java) { preCache { progress += it } }
+
+        assertTrue("only the downloads already under way", server.requests.get() <= 4)
+        assertTrue(artworkDir.list()!!.isEmpty())
+        assertTrue(progress.none { it.current == it.total })
+    }
+
+    @Test
+    fun `precache stops when something other than Jellyfin answers in its place`() {
+        // A Wi-Fi login page answering every plain-HTTP request.
+        val ids = (1..40).map { "album-$it" }
+        val page = "<html>Log in to use the Wi-Fi</html>"
+        val server = FakeServer(
+            images = ids.associateWith { page.toByteArray() },
+            contentTypes = ids.associateWith { "text/html" },
+            probeContentType = "text/html",
+            probeBody = page,
+        )
+        library(server.url, albums = ids.associateWith { "t1" })
+
+        assertThrows(ArtworkServerUnreachableException::class.java) { preCache() }
+
+        assertTrue("only the downloads already under way", server.requests.get() <= 4)
+        assertTrue(artworkDir.list()!!.isEmpty())
+    }
+
+    @Test
+    fun `precache fails fast while the server is reported unreachable`() {
+        val server = FakeServer(mapOf(ALBUM_ID to ALBUM_BYTES))
+        library(server.url, albums = mapOf(ALBUM_ID to "t1"))
+        connectionState.value = ConnectionState.ServerUnreachable
+
+        assertThrows(ArtworkServerUnreachableException::class.java) { preCache() }
+        assertThrows(ArtworkServerUnreachableException::class.java) {
+            runBlocking { preCacher.preCacheIds(setOf(ALBUM_ID)) }
+        }
+
+        assertEquals(0, server.requests.get() + server.probes.get())
+        assertTrue(artworkDir.list()!!.isEmpty())
+    }
+
+    @Test
+    fun `client errors only fail their own item, without checking the server`() {
+        val images = (1..3).associate { "album-$it" to ALBUM_BYTES }
+        val server = FakeServer(images, statuses = mapOf("album-1" to 403))
+        library(server.url, albums = images.mapValues { "t1" })
+
+        preCache()
+
+        assertEquals(setOf("album-2.webp", "album-2.tag", "album-3.webp", "album-3.tag"), artworkDir.list()!!.toSet())
+        assertEquals(0, server.probes.get())
     }
 
     @Test
@@ -414,14 +571,22 @@ class ArtworkPreCacherTest {
     private fun newPreCacher() =
         ArtworkPreCacher(context, serverDao, albumDao, artistDao, playlistDao, trackDao, networkStateObserver)
 
-    /** What Room knows: the active server at [url] and the items (id → image tag) that have an image. */
+    /**
+     * What Room knows: the active server at [url] and the items (id → image tag) that have an image. [tracks] are
+     * tracks with an album and their own image: precache leaves them out, but they can be looked up by id.
+     */
     private fun library(
         url: String,
         albums: Map<String, String> = emptyMap(),
         artists: Map<String, String> = emptyMap(),
         playlists: Map<String, String> = emptyMap(),
         orphanTracks: Map<String, String> = emptyMap(),
+        tracks: Map<String, String> = emptyMap(),
     ) {
+        coEvery { albumDao.getImageTag(any()) } answers { albums[firstArg()] }
+        coEvery { artistDao.getImageTag(any()) } answers { artists[firstArg()] }
+        coEvery { playlistDao.getImageTag(any()) } answers { playlists[firstArg()] }
+        coEvery { trackDao.getImageTag(any()) } answers { orphanTracks[firstArg()] ?: tracks[firstArg()] }
         coEvery { serverDao.getActiveServer() } returns ServerEntity(
             id = SERVER_ID,
             name = "Jellyfin",
@@ -444,6 +609,17 @@ class ArtworkPreCacherTest {
 
     private fun <T> background(block: () -> T): Future<T> = executor.submit<T> { block() }
 
+    /** Waits for [condition], which background work makes true. */
+    private fun eventually(condition: () -> Boolean) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (!condition()) {
+            assertTrue("timed out waiting for background work", System.nanoTime() < deadline)
+            Thread.sleep(10)
+        }
+    }
+
+    private fun File.readTextOrNull(): String? = takeIf { it.exists() }?.readText()
+
     private fun cache(itemId: String, bytes: ByteArray, tag: String? = null): File {
         tag?.let { File(artworkDir, "$itemId.tag").writeText(it) }
         return File(artworkDir, "$itemId.webp").apply { writeBytes(bytes) }
@@ -460,7 +636,7 @@ class ArtworkPreCacherTest {
 
     /**
      * Minimal HTTP server for `/Items/{id}/Images/...`: 200 with the image bytes, or 404 if [images] has none. Other
-     * paths, like the reachability check, get an empty 200.
+     * paths, like the reachability check, get Jellyfin's public info unless told otherwise.
      */
     private inner class FakeServer(
         private val images: Map<String, ByteArray>,
@@ -476,6 +652,10 @@ class ArtworkPreCacherTest {
         private val closeAfter: Int = Int.MAX_VALUE,
         /** Image requests wait for it before being answered. */
         private val gate: CountDownLatch? = null,
+        /** How the reachability check is answered: a proxy's error, or a Wi-Fi login page, instead of Jellyfin. */
+        private val probeStatus: Int = 200,
+        private val probeContentType: String = "application/json",
+        private val probeBody: String = PUBLIC_INFO,
     ) {
         private val socket = ServerSocket(0)
         private val pool = Executors.newCachedThreadPool()
@@ -484,6 +664,7 @@ class ArtworkPreCacherTest {
         val requestedPaths = ConcurrentLinkedQueue<String>()
         val maxConcurrent = AtomicInteger()
         val received = CountDownLatch(1)
+        val probes = AtomicInteger()
 
         init {
             servers += socket to pool
@@ -504,7 +685,8 @@ class ArtworkPreCacherTest {
                 while (!reader.readLine().isNullOrEmpty()) Unit
                 val out = it.getOutputStream()
                 if (!path.startsWith("/Items/")) {
-                    out.write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+                    probes.incrementAndGet()
+                    out.write(response(probeStatus, probeContentType, probeBody.toByteArray()))
                     return
                 }
                 // Stop listening as the last request to answer comes in, so whatever comes after can't get through.
@@ -525,11 +707,15 @@ class ArtworkPreCacherTest {
                 val image = images[id]
                 val status = statuses[id] ?: if (image == null) 404 else 200
                 val body = image?.takeIf { status == 200 } ?: ByteArray(0)
-                val head = "HTTP/1.1 $status -\r\nContent-Type: ${contentTypes[id] ?: "image/webp"}\r\n" +
-                    "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
-                out.write(head.toByteArray() + body)
+                out.write(response(status, contentTypes[id] ?: "image/webp", body))
                 out.flush()
             }
+        }
+
+        private fun response(status: Int, contentType: String, body: ByteArray): ByteArray {
+            val head = "HTTP/1.1 $status -\r\nContent-Type: $contentType\r\nContent-Length: ${body.size}\r\n" +
+                "Connection: close\r\n\r\n"
+            return head.toByteArray() + body
         }
     }
 
@@ -546,6 +732,12 @@ class ArtworkPreCacherTest {
         val TRACK_BYTES = byteArrayOf(1, 2, 3)
         val ALBUM_BYTES = byteArrayOf(4, 5, 6)
         val NEW_BYTES = byteArrayOf(7, 8, 9)
+        val WRONG_BYTES = byteArrayOf(6, 6, 6)
         val LARGE_BYTES = ByteArray(512 * 1024) { (it % 251).toByte() }
+
+        /** What Jellyfin answers at `/System/Info/Public`. */
+        const val PUBLIC_INFO = """{"LocalAddress":"http://127.0.0.1:8096","ServerName":"Jellyfin",""" +
+            """"Version":"10.10.7","ProductName":"Jellyfin Server","OperatingSystem":"",""" +
+            """"Id":"f2bd2e6a1c3e4b0f9d6a8c7b5e4d3c2b","StartupWizardCompleted":true}"""
     }
 }

@@ -305,6 +305,9 @@ interface TrackDao {
 
     @Query("SELECT id, imageTag FROM tracks WHERE serverId = :serverId AND imageTag IS NOT NULL AND albumId IS NULL")
     suspend fun getOrphanTrackImageTags(serverId: String): List<ImageTagRow>
+
+    @Query("SELECT imageTag FROM tracks WHERE id = :id")
+    suspend fun getImageTag(id: String): String?
 }
 
 suspend fun TrackDao.getInstantMix(
