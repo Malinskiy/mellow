@@ -54,6 +54,7 @@ import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.TrackRow
+import dev.mellow.core.designsystem.component.ShuffleAllButton
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -259,16 +260,12 @@ fun FavoritesContent(
             }
             val totalCount = tracks.itemCount + albums.itemCount + artists.itemCount
             if (totalCount > 0) {
-                androidx.compose.material3.FloatingActionButton(
+                ShuffleAllButton(
                     onClick = onShuffleAll,
-                    containerColor = MellowTheme.colors.foreground,
-                    contentColor = MellowTheme.colors.background,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(MellowSpacing.Sp4),
-                ) {
-                    Icon(PhosphorIcons.Shuffle, contentDescription = "Shuffle all", modifier = Modifier.size(24.dp))
-                }
+                )
             }
         }
         }

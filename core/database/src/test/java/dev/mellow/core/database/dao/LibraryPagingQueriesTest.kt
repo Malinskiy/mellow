@@ -156,6 +156,26 @@ class LibraryPagingQueriesTest {
     }
 
     @Test
+    fun `a library shuffle is a bounded random pick of the server's tracks, of downloads only if asked`() = runTest {
+        db.trackDao().upsertTracks(
+            (1..40).map { track("t$it", isFavorite = it % 2 == 0) } +
+                listOf(track("theirs", serverId = "elsewhere")),
+        )
+        db.downloadDao().upsertAll((1..4).map { download("t$it", DownloadEntity.STATUS_COMPLETED) })
+        val library = (1..40).map { "t$it" }.toSet()
+
+        val sample = db.trackDao().getRandomTrackIds(SERVER, downloadedOnly = false, limit = 10)
+        val all = db.trackDao().getRandomTrackIds(SERVER, downloadedOnly = false, limit = 500)
+        val downloaded = db.trackDao().getRandomTrackIds(SERVER, downloadedOnly = true, limit = 500)
+
+        assertEquals(10, sample.toSet().size)
+        assertTrue(library.containsAll(sample))
+        assertEquals(library, all.toSet())
+        assertEquals(40, all.size)
+        assertEquals((1..4).map { "t$it" }.toSet(), downloaded.toSet())
+    }
+
+    @Test
     fun `downloaded only keeps favorites whose download completed`() = runTest {
         db.trackDao().upsertTracks(listOf(track("kept", isFavorite = true), track("dropped", isFavorite = true)))
         db.downloadDao().upsertAll(listOf(download("kept", DownloadEntity.STATUS_COMPLETED)))
@@ -371,7 +391,7 @@ class LibraryPagingQueriesTest {
         }
     }
 
-    private companion object {
+    internal companion object {
         const val SERVER = "server"
 
         fun track(

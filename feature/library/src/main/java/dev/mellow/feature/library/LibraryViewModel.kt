@@ -7,6 +7,7 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.common.MellowResult
+import dev.mellow.core.common.QUEUE_WINDOW_SIZE
 import dev.mellow.core.common.formatTrackDuration
 import dev.mellow.core.common.queueWindow
 import dev.mellow.core.data.preferences.DisplayPreferences
@@ -126,6 +127,17 @@ class LibraryViewModel @Inject constructor(
             },
             loadTrack = { id -> (libraryRepository.getTrack(id) as? MellowResult.Success)?.data },
         )
+    }
+
+    /**
+     * Up to [QUEUE_WINDOW_SIZE] tracks picked at random from the whole library, in random order, for the Tracks tab's
+     * shuffle; only downloaded ones while the list shows only downloads. Empty before the library is loaded.
+     */
+    suspend fun shuffledTracks(): List<Track> {
+        val shown = selection.value ?: return emptyList()
+        val downloadedOnly = downloadedOnlyPreference.value ?: return emptyList()
+        val picked = libraryRepository.pickRandomTracks(shown.serverId, downloadedOnly, QUEUE_WINDOW_SIZE)
+        return (picked as? MellowResult.Success)?.data ?: emptyList()
     }
 
     private fun observeGenres() {
