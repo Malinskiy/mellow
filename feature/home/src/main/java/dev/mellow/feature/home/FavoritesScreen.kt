@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,7 +49,6 @@ import dev.mellow.core.designsystem.component.AlbumCard
 import dev.mellow.core.designsystem.component.ArtistRow
 import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionCloudIcon
-import dev.mellow.core.designsystem.component.EmptyContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
@@ -74,13 +75,16 @@ fun FavoritesScreen(
     onToggleFilter: () -> Unit = {},
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
-    onTrackClick: (String) -> Unit = {},
+    onTrackClick: (index: Int, trackId: String) -> Unit = { _, _ -> },
     onTrackMenuClick: (String) -> Unit = {},
     onShuffleAll: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
 ) {
     val viewModel: FavoritesViewModel = hiltViewModel()
     val state by viewModel.uiState.collectAsState()
+    val tracks = viewModel.tracks.collectAsLazyPagingItems()
+    val albums = viewModel.albums.collectAsLazyPagingItems()
+    val artists = viewModel.artists.collectAsLazyPagingItems()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     LaunchedEffect(serverId) {
@@ -88,11 +92,10 @@ fun FavoritesScreen(
     }
 
     FavoritesContent(
-        tracks = state.tracks,
-        albums = state.albums,
-        artists = state.artists,
+        tracks = tracks,
+        albums = albums,
+        artists = artists,
         isLoading = state.isLoading,
-        error = state.error,
         selectedTab = selectedTab,
         onTabSelected = { selectedTab = it },
         serverUrl = serverUrl,
@@ -111,11 +114,12 @@ fun FavoritesScreen(
     )
 }
 
+/** The favorites tabs. [isLoading]: the favorites are being fetched and there are none to show yet. */
 @Composable
 fun FavoritesContent(
-    tracks: List<Track> = emptyList(),
-    albums: List<Album> = emptyList(),
-    artists: List<Artist> = emptyList(),
+    tracks: LazyPagingItems<Track> = emptyPagingItems(),
+    albums: LazyPagingItems<Album> = emptyPagingItems(),
+    artists: LazyPagingItems<Artist> = emptyPagingItems(),
     isLoading: Boolean = false,
     error: String? = null,
     selectedTab: Int = 0,
@@ -127,7 +131,7 @@ fun FavoritesContent(
     onToggleFilter: () -> Unit = {},
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
-    onTrackClick: (String) -> Unit = {},
+    onTrackClick: (index: Int, trackId: String) -> Unit = { _, _ -> },
     onTrackMenuClick: (String) -> Unit = {},
     onShuffleAll: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -183,88 +187,77 @@ fun FavoritesContent(
             .background(MellowTheme.colors.background),
     ) { contentPadding ->
         val topPadding = contentPadding.calculateTopPadding()
-        if (isLoading) {
+        if (isLoading && tracks.itemCount == 0 && albums.itemCount == 0) {
             LoadingContent()
         } else {
             Box(modifier = Modifier.fillMaxSize()) {
             when (selectedTab) {
-                0 -> {
-                    if (tracks.isEmpty()) {
-                        EmptyContent("No favorite tracks yet")
-                    } else {
-                        AdaptiveTrackGrid(
-                            items = tracks,
-                            key = { it.id },
-                            contentPadding = PaddingValues(top = topPadding),
-                            modifier = Modifier.fillMaxSize(),
-                        ) { _, track, _ ->
-                            TrackRow(
-                                title = track.name,
-                                subtitle = "${track.artistName ?: ""} · ${track.albumName ?: ""}",
-                                duration = formatFavDuration(track.duration),
-                                imageUrl = if (serverUrl != null) {
-                                    val imgId = track.imageId ?: track.albumId
-                                    if (imgId != null) artworkUri(imgId) else null
-                                } else null,
-                                isFavorite = true,
-                                onClick = { onTrackClick(track.id) },
-                                onMenuClick = { onTrackMenuClick(track.id) },
-                                showDivider = false,
+                0 -> PagedContent(tracks, "No favorite tracks yet", "Couldn't load favorite tracks") {
+                    AdaptiveTrackGrid(
+                        itemCount = { tracks.itemCount },
+                        key = tracks.itemKey { it.id },
+                        contentPadding = PaddingValues(top = topPadding),
+                        modifier = Modifier.fillMaxSize(),
+                    ) { index, _ ->
+                        // Null while its page loads: a blank row holds its place.
+                        val track = tracks[index]
+                        TrackRow(
+                            title = track?.name ?: "",
+                            subtitle = if (track != null) "${track.artistName ?: ""} · ${track.albumName ?: ""}" else "",
+                            duration = if (track != null) formatFavDuration(track.duration) else "",
+                            imageUrl = if (serverUrl != null && track != null) {
+                                val imgId = track.imageId ?: track.albumId
+                                if (imgId != null) artworkUri(imgId) else null
+                            } else null,
+                            isFavorite = track != null,
+                            onClick = { if (track != null) onTrackClick(index, track.id) },
+                            onMenuClick = { if (track != null) onTrackMenuClick(track.id) },
+                            showDivider = false,
+                        )
+                    }
+                }
+                1 -> PagedContent(albums, "No favorite albums yet", "Couldn't load favorite albums") {
+                    val albumGridMinSize = if (isExpanded) 180.dp else 160.dp
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = albumGridMinSize),
+                        contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
+                        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                        verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(albums.itemCount, key = albums.itemKey { it.id }) { index ->
+                            val album = albums[index]
+                            val imageId = album?.imageId
+                            AlbumCard(
+                                title = album?.name ?: "",
+                                artist = album?.artistName ?: "",
+                                imageUrl = if (serverUrl != null && imageId != null) artworkUri(imageId) else null,
+                                onClick = { if (album != null) onAlbumClick(album.id) },
+                                sharedElementKey = album?.let { "album_art_favorites_${it.id}" },
                             )
                         }
                     }
                 }
-                1 -> {
-                    if (albums.isEmpty()) {
-                        EmptyContent("No favorite albums yet")
-                    } else {
-                        val albumGridMinSize = if (isExpanded) 180.dp else 160.dp
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = albumGridMinSize),
-                            contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
-                            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-                            verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            items(albums, key = { it.id }) { album ->
-                                AlbumCard(
-                                    title = album.name,
-                                    artist = album.artistName ?: "",
-                                    imageUrl = if (serverUrl != null && album.imageId != null) {
-                                        artworkUri(album.imageId!!)
-                                    } else null,
-                                    onClick = { onAlbumClick(album.id) },
-                                    sharedElementKey = "album_art_favorites_${album.id}",
-                                )
-                            }
-                        }
-                    }
-                }
-                2 -> {
-                    if (artists.isEmpty()) {
-                        EmptyContent("No favorite artists yet")
-                    } else {
-                        AdaptiveTrackGrid(
-                            items = artists,
-                            key = { it.id },
-                            contentPadding = PaddingValues(top = topPadding),
-                            modifier = Modifier.fillMaxSize(),
-                            columnFirst = false,
-                        ) { _, artist, columns ->
-                            ArtistRow(
-                                name = artist.name,
-                                albumCount = artist.albumCount,
-                                imageUrl = if (serverUrl != null && artist.imageId != null) {
-                                    artworkUri(artist.imageId!!)
-                                } else null,
-                                onClick = { onArtistClick(artist.id) },
-                                showChevron = columns == 1,
-                            )
-                        }
+                2 -> PagedContent(artists, "No favorite artists yet", "Couldn't load favorite artists") {
+                    AdaptiveTrackGrid(
+                        itemCount = { artists.itemCount },
+                        key = artists.itemKey { it.id },
+                        contentPadding = PaddingValues(top = topPadding),
+                        modifier = Modifier.fillMaxSize(),
+                    ) { index, columns ->
+                        val artist = artists[index]
+                        val imageId = artist?.imageId
+                        ArtistRow(
+                            name = artist?.name ?: "",
+                            albumCount = artist?.albumCount ?: 0,
+                            imageUrl = if (serverUrl != null && imageId != null) artworkUri(imageId) else null,
+                            onClick = { if (artist != null) onArtistClick(artist.id) },
+                            showChevron = columns == 1,
+                        )
                     }
                 }
             }
-            val totalCount = tracks.size + albums.size + artists.size
+            val totalCount = tracks.itemCount + albums.itemCount + artists.itemCount
             if (totalCount > 0) {
                 androidx.compose.material3.FloatingActionButton(
                     onClick = onShuffleAll,

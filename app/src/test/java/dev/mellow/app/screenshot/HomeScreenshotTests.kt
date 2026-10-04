@@ -37,7 +37,7 @@ abstract class HomeScreenshotTests : ScreenshotCapture() {
     @Test
     fun favoritesPopulatedTracks() = capture("favorites-populated-tracks") {
         FavoritesContent(
-            tracks = ScreenshotData.favoriteTracks,
+            tracks = pagingItemsOf(ScreenshotData.favoriteTracks),
             selectedTab = 0,
         )
     }
@@ -45,7 +45,7 @@ abstract class HomeScreenshotTests : ScreenshotCapture() {
     @Test
     fun favoritesPopulatedAlbums() = capture("favorites-populated-albums") {
         FavoritesContent(
-            albums = ScreenshotData.favoriteAlbums,
+            albums = pagingItemsOf(ScreenshotData.favoriteAlbums),
             selectedTab = 1,
         )
     }
@@ -53,7 +53,7 @@ abstract class HomeScreenshotTests : ScreenshotCapture() {
     @Test
     fun favoritesPopulatedArtists() = capture("favorites-populated-artists") {
         FavoritesContent(
-            artists = ScreenshotData.favoriteArtists,
+            artists = pagingItemsOf(ScreenshotData.favoriteArtists),
             selectedTab = 2,
         )
     }
@@ -83,7 +83,7 @@ abstract class HomeScreenshotTests : ScreenshotCapture() {
         PlaylistDetailScreen(
             onBack = {},
             playlistName = "Late Night Vibes",
-            tracks = ScreenshotData.playlistDetailTracks,
+            tracks = pagingItemsOf(ScreenshotData.playlistDetailTracks),
         )
     }
 }

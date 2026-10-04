@@ -3,127 +3,129 @@ package dev.mellow.feature.home
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.mellow.core.common.MellowResult
+import dev.mellow.core.common.QUEUE_WINDOW_SIZE
+import dev.mellow.core.common.queueWindow
+import dev.mellow.core.data.preferences.DisplayPreferences
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
-import dev.mellow.core.common.MellowResult
 import dev.mellow.core.model.Track
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** [isLoading]: the favorites are being fetched from the server. */
 data class FavoritesUiState(
-    val tracks: List<Track> = emptyList(),
-    val albums: List<Album> = emptyList(),
-    val artists: List<Artist> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null,
 )
 
+/** The favorite tracks, albums and artists, each a page at a time. */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
-    private val downloadRepository: dev.mellow.core.data.repository.DownloadRepository,
-    displayPreferences: dev.mellow.core.data.preferences.DisplayPreferences,
+    displayPreferences: DisplayPreferences,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FavoritesUiState())
     val uiState: StateFlow<FavoritesUiState> = _uiState.asStateFlow()
 
-    private val _downloadedOnly: StateFlow<Boolean> = displayPreferences.downloadedOnly
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    private val serverId = MutableStateFlow<String?>(null)
+
+    /** `null` until the preference is read, so the lists don't load unfiltered first. */
+    private val downloadedOnlyPreference: StateFlow<Boolean?> = displayPreferences.downloadedOnly
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val source: Flow<Pair<String, Boolean>> =
+        combine(serverId.filterNotNull(), downloadedOnlyPreference.filterNotNull()) { id, downloadedOnly ->
+            id to downloadedOnly
+        }.distinctUntilChanged()
+
+    val tracks: Flow<PagingData<Track>> = source
+        .flatMapLatest { (id, downloadedOnly) -> libraryRepository.getPagedFavoriteTracks(id, downloadedOnly) }
+        .cachedIn(viewModelScope)
+
+    val albums: Flow<PagingData<Album>> = source
+        .flatMapLatest { (id, downloadedOnly) -> libraryRepository.getPagedFavoriteAlbums(id, downloadedOnly) }
+        .cachedIn(viewModelScope)
+
+    val artists: Flow<PagingData<Artist>> = source
+        .flatMapLatest { (id, downloadedOnly) -> libraryRepository.getPagedFavoriteArtists(id, downloadedOnly) }
+        .cachedIn(viewModelScope)
 
     private var loadedServerId: String? = null
-    private var syncCompleted = false
 
     fun retry() {
         val id = loadedServerId ?: return
-        loadedServerId = null
-        syncCompleted = false
-        _uiState.value = FavoritesUiState()
-        loadFavorites(id)
+        syncFavorites(id)
     }
 
     fun loadFavorites(serverId: String) {
         if (serverId.isEmpty() || serverId == loadedServerId) return
         loadedServerId = serverId
+        this.serverId.value = serverId
+        syncFavorites(serverId)
+    }
 
-        combine(
-            libraryRepository.getFavoriteTracks(serverId),
-            libraryRepository.getFavoriteAlbums(serverId),
-            libraryRepository.getFavoriteArtists(serverId),
-        ) { tracksResult, albumsResult, artistsResult ->
-            val tracks = (tracksResult as? MellowResult.Success)?.data ?: emptyList()
-            val albums = (albumsResult as? MellowResult.Success)?.data ?: emptyList()
-            val artists = (artistsResult as? MellowResult.Success)?.data ?: emptyList()
-            unfilteredFavTracks = tracks
-            unfilteredFavAlbums = albums
-            unfilteredFavArtists = artists
-            val hasData = tracks.isNotEmpty() || albums.isNotEmpty() || artists.isNotEmpty()
-            syncCompleted = syncCompleted || hasData
-            emitFiltered()
-        }.catch { e ->
-            _uiState.value = _uiState.value.copy(error = e.message, isLoading = false)
-        }.launchIn(viewModelScope)
+    /**
+     * What to queue when the favorite track [trackId] at [index] of the list is played, and where that track is in
+     * it: the favorites around it as the list shows them (downloaded ones only, if that's what it shows), at most
+     * [QUEUE_WINDOW_SIZE] of them. `null` if there's nothing to play.
+     */
+    suspend fun tracksToPlay(index: Int, trackId: String): Pair<List<Track>, Int>? {
+        val id = serverId.value ?: return null
+        val downloadedOnly = downloadedOnlyPreference.value ?: return null
+        val count = (libraryRepository.countFavoriteTracks(id, downloadedOnly) as? MellowResult.Success)?.data
+            ?: return null
+        return queueWindow(
+            index = index,
+            count = count,
+            trackId = trackId,
+            idOf = Track::id,
+            loadSlice = { offset, limit ->
+                (libraryRepository.getFavoriteTracksSlice(id, downloadedOnly, offset, limit) as? MellowResult.Success)
+                    ?.data
+            },
+            loadTrack = { moved -> (libraryRepository.getTrack(moved) as? MellowResult.Success)?.data },
+        )
+    }
 
+    /**
+     * The favorites shuffled, as the list shows them: at most [QUEUE_WINDOW_SIZE] picked at random from all of
+     * them, so a shuffle never reads every favorite.
+     */
+    suspend fun shuffledTracks(): List<Track> {
+        val id = serverId.value ?: return emptyList()
+        val downloadedOnly = downloadedOnlyPreference.value ?: return emptyList()
+        val picked = libraryRepository.pickRandomFavoriteTracks(id, downloadedOnly, QUEUE_WINDOW_SIZE)
+        return (picked as? MellowResult.Success)?.data ?: emptyList()
+    }
+
+    private fun syncFavorites(serverId: String) {
+        _uiState.value = FavoritesUiState(isLoading = true)
         viewModelScope.launch {
             try {
                 libraryRepository.syncFavorites(serverId)
             } catch (e: Exception) {
                 Log.w(TAG, "Favorites sync failed (API may be unavailable)", e)
             } finally {
-                syncCompleted = true
-                _uiState.value = _uiState.value.copy(isLoading = false)
+                _uiState.value = FavoritesUiState(isLoading = false)
             }
         }
-
-        _downloadedOnly.onEach { emitFiltered() }.launchIn(viewModelScope)
-    }
-
-    private var unfilteredFavTracks: List<Track> = emptyList()
-    private var unfilteredFavAlbums: List<Album> = emptyList()
-    private var unfilteredFavArtists: List<Artist> = emptyList()
-    private var cachedDlAlbumIds: Set<String>? = null
-    private var cachedDlArtistNames: Set<String>? = null
-    private var cachedDlTrackIds: Set<String>? = null
-
-    private suspend fun emitFiltered() {
-        if (!_downloadedOnly.value) {
-            _uiState.value = FavoritesUiState(
-                tracks = unfilteredFavTracks,
-                albums = unfilteredFavAlbums,
-                artists = unfilteredFavArtists,
-                isLoading = unfilteredFavTracks.isEmpty() && unfilteredFavAlbums.isEmpty() && !syncCompleted,
-            )
-            return
-        }
-        val dlAlbumIds = cachedDlAlbumIds ?: run {
-            ((downloadRepository.getDownloadedAlbumIds() as? MellowResult.Success)?.data ?: emptySet())
-                .also { cachedDlAlbumIds = it }
-        }
-        val dlArtistNames = cachedDlArtistNames ?: run {
-            ((downloadRepository.getDownloadedArtistNames() as? MellowResult.Success)?.data ?: emptySet())
-                .also { cachedDlArtistNames = it }
-        }
-        val dlTrackIds = cachedDlTrackIds ?: run {
-            ((downloadRepository.getDownloadedTrackIds() as? MellowResult.Success)?.data ?: emptySet())
-                .also { cachedDlTrackIds = it }
-        }
-        _uiState.value = FavoritesUiState(
-            tracks = unfilteredFavTracks.filter { it.id in dlTrackIds },
-            albums = unfilteredFavAlbums.filter { it.id in dlAlbumIds },
-            artists = unfilteredFavArtists.filter { it.name in dlArtistNames },
-            isLoading = false,
-        )
     }
 
     companion object {

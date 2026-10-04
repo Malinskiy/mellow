@@ -7,19 +7,70 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
+import dev.mellow.core.database.converter.Converters
 import dev.mellow.core.database.entity.AlbumArtistCrossRef
 import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import kotlinx.coroutines.flow.Flow
 
+/** The favorite albums, in the order they were first saved. */
+private const val FAVORITE_ALBUMS_QUERY = """
+    SELECT * FROM albums
+    WHERE isFavorite = 1 AND serverId = :serverId
+        AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
+    ORDER BY rowid
+"""
+
+/**
+ * Separates a stored album's genres. A genre filter wraps both the genres and the genre in it, so only whole genres
+ * match: "Rock" doesn't match "Punk Rock".
+ */
+private const val SEP = Converters.SEPARATOR
+
 @Dao
 interface AlbumDao {
 
-    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY sortName ASC")
-    fun getAlbumsByServer(serverId: String): PagingSource<Int, AlbumEntity>
+    /**
+     * The library's albums tab in [LibraryOrder] `:sort` order, only those of [genre] if it's set. Ties keep the
+     * sort-name order, and the ID makes the order total, so pages never overlap or skip an album.
+     */
+    @Query(
+        """
+        SELECT * FROM albums
+        WHERE serverId = :serverId
+            AND (:genre IS NULL OR instr('$SEP' || genres || '$SEP', '$SEP' || :genre || '$SEP') > 0)
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
+        ORDER BY
+            CASE WHEN :sort = ${LibraryOrder.RECENTLY_ADDED} THEN dateAdded END DESC,
+            CASE WHEN :sort = ${LibraryOrder.NAME_ASC} THEN name END COLLATE NOCASE ASC,
+            CASE WHEN :sort = ${LibraryOrder.NAME_DESC} THEN name END COLLATE NOCASE DESC,
+            CASE WHEN :sort = ${LibraryOrder.YEAR} THEN COALESCE(year, 0) END DESC,
+            sortName ASC,
+            id ASC
+        """,
+    )
+    fun getLibraryAlbums(
+        serverId: String,
+        sort: Int,
+        genre: String?,
+        downloadedOnly: Boolean,
+    ): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY sortName ASC")
-    fun observeAlbumsByServer(serverId: String): Flow<List<AlbumEntity>>
+    @Query(
+        """
+        SELECT * FROM albums
+        WHERE serverId = :serverId
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
+        ORDER BY sortName ASC, id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getAlbumsByServerSlice(
+        serverId: String,
+        downloadedOnly: Boolean,
+        limit: Int,
+        offset: Int,
+    ): List<AlbumEntity>
 
     @Query("SELECT * FROM albums WHERE id = :id")
     suspend fun getAlbumById(id: String): AlbumEntity?
@@ -36,8 +87,17 @@ interface AlbumDao {
     @Query("SELECT COUNT(*) FROM albums WHERE artistName = :artistName OR artistName = :altName")
     suspend fun countAlbumsByArtistName(artistName: String, altName: String = artistName): Int
 
-    @Query("SELECT * FROM albums WHERE isFavorite = 1 AND serverId = :serverId")
-    fun getFavoriteAlbums(serverId: String): Flow<List<AlbumEntity>>
+    @Query(FAVORITE_ALBUMS_QUERY)
+    fun getFavoriteAlbumsPaged(serverId: String, downloadedOnly: Boolean): PagingSource<Int, AlbumEntity>
+
+    /** [limit] albums of [getFavoriteAlbumsPaged] from position [offset]. */
+    @Query("$FAVORITE_ALBUMS_QUERY LIMIT :limit OFFSET :offset")
+    suspend fun getFavoriteAlbumsSlice(
+        serverId: String,
+        downloadedOnly: Boolean,
+        limit: Int,
+        offset: Int,
+    ): List<AlbumEntity>
 
     @Query("SELECT * FROM albums WHERE serverId = :serverId AND (name LIKE '%' || :query || '%' OR artistName LIKE '%' || :query || '%') ORDER BY sortName ASC LIMIT :limit")
     suspend fun search(serverId: String, query: String, limit: Int = 20): List<AlbumEntity>
@@ -134,14 +194,89 @@ interface AlbumDao {
     """)
     fun getMostPlayedAlbums(serverId: String, limit: Int = 20): Flow<List<AlbumEntity>>
 
-    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY sortName ASC")
-    suspend fun getAllAlbumsByServer(serverId: String): List<AlbumEntity>
-
     @Query("SELECT DISTINCT genres FROM albums WHERE serverId = :serverId AND genres != ''")
     suspend fun getRawGenreStrings(serverId: String): List<String>
 
-    @Query("SELECT * FROM albums WHERE serverId = :serverId AND genres LIKE '%' || :genre || '%' ORDER BY sortName ASC")
-    suspend fun getAlbumsByGenre(genre: String, serverId: String): List<AlbumEntity>
+    /** The distinct stored genre lists of the albums, as [Converters] joins them; one row per combination. */
+    @Query(
+        """
+        SELECT DISTINCT genres FROM albums
+        WHERE serverId = :serverId AND genres != ''
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
+        """,
+    )
+    fun observeRawGenreStrings(serverId: String, downloadedOnly: Boolean): Flow<List<String>>
+
+    /**
+     * How many albums have each stored genre list, the lists in the order their first album appears by sort name.
+     * One row per combination, however many albums there are.
+     */
+    @Query(
+        """
+        SELECT genres, COUNT(*) AS albumCount FROM albums
+        WHERE serverId = :serverId AND genres != ''
+        GROUP BY genres
+        ORDER BY MIN(sortName) ASC
+        """,
+    )
+    fun observeGenreAlbumCounts(serverId: String): Flow<List<GenreAlbumCount>>
+
+    /** The albums tagged [genre], whole genres only as in [getLibraryAlbums]: "Rap" isn't "Pop Rap". */
+    @Query(
+        """
+        SELECT * FROM albums
+        WHERE serverId = :serverId
+            AND instr('$SEP' || genres || '$SEP', '$SEP' || :genre || '$SEP') > 0
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
+        ORDER BY sortName ASC, id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getAlbumsByGenreSlice(
+        genre: String,
+        serverId: String,
+        downloadedOnly: Boolean,
+        limit: Int,
+        offset: Int,
+    ): List<AlbumEntity>
+
+    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY dateAdded DESC, sortName ASC LIMIT :limit")
+    fun observeRecentlyAddedAlbums(serverId: String, limit: Int): Flow<List<AlbumEntity>>
+
+    /** [limit] albums picked uniformly at random, for the home screen's Quick Picks row. */
+    @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY RANDOM() LIMIT :limit")
+    fun observeRandomAlbums(serverId: String, limit: Int): Flow<List<AlbumEntity>>
+
+    /**
+     * [limit] albums picked uniformly at random among the favorites and the [mostPlayedCount] most played, for
+     * Android Auto's Quick Picks row.
+     */
+    @Query(
+        """
+        SELECT * FROM albums
+        WHERE serverId = :serverId
+            AND (isFavorite = 1 OR id IN (
+                SELECT a.id FROM albums a
+                INNER JOIN (
+                    SELECT albumId, SUM(playCount) AS totalPlays
+                    FROM tracks
+                    WHERE serverId = :serverId AND playCount > 0 AND albumId IS NOT NULL
+                    GROUP BY albumId
+                ) t ON a.id = t.albumId
+                ORDER BY t.totalPlays DESC
+                LIMIT :mostPlayedCount
+            ))
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
+        ORDER BY RANDOM()
+        LIMIT :limit
+        """,
+    )
+    suspend fun getRandomFavoriteOrMostPlayedAlbums(
+        serverId: String,
+        mostPlayedCount: Int,
+        downloadedOnly: Boolean,
+        limit: Int,
+    ): List<AlbumEntity>
 
     @Query("SELECT * FROM albums WHERE artistId = :artistId ORDER BY year DESC")
     suspend fun getAllAlbumsByArtist(artistId: String): List<AlbumEntity>
@@ -226,7 +361,10 @@ interface AlbumDao {
         LIMIT :limit
     """)
     suspend fun getMostPlayedAlbumsSync(serverId: String, limit: Int = 20): List<AlbumEntity>
-
-    @Query("SELECT * FROM albums WHERE isFavorite = 1 AND serverId = :serverId")
-    suspend fun getFavoriteAlbumsSync(serverId: String): List<AlbumEntity>
 }
+
+/** How many albums have the genre list [genres], as [Converters] stores it. */
+data class GenreAlbumCount(
+    val genres: String,
+    val albumCount: Int,
+)

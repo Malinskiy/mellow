@@ -114,6 +114,8 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.bundles.lifecycle)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.paging.runtime)
+    implementation(libs.paging.compose)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)

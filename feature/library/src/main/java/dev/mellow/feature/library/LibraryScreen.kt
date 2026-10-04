@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.mellow.core.designsystem.icon.PhosphorIcons
@@ -47,6 +46,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.paging.LoadState
+import androidx.paging.LoadStates
+import androidx.paging.PagingData
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import dev.mellow.core.designsystem.component.MellowImage
 import dev.mellow.core.designsystem.component.AdaptiveTrackGrid
 import dev.mellow.core.designsystem.component.AlbumCard
@@ -54,6 +59,7 @@ import dev.mellow.core.designsystem.component.ArtistRow
 import dev.mellow.core.designsystem.component.CollapsibleToolbarLayout
 import dev.mellow.core.designsystem.component.ConnectionCloudIcon
 import dev.mellow.core.designsystem.component.EmptyContent
+import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.component.MellowTabBar
@@ -64,6 +70,8 @@ import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.core.designsystem.theme.WindowWidthClass
 import dev.mellow.core.common.artworkUri
+import dev.mellow.core.model.LibrarySort
+import kotlinx.coroutines.flow.flowOf
 
 data class LibraryPlaylistItem(val id: String, val name: String, val trackCount: Int, val imageId: String?)
 
@@ -75,12 +83,16 @@ data class TrackItem(val id: String, val title: String, val artist: String, val 
 
 data class AlbumItem(val id: String, val name: String, val artist: String, val imageId: String?)
 
+/**
+ * The library's tabs. Albums, artists and tracks are paged lists that load as they scroll; genres and playlists are
+ * short lists.
+ */
 @Composable
 fun LibraryScreen(
     modifier: Modifier = Modifier,
-    albumItems: List<AlbumItem> = emptyList(),
-    artists: List<ArtistItem> = emptyList(),
-    tracks: List<TrackItem> = emptyList(),
+    albumItems: LazyPagingItems<AlbumItem> = emptyPagingItems(),
+    artists: LazyPagingItems<ArtistItem> = emptyPagingItems(),
+    tracks: LazyPagingItems<TrackItem> = emptyPagingItems(),
     genres: List<String> = emptyList(),
     playlists: List<LibraryPlaylistItem> = emptyList(),
     serverUrl: String? = null,
@@ -95,7 +107,7 @@ fun LibraryScreen(
     sortLabel: String = "Recently Added",
     onAlbumClick: (String) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
-    onTrackClick: (String) -> Unit = {},
+    onTrackClick: (index: Int, trackId: String) -> Unit = { _, _ -> },
     onTrackMenuClick: (String) -> Unit = {},
     onPlaylistClick: (String) -> Unit = {},
     onCreatePlaylist: (String) -> Unit = {},
@@ -152,16 +164,16 @@ fun LibraryScreen(
             val topPadding = contentPadding.calculateTopPadding()
             val showLoading = isLoading || isSyncing
             when (selectedTab) {
-                0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
-                     else if (albumItems.isEmpty()) EmptyContent("No albums yet")
-                     else if (isGridView && albumGridFits) AlbumsPanel(albumItems, serverUrl, onAlbumClick, topPadding)
-                     else AlbumsListPanel(albumItems, serverUrl, onAlbumClick, topPadding)
-                1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
-                     else if (artists.isEmpty()) EmptyContent("No artists yet")
-                     else ArtistsPanel(artists, serverUrl, onArtistClick, topPadding)
-                2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
-                     else if (tracks.isEmpty()) EmptyContent("No tracks yet")
-                     else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, topPadding)
+                0 -> PagedTab(albumItems, showLoading, "Syncing albums…", "No albums yet", "Couldn't load albums") {
+                    if (isGridView && albumGridFits) AlbumsPanel(albumItems, serverUrl, onAlbumClick, topPadding)
+                    else AlbumsListPanel(albumItems, serverUrl, onAlbumClick, topPadding)
+                }
+                1 -> PagedTab(artists, showLoading, "Syncing artists…", "No artists yet", "Couldn't load artists") {
+                    ArtistsPanel(artists, serverUrl, onArtistClick, topPadding)
+                }
+                2 -> PagedTab(tracks, showLoading, "Syncing tracks…", "No tracks yet", "Couldn't load tracks") {
+                    TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, topPadding)
+                }
                 3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
                      else if (genres.isEmpty()) EmptyContent("No genres yet")
                      else GenresPanel(genres, onGenreClick, topPadding)
@@ -173,7 +185,49 @@ fun LibraryScreen(
     }
 }
 
-private val SORT_OPTIONS = listOf("Recently Added", "Name (A-Z)", "Name (Z-A)", "Year")
+/** A paged tab: its list once it has items, otherwise loading, an error to retry, or why it's empty. */
+@Composable
+private fun <T : Any> PagedTab(
+    items: LazyPagingItems<T>,
+    showLoading: Boolean,
+    loadingMessage: String,
+    emptyMessage: String,
+    errorMessage: String,
+    content: @Composable () -> Unit,
+) {
+    val refresh = items.loadState.refresh
+    when {
+        items.itemCount > 0 -> content()
+        refresh is LoadState.Error -> ErrorContent(message = errorMessage, onRetry = items::retry)
+        showLoading || refresh is LoadState.Loading -> LoadingContent(message = loadingMessage)
+        else -> EmptyContent(emptyMessage)
+    }
+}
+
+/**
+ * A list with no items and nothing to load, for a tab the caller has no list for. The load states say so: without
+ * them the list would look like it's still loading.
+ */
+@Composable
+private fun <T : Any> emptyPagingItems(): LazyPagingItems<T> =
+    remember {
+        val loaded = LoadStates(
+            refresh = LoadState.NotLoading(endOfPaginationReached = false),
+            prepend = LoadState.NotLoading(endOfPaginationReached = true),
+            append = LoadState.NotLoading(endOfPaginationReached = true),
+        )
+        flowOf(PagingData.empty<T>(loaded))
+    }.collectAsLazyPagingItems()
+
+private val SORT_OPTIONS = linkedMapOf(
+    "Recently Added" to LibrarySort.RecentlyAdded,
+    "Name (A-Z)" to LibrarySort.NameAscending,
+    "Name (Z-A)" to LibrarySort.NameDescending,
+    "Year" to LibrarySort.Year,
+)
+
+/** The order an option of the library's sort menu stands for. */
+fun librarySortFor(label: String): LibrarySort = SORT_OPTIONS[label] ?: LibrarySort.RecentlyAdded
 
 @Composable
 private fun LibraryTopBar(
@@ -225,7 +279,7 @@ private fun LibraryTopBar(
                 expanded = showSortMenu,
                 onDismissRequest = { showSortMenu = false },
             ) {
-                SORT_OPTIONS.forEach { option ->
+                SORT_OPTIONS.keys.forEach { option ->
                     DropdownMenuItem(
                         text = { Text(option) },
                         onClick = {
@@ -331,45 +385,48 @@ private val ALBUM_GRID_PADDING = MellowSpacing.Sp4
 private val ALBUM_GRID_SPACING = MellowSpacing.Sp3
 
 @Composable
-private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+private fun AlbumsPanel(albums: LazyPagingItems<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = albumGridMinSize()),
         contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp3, bottom = MellowSpacing.Sp3, start = ALBUM_GRID_PADDING, end = ALBUM_GRID_PADDING),
         horizontalArrangement = Arrangement.spacedBy(ALBUM_GRID_SPACING),
         verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
     ) {
-        items(albums, key = { it.id.ifEmpty { it.name } }) { album ->
+        items(albums.itemCount, key = albums.itemKey { it.id.ifEmpty { it.name } }) { index ->
+            // Null while its page loads: a blank card holds its place.
+            val album = albums[index]
             AlbumCard(
-                title = album.name,
-                artist = album.artist,
-                imageUrl = if (serverUrl != null && album.imageId != null) {
+                title = album?.name ?: "",
+                artist = album?.artist ?: "",
+                imageUrl = if (serverUrl != null && album?.imageId != null) {
                     artworkUri(album.imageId)
                 } else null,
-                onClick = { onAlbumClick(album.id) },
-                sharedElementKey = "album_art_library_${album.id}",
+                onClick = { if (album != null) onAlbumClick(album.id) },
+                sharedElementKey = album?.let { "album_art_library_${it.id}" },
             )
         }
     }
 }
 
 @Composable
-private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+private fun AlbumsListPanel(albums: LazyPagingItems<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     LazyColumn(
         contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
     ) {
-        items(albums, key = { it.id.ifEmpty { it.name } }) { album ->
+        items(albums.itemCount, key = albums.itemKey { it.id.ifEmpty { it.name } }) { index ->
+            val album = albums[index]
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onAlbumClick(album.id) }
+                    .clickable { if (album != null) onAlbumClick(album.id) }
                     .padding(vertical = MellowSpacing.Sp2),
             ) {
                 MellowImage(
-                    model = if (serverUrl != null && album.imageId != null) {
+                    model = if (serverUrl != null && album?.imageId != null) {
                         artworkUri(album.imageId)
                     } else null,
-                    contentDescription = album.name,
+                    contentDescription = album?.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(56.dp)
@@ -383,14 +440,14 @@ private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbum
                         .padding(start = MellowSpacing.Sp3),
                 ) {
                     Text(
-                        text = album.name,
+                        text = album?.name ?: "",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MellowTheme.colors.foreground,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = album.artist,
+                        text = album?.artist ?: "",
                         style = MaterialTheme.typography.bodySmall,
                         color = MellowTheme.colors.muted,
                         maxLines = 1,
@@ -403,21 +460,21 @@ private fun AlbumsListPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbum
 }
 
 @Composable
-private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+private fun ArtistsPanel(artists: LazyPagingItems<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     AdaptiveTrackGrid(
-        items = artists,
-        key = { it.id.ifEmpty { it.name } },
+        itemCount = { artists.itemCount },
+        key = artists.itemKey { it.id.ifEmpty { it.name } },
         contentPadding = PaddingValues(top = topPadding),
         modifier = Modifier.fillMaxSize(),
-        columnFirst = false,
-    ) { _, artist, columns ->
+    ) { index, columns ->
+        val artist = artists[index]
         ArtistRow(
-            name = artist.name,
-            albumCount = artist.albumCount,
-            imageUrl = if (serverUrl != null && artist.imageId != null) {
+            name = artist?.name ?: "",
+            albumCount = artist?.albumCount ?: 0,
+            imageUrl = if (serverUrl != null && artist?.imageId != null) {
                 artworkUri(artist.imageId)
             } else null,
-            onClick = { onArtistClick(artist.id) },
+            onClick = { if (artist != null) onArtistClick(artist.id) },
             showChevron = columns == 1,
         )
     }
@@ -425,28 +482,29 @@ private fun ArtistsPanel(artists: List<ArtistItem>, serverUrl: String?, onArtist
 
 @Composable
 private fun TracksPanel(
-    tracks: List<TrackItem>,
+    tracks: LazyPagingItems<TrackItem>,
     serverUrl: String?,
-    onTrackClick: (String) -> Unit,
+    onTrackClick: (index: Int, trackId: String) -> Unit,
     onTrackMenuClick: (String) -> Unit,
     topPadding: Dp = 0.dp,
 ) {
     AdaptiveTrackGrid(
-        items = tracks,
-        key = { it.id },
+        itemCount = { tracks.itemCount },
+        key = tracks.itemKey { it.id },
         contentPadding = PaddingValues(top = topPadding),
         modifier = Modifier.fillMaxSize(),
-    ) { _, track, _ ->
+    ) { index, _ ->
+        val track = tracks[index]
         TrackRow(
-            title = track.title,
-            subtitle = "${track.artist} · ${track.album}",
-            duration = track.duration,
-            imageUrl = if (serverUrl != null) {
+            title = track?.title ?: "",
+            subtitle = if (track != null) "${track.artist} · ${track.album}" else "",
+            duration = track?.duration ?: "",
+            imageUrl = if (serverUrl != null && track != null) {
                 val imgId = track.imageId ?: track.albumId
                 if (imgId != null) artworkUri(imgId) else null
             } else null,
-            onClick = { onTrackClick(track.id) },
-            onMenuClick = { onTrackMenuClick(track.id) },
+            onClick = { if (track != null) onTrackClick(index, track.id) },
+            onMenuClick = { if (track != null) onTrackMenuClick(track.id) },
             showDivider = false,
         )
     }

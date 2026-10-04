@@ -1,5 +1,8 @@
 package dev.mellow.core.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingData
+import androidx.paging.map
 import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.mapper.toModel
 import dev.mellow.core.data.mapper.toPlaylistEntity
@@ -32,10 +35,34 @@ class PlaylistRepositoryImpl @Inject constructor(
             MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Playlist>>
         }.catch { emit(MellowResult.Error(it)) }
 
-    override fun observePlaylistTracks(playlistId: String): Flow<MellowResult<List<Track>>> =
-        playlistDao.getPlaylistTracks(playlistId).map { entities ->
-            MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>>
-        }.catch { emit(MellowResult.Error(it)) }
+    override fun getPagedPlaylistTracks(playlistId: String): Flow<PagingData<Track>> =
+        Pager(LIBRARY_PAGING_CONFIG) { playlistDao.getPlaylistTracksPaged(playlistId, downloadedOnly = false) }
+            .flow
+            .map { page -> page.map { it.toModel() } }
+
+    override suspend fun getPlaylistTracksSlice(playlistId: String, offset: Int, limit: Int): MellowResult<List<Track>> =
+        try {
+            MellowResult.Success(
+                playlistDao.getPlaylistTracksSlice(playlistId, downloadedOnly = false, limit = limit, offset = offset)
+                    .map { it.toModel() },
+            )
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun countPlaylistTracks(playlistId: String): MellowResult<Int> =
+        try {
+            MellowResult.Success(playlistDao.countPlaylistTracks(playlistId, downloadedOnly = false))
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun pickRandomPlaylistTracks(playlistId: String, limit: Int): MellowResult<List<Track>> =
+        try {
+            MellowResult.Success(playlistDao.getRandomPlaylistTracks(playlistId, limit).map { it.toModel() })
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
 
     override suspend fun getPlaylistById(id: String): MellowResult<Playlist?> =
         try {

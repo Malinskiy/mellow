@@ -12,6 +12,7 @@ class Converters {
         if (value.isEmpty()) emptyList() else value.split(SEPARATOR)
 
     companion object {
-        private const val SEPARATOR = "|||"
+        /** Joins the items of a stored list; queries that look inside a list column use it too. */
+        internal const val SEPARATOR = "|||"
     }
 }

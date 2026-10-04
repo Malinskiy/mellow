@@ -101,6 +101,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.map
 import dev.mellow.app.AuthState
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
@@ -151,18 +153,16 @@ import dev.mellow.feature.library.DetailChrome
 import dev.mellow.feature.library.AlbumDownloadEvent
 import dev.mellow.feature.library.AlbumDetailTrack
 import dev.mellow.feature.library.AlbumDetailViewModel
-import dev.mellow.feature.library.AlbumItem
 import dev.mellow.feature.library.ArtistAlbum
 import dev.mellow.feature.library.ArtistDetailLayout
 import dev.mellow.feature.library.ArtistDetailScreen
 import dev.mellow.feature.library.ArtistDetailViewModel
-import dev.mellow.feature.library.ArtistItem
 import dev.mellow.feature.library.ArtistTrack
 import dev.mellow.feature.library.LibraryPlaylistItem
 import dev.mellow.feature.library.LibraryScreen
 import dev.mellow.feature.library.LibraryViewModel
 import dev.mellow.feature.library.TrackDownloadIndicator
-import dev.mellow.feature.library.TrackItem
+import dev.mellow.feature.library.librarySortFor
 import dev.mellow.feature.player.LyricsLine
 import dev.mellow.feature.player.LyricsScreen
 import dev.mellow.feature.player.PlayerLayout
@@ -176,6 +176,7 @@ import dev.mellow.feature.settings.LoginScreen
 import dev.mellow.feature.settings.LoginViewModel
 import dev.mellow.feature.settings.SettingsScreen
 import dev.mellow.feature.settings.SettingsViewModel
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.Duration
 
@@ -533,64 +534,18 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     var currentSort by rememberSaveable { mutableStateOf("Recently Added") }
                     val initialGenre = it.arguments?.getString("genre")?.takeIf { g -> g.isNotEmpty() }
                     var selectedGenre by rememberSaveable { mutableStateOf(initialGenre) }
+                    // Paged: the library's lists load as they scroll, sorted and filtered by the database.
+                    val albumItems = libraryVm.albums.collectAsLazyPagingItems()
+                    val artists = libraryVm.artists.collectAsLazyPagingItems()
+                    val tracks = libraryVm.tracks.collectAsLazyPagingItems()
 
                     val effectiveLibFilter by mainViewModel.downloadedOnly.collectAsState()
-                    LaunchedEffect(serverId) {
-                        if (serverId.isNotEmpty()) libraryVm.loadLibrary(serverId)
-                    }
-
-                    val albumCountByArtist = state.albums.groupingBy { it.resolvedArtistId ?: it.artistId ?: "" }.eachCount()
-
-                    val filteredAlbums = remember(state.albums, selectedGenre) {
-                        if (selectedGenre != null) {
-                            state.albums.filter { it.genres.contains(selectedGenre) }
-                        } else {
-                            state.albums
+                    LaunchedEffect(serverId, currentSort, selectedGenre) {
+                        if (serverId.isNotEmpty()) {
+                            libraryVm.loadLibrary(serverId, librarySortFor(currentSort), selectedGenre)
                         }
                     }
 
-                    val albumItems = remember(filteredAlbums, currentSort) {
-                        val sorted = when (currentSort) {
-                            "Name (A-Z)" -> filteredAlbums.sortedBy { it.name.lowercase() }
-                            "Name (Z-A)" -> filteredAlbums.sortedByDescending { it.name.lowercase() }
-                            "Year" -> filteredAlbums.sortedByDescending { it.year ?: 0 }
-                            else -> filteredAlbums.sortedByDescending { it.dateAdded }
-                        }
-                        sorted.map { AlbumItem(it.id, it.name, it.artistName ?: "", it.imageId) }
-                    }
-                    val artists = remember(state.artists, albumCountByArtist, currentSort) {
-                        val sorted = when (currentSort) {
-                            "Name (A-Z)" -> state.artists.sortedBy { it.name.lowercase() }
-                            "Name (Z-A)" -> state.artists.sortedByDescending { it.name.lowercase() }
-                            else -> state.artists
-                        }
-                        sorted.map { artist ->
-                            val count = albumCountByArtist[artist.id] ?: 0
-                            ArtistItem(artist.id, artist.name, count, artist.imageId)
-                        }
-                    }
-                    val tracks = remember(state.tracks, currentSort) {
-                        val sorted = when (currentSort) {
-                            "Name (A-Z)" -> state.tracks.sortedBy { it.name.lowercase() }
-                            "Name (Z-A)" -> state.tracks.sortedByDescending { it.name.lowercase() }
-                            "Year" -> state.tracks.sortedByDescending { it.albumName ?: "" }
-                            else -> state.tracks.sortedByDescending { it.dateAdded }
-                        }
-                        sorted.map { track ->
-                            TrackItem(
-                                id = track.id,
-                                title = track.name,
-                                artist = track.artistName ?: "",
-                                album = track.albumName ?: "",
-                                duration = formatTrackDuration(track.duration),
-                                imageId = track.imageId,
-                                albumId = track.albumId,
-                            )
-                        }
-                    }
-                    val genres = remember(state.albums) {
-                        state.albums.flatMap { it.genres }.distinct().sorted()
-                    }
                     val playlists = remember(playlistsState.playlists) {
                         playlistsState.playlists.map { pl ->
                             LibraryPlaylistItem(pl.id, pl.name, pl.trackCount, pl.imageId)
@@ -601,7 +556,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         albumItems = albumItems,
                         artists = artists,
                         tracks = tracks,
-                        genres = genres,
+                        genres = state.genres,
                         playlists = playlists,
                         serverUrl = serverUrl,
                         isLoading = state.isLoading,
@@ -615,17 +570,18 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         sortLabel = currentSort,
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId?source=library") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
-                        onTrackClick = { trackId ->
-                            val tracks = state.tracks
-                            val idx = tracks.indexOfFirst { it.id == trackId }
-                            if (idx >= 0) {
-                                scope.launch { mainViewModel.player.playTracks(tracks, idx) }
+                        onTrackClick = { index, trackId ->
+                            scope.launch {
+                                val toPlay = libraryVm.tracksToPlay(index, trackId, tracks.itemCount)
+                                if (toPlay != null) mainViewModel.player.playTracks(toPlay.first, toPlay.second)
                             }
                         },
                         onTrackMenuClick = { trackId ->
-                            val track = state.tracks.find { it.id == trackId }
-                            if (track != null) {
-                                openContextMenu(track, mainViewModel.serverUrl.value)
+                            scope.launch {
+                                val track = mainViewModel.getTrack(trackId)
+                                if (track != null) {
+                                    openContextMenu(track, mainViewModel.serverUrl.value)
+                                }
                             }
                         },
                         onPlaylistClick = { playlistId -> navController.navigate("playlist/$playlistId") },
@@ -648,9 +604,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         if (serverId.isNotEmpty()) searchLibraryVm.loadLibrary(serverId)
                     }
 
-                    val searchGenres = remember(searchLibraryState.albums) {
-                        searchLibraryState.albums.flatMap { it.genres }.distinct().sorted()
-                    }
+                    val searchGenres = searchLibraryState.genres
 
                     val effectiveSearchFilter by mainViewModel.downloadedOnly.collectAsState()
                     val isSearchExpanded = LocalWindowWidthClass.current != WindowWidthClass.Compact
@@ -690,7 +644,6 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 composable(MellowNavDestination.Favorites.route) {
                     CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val favVm: FavoritesViewModel = hiltViewModel()
-                    val favState by favVm.uiState.collectAsState()
                     val effectiveFavFilter by mainViewModel.downloadedOnly.collectAsState()
                     FavoritesScreen(
                         isFilterActive = effectiveFavFilter,
@@ -702,23 +655,26 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onAlbumClick = { albumId -> navController.navigate("album/$albumId?source=favorites") },
                         onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                         onSettingsClick = { navController.navigate("settings") },
-                        onTrackClick = { trackId ->
-                            val tracks = favState.tracks
-                            val idx = tracks.indexOfFirst { it.id == trackId }
-                            if (idx >= 0) {
-                                scope.launch { mainViewModel.player.playTracks(tracks, idx) }
+                        // The list is paged: what to play is read when needed, at most QUEUE_WINDOW_SIZE tracks.
+                        onTrackClick = { index, trackId ->
+                            scope.launch {
+                                val toPlay = favVm.tracksToPlay(index, trackId)
+                                if (toPlay != null) mainViewModel.player.playTracks(toPlay.first, toPlay.second)
                             }
                         },
                         onTrackMenuClick = { trackId ->
-                            val track = favState.tracks.find { it.id == trackId }
-                            if (track != null) {
-                                openContextMenu(track, mainViewModel.serverUrl.value)
+                            scope.launch {
+                                val track = mainViewModel.getTrack(trackId)
+                                if (track != null) {
+                                    openContextMenu(track, mainViewModel.serverUrl.value)
+                                }
                             }
                         },
                         onShuffleAll = {
-                            val tracks = favState.tracks
-                            if (tracks.isNotEmpty()) {
-                                scope.launch { mainViewModel.player.playTracks(tracks.shuffled(), 0) }
+                            scope.launch {
+                                // Already in random order.
+                                val tracks = favVm.shuffledTracks()
+                                if (tracks.isNotEmpty()) mainViewModel.player.playTracks(tracks, 0)
                             }
                         },
                     )
@@ -1169,49 +1125,54 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         if (serverId.isNotEmpty()) playlistDetailVm.syncTracks(serverId)
                     }
 
-                    val mappedPlaylistTracks = remember(playlistDetailState.tracks, serverUrl) {
-                        playlistDetailState.tracks.map { track ->
-                            PlaylistDetailTrack(
-                                id = track.id,
-                                title = track.name,
-                                artistName = track.artistName ?: "",
-                                duration = formatTrackDuration(track.duration),
-                                imageUrl = if (serverUrl != null) {
-                                    val imgId = track.imageId ?: track.albumId
-                                    if (imgId != null) artworkUri(imgId) else null
-                                } else null,
-                            )
+                    // Paged: a playlist can be too long to hold at once, so only the rows on screen are loaded.
+                    val mappedPlaylistTracks = remember(playlistDetailVm, serverUrl) {
+                        playlistDetailVm.tracks.map { page ->
+                            page.map { track ->
+                                PlaylistDetailTrack(
+                                    id = track.id,
+                                    title = track.name,
+                                    artistName = track.artistName ?: "",
+                                    duration = formatTrackDuration(track.duration),
+                                    imageUrl = if (serverUrl != null) {
+                                        val imgId = track.imageId ?: track.albumId
+                                        if (imgId != null) artworkUri(imgId) else null
+                                    } else null,
+                                )
+                            }
                         }
-                    }
+                    }.collectAsLazyPagingItems()
 
                     PlaylistDetailScreen(
                         onBack = { navController.popBackStack() },
                         playlistName = playlistDetailState.playlist?.name ?: "",
                         tracks = mappedPlaylistTracks,
-                        isLoading = playlistDetailState.isLoading,
-                        onTrackClick = { trackId ->
-                            val tracks = playlistDetailState.tracks
-                            val idx = tracks.indexOfFirst { it.id == trackId }
-                            if (idx >= 0) {
-                                scope.launch { mainViewModel.player.playTracks(tracks, idx) }
+                        // The list is paged: what to play is read when needed, at most QUEUE_WINDOW_SIZE tracks.
+                        onTrackClick = { index, trackId ->
+                            scope.launch {
+                                val toPlay = playlistDetailVm.tracksToPlay(index, trackId)
+                                if (toPlay != null) mainViewModel.player.playTracks(toPlay.first, toPlay.second)
                             }
                         },
                         onPlayAll = {
-                            val tracks = playlistDetailState.tracks
-                            if (tracks.isNotEmpty()) {
-                                scope.launch { mainViewModel.player.playTracks(tracks, 0) }
+                            scope.launch {
+                                val toPlay = playlistDetailVm.tracksToPlay(index = 0, trackId = null)
+                                if (toPlay != null) mainViewModel.player.playTracks(toPlay.first, toPlay.second)
                             }
                         },
                         onShuffle = {
-                            val tracks = playlistDetailState.tracks
-                            if (tracks.isNotEmpty()) {
-                                scope.launch { mainViewModel.player.playTracks(tracks.shuffled(), 0) }
+                            scope.launch {
+                                // Already in random order.
+                                val tracks = playlistDetailVm.shuffledTracks()
+                                if (tracks.isNotEmpty()) mainViewModel.player.playTracks(tracks, 0)
                             }
                         },
                         onTrackMenuClick = { trackId ->
-                            val track = playlistDetailState.tracks.find { it.id == trackId }
-                            if (track != null) {
-                                openContextMenu(track, mainViewModel.serverUrl.value)
+                            scope.launch {
+                                val track = mainViewModel.getTrack(trackId)
+                                if (track != null) {
+                                    openContextMenu(track, mainViewModel.serverUrl.value)
+                                }
                             }
                         },
                         onRemoveTrack = { trackId ->
