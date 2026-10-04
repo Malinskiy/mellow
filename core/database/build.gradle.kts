@@ -39,6 +39,11 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+// The million-track query benchmark (QueryBenchmark) runs only when asked for, with -PperfOutput=<results.json>.
+tasks.withType<Test>().configureEach {
+    providers.gradleProperty("perfOutput").orNull?.let { systemProperty("mellow.perf.output", it) }
+}
+
 dependencies {
     implementation(project(":core:model"))
 

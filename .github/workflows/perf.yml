@@ -1,0 +1,76 @@
+name: Perf
+
+# Benchmarks the database on a million-track library for the base branch and the pull request, in the same job so
+# both run on the same machine, and reports the difference. Warn-only: it never fails the pull request.
+# perf-comment.yml posts the report on the pull request (this workflow has no write access, so forks work too).
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "core/database/**"
+      - "gradle/libs.versions.toml"
+      - ".github/workflows/perf.yml"
+      - ".github/scripts/perf_report.py"
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUILDFETCH_GRADLE_REMOTE_CACHE_TOKEN: ${{ secrets.BUILDFETCH_GRADLE_REMOTE_CACHE_TOKEN }}
+  BENCHMARK: dev.mellow.core.database.perf.QueryBenchmark
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@v4
+        with:
+          path: head
+
+      - name: Check out the base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Benchmark the base branch
+        working-directory: base
+        run: |
+          if [ ! -f core/database/src/test/java/dev/mellow/core/database/perf/QueryBenchmark.kt ]; then
+            echo "The base branch has no benchmark yet."
+            exit 0
+          fi
+          ./gradlew :core:database:testDebugUnitTest --tests "$BENCHMARK" -PperfOutput="$RUNNER_TEMP/perf/base.json"
+
+      - name: Benchmark the pull request
+        working-directory: head
+        run: ./gradlew :core:database:testDebugUnitTest --tests "$BENCHMARK" -PperfOutput="$RUNNER_TEMP/perf/head.json"
+
+      - name: Compare
+        run: |
+          python3 head/.github/scripts/perf_report.py \
+            --base "$RUNNER_TEMP/perf/base.json" --head "$RUNNER_TEMP/perf/head.json" \
+            --out "$RUNNER_TEMP/perf/report.md"
+          cat "$RUNNER_TEMP/perf/report.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ github.event.pull_request.number }}" > "$RUNNER_TEMP/perf/pr-number"
+
+      - name: Upload the report
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report
+          path: ${{ runner.temp }}/perf/
+          retention-days: 30
