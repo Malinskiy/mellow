@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -112,58 +113,62 @@ fun LibraryScreen(
         if (selectedGenre != null) selectedTab = 0
     }
 
-    val toolbarState = rememberCollapsibleToolbarState()
-    CollapsibleToolbarLayout(
-        state = toolbarState,
-        toolbar = {
-            Column(modifier = Modifier.background(MellowTheme.colors.background)) {
-                LibraryTopBar(
-                    isConnected = isConnected,
-                    isServerUnreachable = isServerUnreachable,
-                    error = error,
-                    onRetry = onRetry,
-                    isFilterActive = isFilterActive,
-                    onToggleFilter = onToggleFilter,
-                    onSettingsClick = onSettingsClick,
-                    onSortChanged = onSortChanged,
-                    showViewToggle = selectedTab == 0,
-                    isGridView = isGridView,
-                    onToggleView = { isGridView = !isGridView },
-                )
-                MellowTabBar(
-                    tabs = TABS,
-                    selectedIndex = selectedTab,
-                    onTabSelected = { selectedTab = it },
-                    modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
-                )
-                if (selectedGenre != null) {
-                    GenreFilterChip(genre = selectedGenre, onClear = onClearGenre)
+    // The album grid needs room for two columns; anything narrower (small phones, split screen) shows the list.
+    BoxWithConstraints(modifier = modifier) {
+        val albumGridFits = maxWidth >= albumGridMinSize() * 2 + ALBUM_GRID_SPACING + ALBUM_GRID_PADDING * 2
+        val toolbarState = rememberCollapsibleToolbarState()
+        CollapsibleToolbarLayout(
+            state = toolbarState,
+            toolbar = {
+                Column(modifier = Modifier.background(MellowTheme.colors.background)) {
+                    LibraryTopBar(
+                        isConnected = isConnected,
+                        isServerUnreachable = isServerUnreachable,
+                        error = error,
+                        onRetry = onRetry,
+                        isFilterActive = isFilterActive,
+                        onToggleFilter = onToggleFilter,
+                        onSettingsClick = onSettingsClick,
+                        onSortChanged = onSortChanged,
+                        showViewToggle = selectedTab == 0 && albumGridFits,
+                        isGridView = isGridView,
+                        onToggleView = { isGridView = !isGridView },
+                    )
+                    MellowTabBar(
+                        tabs = TABS,
+                        selectedIndex = selectedTab,
+                        onTabSelected = { selectedTab = it },
+                        modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
+                    )
+                    if (selectedGenre != null) {
+                        GenreFilterChip(genre = selectedGenre, onClear = onClearGenre)
+                    }
                 }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MellowTheme.colors.background),
+        ) { contentPadding ->
+            val topPadding = contentPadding.calculateTopPadding()
+            val showLoading = isLoading || isSyncing
+            when (selectedTab) {
+                0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
+                     else if (albumItems.isEmpty()) EmptyContent("No albums yet")
+                     else if (isGridView && albumGridFits) AlbumsPanel(albumItems, serverUrl, onAlbumClick, topPadding)
+                     else AlbumsListPanel(albumItems, serverUrl, onAlbumClick, topPadding)
+                1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
+                     else if (artists.isEmpty()) EmptyContent("No artists yet")
+                     else ArtistsPanel(artists, serverUrl, onArtistClick, topPadding)
+                2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
+                     else if (tracks.isEmpty()) EmptyContent("No tracks yet")
+                     else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, topPadding)
+                3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
+                     else if (genres.isEmpty()) EmptyContent("No genres yet")
+                     else GenresPanel(genres, onGenreClick, topPadding)
+                4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
+                     else if (playlists.isEmpty()) EmptyContent("No playlists yet")
+                     else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist, topPadding)
             }
-        },
-        modifier = modifier
-            .fillMaxSize()
-            .background(MellowTheme.colors.background),
-    ) { contentPadding ->
-        val topPadding = contentPadding.calculateTopPadding()
-        val showLoading = isLoading || isSyncing
-        when (selectedTab) {
-            0 -> if (showLoading && albumItems.isEmpty()) LoadingContent(message = "Syncing albums…")
-                 else if (albumItems.isEmpty()) EmptyContent("No albums yet")
-                 else if (isGridView) AlbumsPanel(albumItems, serverUrl, onAlbumClick, topPadding)
-                 else AlbumsListPanel(albumItems, serverUrl, onAlbumClick, topPadding)
-            1 -> if (showLoading && artists.isEmpty()) LoadingContent(message = "Syncing artists…")
-                 else if (artists.isEmpty()) EmptyContent("No artists yet")
-                 else ArtistsPanel(artists, serverUrl, onArtistClick, topPadding)
-            2 -> if (showLoading && tracks.isEmpty()) LoadingContent(message = "Syncing tracks…")
-                 else if (tracks.isEmpty()) EmptyContent("No tracks yet")
-                 else TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, topPadding)
-            3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
-                 else if (genres.isEmpty()) EmptyContent("No genres yet")
-                 else GenresPanel(genres, onGenreClick, topPadding)
-            4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
-                 else if (playlists.isEmpty()) EmptyContent("No playlists yet")
-                 else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist, topPadding)
         }
     }
 }
@@ -320,12 +325,17 @@ private fun SortRow(
 }
 
 @Composable
+private fun albumGridMinSize(): Dp = if (LocalWindowWidthClass.current == WindowWidthClass.Expanded) 180.dp else 160.dp
+
+private val ALBUM_GRID_PADDING = MellowSpacing.Sp4
+private val ALBUM_GRID_SPACING = MellowSpacing.Sp3
+
+@Composable
 private fun AlbumsPanel(albums: List<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
-    val gridMinSize = if (LocalWindowWidthClass.current == WindowWidthClass.Expanded) 180.dp else 160.dp
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = gridMinSize),
-        contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp3, bottom = MellowSpacing.Sp3, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
-        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+        columns = GridCells.Adaptive(minSize = albumGridMinSize()),
+        contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp3, bottom = MellowSpacing.Sp3, start = ALBUM_GRID_PADDING, end = ALBUM_GRID_PADDING),
+        horizontalArrangement = Arrangement.spacedBy(ALBUM_GRID_SPACING),
         verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
     ) {
         items(albums, key = { it.id.ifEmpty { it.name } }) { album ->
