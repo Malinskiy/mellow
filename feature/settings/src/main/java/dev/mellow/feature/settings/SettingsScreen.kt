@@ -175,9 +175,15 @@ fun SettingsScreen(
 
         SettingsSection("Sync")
         ConnectionStatusRow(connectionState)
-        LastSyncedRow(lastSyncTimestamp, isSyncing, syncProgress, onSyncNow)
+        val rebuildState = libraryRebuildState(isSyncing, isRebuildPending, isLastSyncFailed)
+        LastSyncedRow(
+            timestamp = lastSyncTimestamp,
+            isSyncing = isSyncing,
+            syncProgress = lastSyncedProgress(isSyncing, syncProgress, rebuildState),
+            onSyncNow = onSyncNow,
+        )
         RebuildLibraryRow(
-            state = libraryRebuildState(isSyncing, isRebuildPending, isLastSyncFailed),
+            state = rebuildState,
             syncProgress = syncProgress,
             onRebuild = { showRebuildConfirmation = true },
             onRetry = onRebuildLibrary,
@@ -548,6 +554,7 @@ private fun ConnectionStatusRow(connectionState: ConnectionState) {
 private fun LastSyncedRow(
     timestamp: Long,
     isSyncing: Boolean,
+    /** Progress to show, already filtered by [lastSyncedProgress]. */
     syncProgress: SyncProgress?,
     onSyncNow: () -> Unit,
 ) {
@@ -564,7 +571,7 @@ private fun LastSyncedRow(
                 .padding(horizontal = MellowSpacing.Sp3),
         ) {
             Text("Last Synced", style = MaterialTheme.typography.titleMedium, color = MellowTheme.colors.foreground)
-            if (isSyncing && syncProgress != null && syncProgress.total > 0) {
+            if (syncProgress != null) {
                 Text(
                     "${syncProgress.phase}… ${syncProgress.current}/${syncProgress.total}",
                     style = MaterialTheme.typography.bodySmall,
@@ -578,7 +585,7 @@ private fun LastSyncedRow(
                 )
             }
         }
-        if (isSyncing && syncProgress != null && syncProgress.total > 0) {
+        if (syncProgress != null) {
             val progress = syncProgress.current.toFloat() / syncProgress.total
             CircularProgressIndicator(
                 progress = { progress },
