@@ -1,8 +1,6 @@
 package dev.mellow.core.data.repository
 
 import dev.mellow.core.common.MellowResult
-import dev.mellow.core.database.entity.AlbumEntity
-import dev.mellow.core.database.entity.TrackEntity
 import io.mockk.Called
 import io.mockk.coEvery
 import io.mockk.verify
@@ -52,8 +50,8 @@ class HomeScreenSyncTest : LibrarySyncHarness() {
         assertEquals(MellowResult.Success(emptySet<String>()), result)
         verify { dataSource wasNot Called }
         for (serverId in listOf("previous server", SERVER)) {
-            assertEquals(emptyList<AlbumEntity>(), db.albumDao().getAllAlbumsByServer(serverId))
-            assertEquals(emptyList<TrackEntity>(), db.trackDao().getAllTracksByServer(serverId))
+            assertEquals(0, countRows("albums", serverId))
+            assertEquals(0, countRows("tracks", serverId))
         }
     }
 
@@ -105,6 +103,6 @@ class HomeScreenSyncTest : LibrarySyncHarness() {
         sync.cancelAndJoin()
 
         assertNull("the cancellation came back as a result", returned)
-        assertEquals(emptyList<AlbumEntity>(), db.albumDao().getAllAlbumsByServer(SERVER))
+        assertEquals(0, countRows("albums", SERVER))
     }
 }

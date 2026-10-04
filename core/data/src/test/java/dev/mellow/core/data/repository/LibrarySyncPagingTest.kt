@@ -164,8 +164,8 @@ class LibrarySyncPagingTest : LibrarySyncHarness() {
     }
 
     private suspend fun assertLibrarySize(artists: Int, albums: Int, tracks: Int) {
-        assertEquals(artists, db.artistDao().getAllArtistsByServer(SERVER).size)
-        assertEquals(albums, db.albumDao().getAllAlbumsByServer(SERVER).size)
-        assertEquals(tracks, db.trackDao().getAllTracksByServer(SERVER).size)
+        assertEquals(artists, countRows("artists", SERVER))
+        assertEquals(albums, countRows("albums", SERVER))
+        assertEquals(tracks, countRows("tracks", SERVER))
     }
 }

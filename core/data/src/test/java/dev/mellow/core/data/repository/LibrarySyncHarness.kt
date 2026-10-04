@@ -65,6 +65,13 @@ abstract class LibrarySyncHarness {
     /** Items the server has that its library listings don't include, e.g. playlist entries of another kind. */
     protected var unlisted = listOf<BaseItemDto>()
 
+    /** How many rows [table] holds for [serverId]; the DAOs deliberately have no whole-table reads. */
+    protected fun countRows(table: String, serverId: String): Int =
+        db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM $table WHERE serverId = ?", arrayOf(serverId)).use {
+            it.moveToFirst()
+            it.getInt(0)
+        }
+
     @Before
     fun setUpServerAndDatabase() {
         db = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), MellowDatabase::class.java)
