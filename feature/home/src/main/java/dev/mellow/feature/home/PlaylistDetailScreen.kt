@@ -24,8 +24,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.itemKey
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.EmptyContent
+import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -38,14 +42,15 @@ data class PlaylistDetailTrack(
     val imageUrl: String?,
 )
 
+/** A playlist's tracks, a page at a time. [isLoading] shows the loading state whatever the list's state. */
 @Composable
 fun PlaylistDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     playlistName: String = "",
-    tracks: List<PlaylistDetailTrack> = emptyList(),
+    tracks: LazyPagingItems<PlaylistDetailTrack> = emptyPagingItems(),
     isLoading: Boolean = false,
-    onTrackClick: (String) -> Unit = {},
+    onTrackClick: (index: Int, trackId: String) -> Unit = { _, _ -> },
     onPlayAll: () -> Unit = {},
     onShuffle: () -> Unit = {},
     onTrackMenuClick: (String) -> Unit = {},
@@ -77,14 +82,14 @@ fun PlaylistDetailScreen(
             )
         }
 
-        if (tracks.isNotEmpty()) {
+        if (tracks.itemCount > 0) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
             ) {
                 Text(
-                    "${tracks.size} tracks",
+                    "${tracks.itemCount} tracks",
                     style = MaterialTheme.typography.bodySmall,
                     color = MellowTheme.colors.muted,
                     modifier = Modifier.weight(1f),
@@ -105,8 +110,9 @@ fun PlaylistDetailScreen(
             }
         }
 
+        val refresh = tracks.loadState.refresh
         when {
-            isLoading -> {
+            isLoading || (tracks.itemCount == 0 && refresh is LoadState.Loading) -> {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -128,20 +134,24 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
-            tracks.isEmpty() -> EmptyContent("No tracks in this playlist")
+            tracks.itemCount == 0 && refresh is LoadState.Error ->
+                ErrorContent(message = "Couldn't load this playlist", onRetry = tracks::retry)
+            tracks.itemCount == 0 -> EmptyContent("No tracks in this playlist")
             else -> {
                 AdaptiveTrackGrid(
-                    items = tracks,
-                    key = { it.id },
+                    itemCount = tracks.itemCount,
+                    key = tracks.itemKey { it.id },
                     contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
-                ) { _, track, _ ->
+                ) { index, _ ->
+                    // Null while its page loads: a blank row holds its place.
+                    val track = tracks[index]
                     TrackRow(
-                        title = track.title,
-                        subtitle = track.artistName,
-                        duration = track.duration,
-                        imageUrl = track.imageUrl,
-                        onClick = { onTrackClick(track.id) },
-                        onMenuClick = { onTrackMenuClick(track.id) },
+                        title = track?.title ?: "",
+                        subtitle = track?.artistName ?: "",
+                        duration = track?.duration ?: "",
+                        imageUrl = track?.imageUrl,
+                        onClick = { if (track != null) onTrackClick(index, track.id) },
+                        onMenuClick = { if (track != null) onTrackMenuClick(track.id) },
                         showDivider = false,
                     )
                 }

@@ -15,11 +15,45 @@ import dev.mellow.core.database.entity.TrackArtistCrossRef
 import dev.mellow.core.database.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * The library's tracks tab in [LibraryOrder] `:sort` order. Ties keep the newest-first order, and the ID makes the
+ * order total, so pages never overlap or skip a track.
+ */
+private const val LIBRARY_TRACKS_QUERY = """
+    SELECT * FROM tracks
+    WHERE serverId = :serverId
+        AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
+    ORDER BY
+        CASE WHEN :sort = ${LibraryOrder.NAME_ASC} THEN name END COLLATE NOCASE ASC,
+        CASE WHEN :sort = ${LibraryOrder.NAME_DESC} THEN name END COLLATE NOCASE DESC,
+        CASE WHEN :sort = ${LibraryOrder.YEAR} THEN COALESCE(albumName, '') END DESC,
+        dateAdded DESC,
+        id ASC
+"""
+
+/** The favorite tracks, in the order they were first saved. */
+private const val FAVORITE_TRACKS_QUERY = """
+    SELECT * FROM tracks
+    WHERE isFavorite = 1 AND serverId = :serverId
+        AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
+    ORDER BY rowid
+"""
+
 @Dao
 interface TrackDao {
 
-    @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY sortName ASC")
-    fun getTracksByServer(serverId: String): PagingSource<Int, TrackEntity>
+    @Query(LIBRARY_TRACKS_QUERY)
+    fun getLibraryTracks(serverId: String, sort: Int, downloadedOnly: Boolean): PagingSource<Int, TrackEntity>
+
+    /** [limit] tracks of [getLibraryTracks] from position [offset]. */
+    @Query("$LIBRARY_TRACKS_QUERY LIMIT :limit OFFSET :offset")
+    suspend fun getLibraryTracksSlice(
+        serverId: String,
+        sort: Int,
+        downloadedOnly: Boolean,
+        limit: Int,
+        offset: Int,
+    ): List<TrackEntity>
 
     @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber ASC, trackNumber ASC")
     fun getTracksByAlbum(albumId: String): Flow<List<TrackEntity>>
@@ -34,8 +68,55 @@ interface TrackDao {
     @Query("SELECT isFavorite FROM tracks WHERE id = :id")
     fun observeIsFavorite(id: String): Flow<Boolean?>
 
-    @Query("SELECT * FROM tracks WHERE isFavorite = 1 AND serverId = :serverId")
-    fun getFavoriteTracks(serverId: String): Flow<List<TrackEntity>>
+    @Query(FAVORITE_TRACKS_QUERY)
+    fun getFavoriteTracksPaged(serverId: String, downloadedOnly: Boolean): PagingSource<Int, TrackEntity>
+
+    /** [limit] tracks of [getFavoriteTracksPaged] from position [offset]. */
+    @Query("$FAVORITE_TRACKS_QUERY LIMIT :limit OFFSET :offset")
+    suspend fun getFavoriteTracksSlice(
+        serverId: String,
+        downloadedOnly: Boolean,
+        limit: Int,
+        offset: Int,
+    ): List<TrackEntity>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM tracks
+        WHERE isFavorite = 1 AND serverId = :serverId
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
+        """,
+    )
+    suspend fun countFavoriteTracks(serverId: String, downloadedOnly: Boolean): Int
+
+    /** How many favorite tracks come before [trackId] in [getFavoriteTracksPaged] order, downloaded or not. */
+    @Query(
+        """
+        SELECT COUNT(*) FROM tracks
+        WHERE isFavorite = 1 AND serverId = :serverId
+            AND rowid < (SELECT rowid FROM tracks WHERE id = :trackId)
+        """,
+    )
+    suspend fun countFavoriteTracksBefore(serverId: String, trackId: String): Int
+
+    /** [limit] favorite tracks picked uniformly at random, for the home screen's Favorite Tracks row. */
+    @Query("SELECT * FROM tracks WHERE isFavorite = 1 AND serverId = :serverId ORDER BY RANDOM() LIMIT :limit")
+    fun observeRandomFavoriteTracks(serverId: String, limit: Int): Flow<List<TrackEntity>>
+
+    /**
+     * [limit] favorite tracks picked uniformly at random from all of them, in random order: Android Auto's Favorite
+     * Tracks row, and the favorites' shuffle, which never needs the whole list.
+     */
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE isFavorite = 1 AND serverId = :serverId
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
+        ORDER BY RANDOM()
+        LIMIT :limit
+        """,
+    )
+    suspend fun getRandomFavoriteTracks(serverId: String, downloadedOnly: Boolean, limit: Int): List<TrackEntity>
 
     @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY playCount DESC LIMIT :limit")
     fun getMostPlayed(serverId: String, limit: Int = 50): Flow<List<TrackEntity>>
@@ -128,14 +209,8 @@ interface TrackDao {
     @Query("SELECT COUNT(*) FROM tracks WHERE artistName = :artistName OR artistName = :altName")
     suspend fun countTracksByArtistName(artistName: String, altName: String = artistName): Int
 
-    @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY dateAdded DESC LIMIT :limit")
-    fun observeRecentTracks(serverId: String, limit: Int = 500): Flow<List<TrackEntity>>
-
     @Query("SELECT * FROM tracks WHERE serverId = :serverId AND lastPlayedAt > 0 ORDER BY lastPlayedAt DESC LIMIT :limit")
     suspend fun getRecentlyPlayedTracks(serverId: String, limit: Int = 50): List<TrackEntity>
-
-    @Query("SELECT * FROM tracks WHERE isFavorite = 1 AND serverId = :serverId")
-    suspend fun getFavoriteTracksSync(serverId: String): List<TrackEntity>
 
     @Query("SELECT * FROM tracks WHERE albumId = :albumId ORDER BY discNumber ASC, trackNumber ASC")
     suspend fun getTracksByAlbumSync(albumId: String): List<TrackEntity>
@@ -152,11 +227,33 @@ interface TrackDao {
     @Query("DELETE FROM tracks WHERE id = :id")
     suspend fun deleteById(id: String)
 
-    @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY sortName ASC")
-    suspend fun getAllTracksByServer(serverId: String): List<TrackEntity>
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE serverId = :serverId
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
+        ORDER BY sortName ASC, id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getTracksByServerPaged(
+        serverId: String,
+        downloadedOnly: Boolean,
+        limit: Int,
+        offset: Int,
+    ): List<TrackEntity>
 
-    @Query("SELECT * FROM tracks WHERE serverId = :serverId ORDER BY sortName ASC LIMIT :limit OFFSET :offset")
-    suspend fun getTracksByServerPaged(serverId: String, limit: Int, offset: Int): List<TrackEntity>
+    /** How many of the server's tracks come before the track [id] named [sortName] in [getTracksByServerPaged] order. */
+    @Query(
+        """
+        SELECT COUNT(*) FROM tracks
+        WHERE serverId = :serverId AND (sortName < :sortName OR (sortName = :sortName AND id < :id))
+        """,
+    )
+    suspend fun countTracksBefore(serverId: String, sortName: String, id: String): Int
+
+    @Query("SELECT COUNT(*) FROM tracks WHERE serverId = :serverId")
+    suspend fun countTracks(serverId: String): Int
 
     @RawQuery
     suspend fun getInstantMixRaw(query: SupportSQLiteQuery): List<TrackEntity>

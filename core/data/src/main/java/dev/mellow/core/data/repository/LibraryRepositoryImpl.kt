@@ -1,6 +1,9 @@
 package dev.mellow.core.data.repository
 
 import android.util.Log
+import androidx.paging.Pager
+import androidx.paging.PagingData
+import androidx.paging.map
 import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.mapper.toAlbumArtistCrossRefs
@@ -11,6 +14,7 @@ import dev.mellow.core.data.mapper.toTrackArtistCrossRefs
 import dev.mellow.core.data.mapper.toTrackEntity
 import dev.mellow.core.data.preferences.SyncPreferences
 import dev.mellow.core.common.getCleanValue
+import dev.mellow.core.database.converter.Converters
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistAliasDao
 import dev.mellow.core.database.dao.ArtistDao
@@ -23,6 +27,7 @@ import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.SearchQueryEntity
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
+import dev.mellow.core.model.LibrarySort
 import dev.mellow.core.model.Track
 import dev.mellow.core.network.datasource.JellyfinDataSource
 import dev.mellow.core.network.datasource.PagedItems
@@ -57,14 +62,57 @@ class LibraryRepositoryImpl @Inject constructor(
         private const val ROOM_BIND_LIMIT = 900
     }
 
-    override fun getAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
-        albumDao.observeAlbumsByServer(serverId)
-            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
-            .catch { emit(MellowResult.Error(it)) }
+    override fun getPagedAlbums(
+        serverId: String,
+        sort: LibrarySort,
+        genre: String?,
+        downloadedOnly: Boolean,
+    ): Flow<PagingData<Album>> =
+        Pager(LIBRARY_PAGING_CONFIG) { albumDao.getLibraryAlbums(serverId, sort.toOrder(), genre, downloadedOnly) }
+            .flow
+            .map { page -> page.map { it.toModel() } }
 
-    override fun getArtists(serverId: String): Flow<MellowResult<List<Artist>>> =
-        artistDao.observeArtistsByServer(serverId)
-            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Artist>> }
+    override fun getPagedArtists(
+        serverId: String,
+        sort: LibrarySort,
+        downloadedOnly: Boolean,
+    ): Flow<PagingData<Artist>> =
+        Pager(LIBRARY_PAGING_CONFIG) { artistDao.getLibraryArtists(serverId, sort.toOrder(), downloadedOnly) }
+            .flow
+            .map { page -> page.map { it.artist.toModel().copy(albumCount = it.localAlbumCount) } }
+
+    override fun getPagedTracks(
+        serverId: String,
+        sort: LibrarySort,
+        downloadedOnly: Boolean,
+    ): Flow<PagingData<Track>> =
+        Pager(LIBRARY_PAGING_CONFIG) { trackDao.getLibraryTracks(serverId, sort.toOrder(), downloadedOnly) }
+            .flow
+            .map { page -> page.map { it.toModel() } }
+
+    override suspend fun getTracksSlice(
+        serverId: String,
+        sort: LibrarySort,
+        downloadedOnly: Boolean,
+        offset: Int,
+        limit: Int,
+    ): MellowResult<List<Track>> =
+        try {
+            MellowResult.Success(
+                trackDao.getLibraryTracksSlice(serverId, sort.toOrder(), downloadedOnly, limit, offset)
+                    .map { it.toModel() },
+            )
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override fun getGenres(serverId: String, downloadedOnly: Boolean): Flow<MellowResult<List<String>>> =
+        albumDao.observeRawGenreStrings(serverId, downloadedOnly)
+            .map { rows ->
+                val converters = Converters()
+                MellowResult.Success(rows.flatMap { converters.toStringList(it) }.distinct().sorted())
+                    as MellowResult<List<String>>
+            }
             .catch { emit(MellowResult.Error(it)) }
 
     override fun getAlbumTracks(albumId: String): Flow<MellowResult<List<Track>>> =
@@ -121,10 +169,12 @@ class LibraryRepositoryImpl @Inject constructor(
             MellowResult.Error(e)
         }
 
-    override fun getRecentTracks(serverId: String): Flow<MellowResult<List<Track>>> =
-        trackDao.observeRecentTracks(serverId)
-            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
-            .catch { emit(MellowResult.Error(it)) }
+    override suspend fun getTrack(trackId: String): MellowResult<Track?> =
+        try {
+            MellowResult.Success(trackDao.getTrackById(trackId)?.toModel())
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
 
     override suspend fun search(serverId: String, query: String): MellowResult<List<Track>> =
         try {
@@ -185,19 +235,77 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun getFavoriteTracks(serverId: String): Flow<MellowResult<List<Track>>> =
-        trackDao.getFavoriteTracks(serverId)
+    override fun getPagedFavoriteTracks(serverId: String, downloadedOnly: Boolean): Flow<PagingData<Track>> =
+        Pager(LIBRARY_PAGING_CONFIG) { trackDao.getFavoriteTracksPaged(serverId, downloadedOnly) }
+            .flow
+            .map { page -> page.map { it.toModel() } }
+
+    override fun getPagedFavoriteAlbums(serverId: String, downloadedOnly: Boolean): Flow<PagingData<Album>> =
+        Pager(LIBRARY_PAGING_CONFIG) { albumDao.getFavoriteAlbumsPaged(serverId, downloadedOnly) }
+            .flow
+            .map { page -> page.map { it.toModel() } }
+
+    override fun getPagedFavoriteArtists(serverId: String, downloadedOnly: Boolean): Flow<PagingData<Artist>> =
+        Pager(LIBRARY_PAGING_CONFIG) { artistDao.getFavoriteArtistsPaged(serverId, downloadedOnly) }
+            .flow
+            .map { page -> page.map { it.toModel() } }
+
+    override suspend fun getFavoriteTracksSlice(
+        serverId: String,
+        downloadedOnly: Boolean,
+        offset: Int,
+        limit: Int,
+    ): MellowResult<List<Track>> =
+        try {
+            MellowResult.Success(
+                trackDao.getFavoriteTracksSlice(serverId, downloadedOnly, limit, offset).map { it.toModel() },
+            )
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun countFavoriteTracks(serverId: String, downloadedOnly: Boolean): MellowResult<Int> =
+        try {
+            MellowResult.Success(trackDao.countFavoriteTracks(serverId, downloadedOnly))
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override suspend fun pickRandomFavoriteTracks(
+        serverId: String,
+        downloadedOnly: Boolean,
+        limit: Int,
+    ): MellowResult<List<Track>> =
+        try {
+            MellowResult.Success(
+                trackDao.getRandomFavoriteTracks(serverId, downloadedOnly, limit).map { it.toModel() },
+            )
+        } catch (e: Exception) {
+            MellowResult.Error(e)
+        }
+
+    override fun getRandomFavoriteTracks(serverId: String, limit: Int): Flow<MellowResult<List<Track>>> =
+        trackDao.observeRandomFavoriteTracks(serverId, limit)
             .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Track>> }
             .catch { emit(MellowResult.Error(it)) }
 
-    override fun getFavoriteAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
-        albumDao.getFavoriteAlbums(serverId)
+    override fun getRecentlyAddedAlbums(serverId: String, limit: Int): Flow<MellowResult<List<Album>>> =
+        albumDao.observeRecentlyAddedAlbums(serverId, limit)
             .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
             .catch { emit(MellowResult.Error(it)) }
 
-    override fun getFavoriteArtists(serverId: String): Flow<MellowResult<List<Artist>>> =
-        artistDao.getFavoriteArtists(serverId)
-            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Artist>> }
+    override fun getRandomAlbums(serverId: String, limit: Int): Flow<MellowResult<List<Album>>> =
+        albumDao.observeRandomAlbums(serverId, limit)
+            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
+            .catch { emit(MellowResult.Error(it)) }
+
+    override fun getTopGenres(serverId: String, limit: Int): Flow<MellowResult<List<String>>> =
+        albumDao.observeGenreAlbumCounts(serverId)
+            .map { rows ->
+                val converters = Converters()
+                MellowResult.Success(topGenres(rows.map { converters.toStringList(it.genres) to it.albumCount }, limit))
+                    as MellowResult<List<String>>
+            }
             .catch { emit(MellowResult.Error(it)) }
 
     override fun getRecentlyPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>> =

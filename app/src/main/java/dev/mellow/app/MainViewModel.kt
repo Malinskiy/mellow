@@ -16,6 +16,7 @@ import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.LyricsEntity
+import dev.mellow.core.model.Track
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkStateObserver
 import dev.mellow.core.network.datasource.JellyfinDataSource
@@ -241,6 +242,10 @@ class MainViewModel @Inject constructor(
     suspend fun getArtistsForTrack(trackId: String): List<ArtistEntity> {
         return trackDao.getArtistsForTrack(trackId)
     }
+
+    /** The library's track [trackId], for lists that only keep the tracks on screen. */
+    suspend fun getTrack(trackId: String): Track? =
+        (libraryRepository.getTrack(trackId) as? MellowResult.Success)?.data
 
     suspend fun getArtistsForAlbum(albumId: String): List<ArtistEntity> {
         return albumDao.getArtistsForAlbum(albumId)

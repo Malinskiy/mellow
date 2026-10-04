@@ -32,17 +32,17 @@ abstract class LibraryScreenshotTests : ScreenshotCapture() {
 
     @Test
     fun libraryAlbumsPopulated() = capture("library-albums-populated") {
-        LibraryScreen(albumItems = ScreenshotData.albumItems, initialTab = 0)
+        LibraryScreen(albumItems = pagingItemsOf(ScreenshotData.albumItems), initialTab = 0)
     }
 
     @Test
     fun libraryArtistsPopulated() = capture("library-artists-populated") {
-        LibraryScreen(artists = ScreenshotData.artistItems, initialTab = 1)
+        LibraryScreen(artists = pagingItemsOf(ScreenshotData.artistItems), initialTab = 1)
     }
 
     @Test
     fun libraryTracksPopulated() = capture("library-tracks-populated") {
-        LibraryScreen(tracks = ScreenshotData.trackItems, initialTab = 2)
+        LibraryScreen(tracks = pagingItemsOf(ScreenshotData.trackItems), initialTab = 2)
     }
 
     @Test

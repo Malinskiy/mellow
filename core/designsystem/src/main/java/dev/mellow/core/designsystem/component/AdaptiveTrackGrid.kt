@@ -93,3 +93,29 @@ fun <T> AdaptiveTrackGrid(
         }
     }
 }
+
+/**
+ * A scrollable [AdaptiveTrackGrid] of [itemCount] items addressed by position, for lists that load as they scroll,
+ * such as Paging's `LazyPagingItems`. Items always flow left-to-right across each row: reading down a column would
+ * need items from far apart in the list at once.
+ */
+@Composable
+fun AdaptiveTrackGrid(
+    itemCount: Int,
+    key: (index: Int) -> Any,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+    minColumnWidth: Dp = MIN_COLUMN_WIDTH,
+    itemContent: @Composable (index: Int, columns: Int) -> Unit,
+) {
+    BoxWithConstraints(modifier = modifier) {
+        val columns = (maxWidth / minColumnWidth).toInt().coerceIn(1, MAX_COLUMNS)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columns),
+            contentPadding = contentPadding,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(itemCount, key = key) { index -> itemContent(index, columns) }
+        }
+    }
+}

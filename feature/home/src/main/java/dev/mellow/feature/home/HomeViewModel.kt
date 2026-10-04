@@ -7,7 +7,6 @@ import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.model.Album
 import dev.mellow.core.common.MellowResult
 import dev.mellow.core.model.Track
-import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,7 +25,6 @@ data class HomeUiState(
     val recentlyAdded: List<HomeAlbumItem> = emptyList(),
     val favoriteTracks: List<HomeTrackItem> = emptyList(),
     val genres: List<String> = emptyList(),
-    val albumCount: Int = 0,
     val isLoading: Boolean = true,
     val error: String? = null,
 )
@@ -48,7 +46,6 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private var loadedServerId: String? = null
-    private val shuffleSeed = System.nanoTime()
     private var cachedQuickPicks: List<HomeAlbumItem>? = null
     private var cachedRecentlyPlayed: List<HomeAlbumItem>? = null
     private var cachedRecentlyAdded: List<HomeAlbumItem>? = null
@@ -74,29 +71,26 @@ class HomeViewModel @Inject constructor(
         loadedServerId = serverId
         clearCaches()
 
+        // Every row reads only the albums and tracks it shows, never the whole library.
         combine(
-            libraryRepository.getAlbums(serverId),
-            libraryRepository.getFavoriteTracks(serverId),
+            libraryRepository.getRecentlyAddedAlbums(serverId, limit = ROW_SIZE),
+            libraryRepository.getRandomFavoriteTracks(serverId, limit = FAVORITE_TRACKS_SIZE),
             libraryRepository.getRecentlyPlayedAlbums(serverId),
-            libraryRepository.getMostPlayedAlbums(serverId),
-            libraryRepository.getFavoriteAlbums(serverId),
-        ) { albumsResult, favTracksResult, recentlyPlayedResult, mostPlayedResult, favoriteAlbumsResult ->
-            val albums = (albumsResult as? MellowResult.Success)?.data ?: emptyList()
+            libraryRepository.getRandomAlbums(serverId, limit = 2 * ROW_SIZE),
+            libraryRepository.getTopGenres(serverId, limit = GENRES_SIZE),
+        ) { recentlyAddedResult, favTracksResult, recentlyPlayedResult, randomAlbumsResult, genresResult ->
+            val recentlyAddedAlbums = (recentlyAddedResult as? MellowResult.Success)?.data ?: emptyList()
             val favTracks = (favTracksResult as? MellowResult.Success)?.data ?: emptyList()
             val recentlyPlayedAlbums = (recentlyPlayedResult as? MellowResult.Success)?.data ?: emptyList()
-            val mostPlayedAlbums = (mostPlayedResult as? MellowResult.Success)?.data ?: emptyList()
-            val favoriteAlbums = (favoriteAlbumsResult as? MellowResult.Success)?.data ?: emptyList()
+            val randomAlbums = (randomAlbumsResult as? MellowResult.Success)?.data ?: emptyList()
+            val genres = (genresResult as? MellowResult.Success)?.data ?: emptyList()
 
             val recentlyAdded = cachedRecentlyAdded ?: run {
-                val items = albums
-                    .sortedByDescending { it.dateAdded }
-                    .take(12)
-                    .map { it.toHomeAlbumItem() }
+                val items = recentlyAddedAlbums.map { it.toHomeAlbumItem() }
                 if (items.size >= 3) cachedRecentlyAdded = items
                 items
             }
 
-            val mostPlayedIds = mostPlayedAlbums.map { it.id }.toSet()
             val recentlyPlayed = cachedRecentlyPlayed ?: run {
                 val items = if (recentlyPlayedAlbums.isNotEmpty()) {
                     recentlyPlayedAlbums.take(12).map { it.toHomeAlbumItem() }
@@ -109,35 +103,19 @@ class HomeViewModel @Inject constructor(
 
             val recentlyPlayedIds = recentlyPlayed.map { it.id }.toSet()
             val quickPickPool = cachedQuickPicks ?: run {
-                val seenIds = mutableSetOf<String>()
-                val pool = mutableListOf<Album>()
-                fun addUnique(source: List<Album>) {
-                    source.forEach { if (seenIds.add(it.id)) pool.add(it) }
-                }
-                addUnique(mostPlayedAlbums)
-                addUnique(recentlyPlayedAlbums)
-                addUnique(favoriteAlbums)
-                addUnique(albums.sortedByDescending { it.dateAdded })
-                val picks = pool
+                // Random albums of the whole library; twice a row's worth, so a row is left once the recently
+                // played ones are taken out.
+                val picks = randomAlbums
                     .filterNot { it.id in recentlyPlayedIds }
-                    .shuffled(Random(shuffleSeed))
-                    .take(12)
+                    .take(ROW_SIZE)
                     .map { it.toHomeAlbumItem() }
                 if (picks.size >= 4) cachedQuickPicks = picks
                 picks
             }
 
-            val genres = albums
-                .flatMap { it.genres }
-                .groupingBy { it }
-                .eachCount()
-                .entries
-                .sortedByDescending { it.value }
-                .take(15)
-                .map { it.key }
-
             val shuffledFavs = cachedFavTracks ?: run {
-                val picks = favTracks.shuffled(Random(shuffleSeed)).take(5)
+                // Already a random pick of the favorites.
+                val picks = favTracks
                 if (picks.isNotEmpty()) cachedFavTracks = picks
                 picks
             }
@@ -149,7 +127,6 @@ class HomeViewModel @Inject constructor(
                 recentlyAdded = recentlyAdded,
                 favoriteTracks = shuffledFavs.map { it.toHomeTrackItem() },
                 genres = genres,
-                albumCount = albums.size,
                 isLoading = false,
             )
             emitFiltered()
@@ -185,6 +162,13 @@ class HomeViewModel @Inject constructor(
             recentlyAdded = state.recentlyAdded.filter { it.id in dlAlbumIds },
             favoriteTracks = state.favoriteTracks.filter { it.id in dlTrackIds },
         )
+    }
+
+    private companion object {
+        /** Albums in each album row. */
+        const val ROW_SIZE = 12
+        const val FAVORITE_TRACKS_SIZE = 5
+        const val GENRES_SIZE = 15
     }
 }
 

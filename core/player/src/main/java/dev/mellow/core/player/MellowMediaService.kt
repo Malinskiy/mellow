@@ -28,7 +28,9 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import dagger.hilt.android.AndroidEntryPoint
+import dev.mellow.core.common.QUEUE_WINDOW_SIZE
 import dev.mellow.core.common.jellyfinStreamUrl
+import dev.mellow.core.common.queueWindowStart
 import dev.mellow.core.data.preferences.PlaybackQueuePreferences
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistDao
@@ -563,16 +565,39 @@ class MellowMediaService : MediaLibraryService() {
                     val serverId = serverDao.getActiveServer()?.id ?: ""
                     Log.d(TAG, "onSetMediaItems: track lookup id=$trackId, found=${track != null}, parentId=$parentId, serverId=$serverId")
 
+                    // A playlist, the favorites or the library can be too long to queue whole: queue the tracks
+                    // around this one instead, as the app does.
                     val siblings = when {
                         parentId?.startsWith("playlist:") == true -> {
                             val plId = parentId.removePrefix("playlist:")
-                            playlistDao.getPlaylistTracksSync(plId)
+                            val position = playlistDao.countPlaylistTracksBefore(plId, trackId)
+                            val start = queueWindowStart(position, playlistDao.countPlaylistTracks(plId))
+                            playlistDao.getPlaylistTracksSlice(
+                                plId,
+                                downloadedOnly = false,
+                                limit = QUEUE_WINDOW_SIZE,
+                                offset = start,
+                            )
                         }
                         parentId == FAV_TRACKS -> {
-                            trackDao.getFavoriteTracksSync(serverId)
+                            val position = trackDao.countFavoriteTracksBefore(serverId, trackId)
+                            val start = queueWindowStart(position, trackDao.countFavoriteTracks(serverId, false))
+                            trackDao.getFavoriteTracksSlice(
+                                serverId,
+                                downloadedOnly = false,
+                                limit = QUEUE_WINDOW_SIZE,
+                                offset = start,
+                            )
                         }
                         parentId == LIBRARY_SONGS -> {
-                            trackDao.getAllTracksByServer(serverId)
+                            val position = track?.let { trackDao.countTracksBefore(serverId, it.sortName, it.id) } ?: 0
+                            val start = queueWindowStart(position, trackDao.countTracks(serverId))
+                            trackDao.getTracksByServerPaged(
+                                serverId,
+                                downloadedOnly = false,
+                                limit = QUEUE_WINDOW_SIZE,
+                                offset = start,
+                            )
                         }
                         parentId?.startsWith("album:") == true -> {
                             val aId = parentId.removePrefix("album:")
@@ -715,6 +740,10 @@ class MellowMediaService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            // Lists are read a page at a time, never whole: Android Auto asks for page 0 of Int.MAX_VALUE items,
+            // so every page is also capped at AA_MAX_ITEMS.
+            val window = BrowseWindow.of(page, pageSize, AA_MAX_ITEMS)
+                ?: return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.of(), params))
             val syncChildren = when (parentId) {
                 ROOT_ID -> rootChildren()
                 TAB_LIBRARY -> libraryChildren()
@@ -722,7 +751,7 @@ class MellowMediaService : MediaLibraryService() {
             }
             if (syncChildren != null) {
                 return Futures.immediateFuture(
-                    LibraryResult.ofItemList(ImmutableList.copyOf(syncChildren), params)
+                    LibraryResult.ofItemList(ImmutableList.copyOf(syncChildren.page(window)), params)
                 )
             }
 
@@ -730,16 +759,15 @@ class MellowMediaService : MediaLibraryService() {
                 val server = serverDao.getActiveServer()
                 val serverId = server?.id ?: ""
                 val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
+                // Offline, only downloads can play. Long lists filter in their queries; short ones filter here.
+                val downloadedOnly = !isOnline
                 val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
                 val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
-                val dlArtistNames = if (!isOnline) downloadDao.getDownloadedArtistNames().toSet() else null
 
                 fun List<TrackEntity>.onlineFilter() =
                     if (dlTrackIds != null) filter { it.id in dlTrackIds } else this
                 fun List<AlbumEntity>.onlineFilter() =
                     if (dlAlbumIds != null) filter { it.id in dlAlbumIds } else this
-                fun List<ArtistEntity>.onlineFilter() =
-                    if (dlArtistNames != null) filter { it.name in dlArtistNames } else this
 
                 val items = when {
                     parentId == TAB_HOME -> {
@@ -756,29 +784,25 @@ class MellowMediaService : MediaLibraryService() {
                         val usedIds = recentAlbums.map { it.id }.toSet() +
                             addedAlbums.map { it.id }.toSet()
 
-                        val mostPlayed = albumDao.getMostPlayedAlbumsSync(serverId, limit = 20)
-                            .onlineFilter()
-                        val favoriteAlbums = albumDao.getFavoriteAlbumsSync(serverId)
-                            .onlineFilter()
-                        val quickPicks = (mostPlayed + favoriteAlbums)
-                            .distinctBy { it.id }
+                        val quickPicks = albumDao.getRandomFavoriteOrMostPlayedAlbums(
+                            serverId,
+                            mostPlayedCount = 20,
+                            downloadedOnly = downloadedOnly,
+                            limit = HOME_ROW_SIZE + usedIds.size,
+                        )
                             .filter { it.id !in usedIds }
-                            .shuffled()
                             .take(HOME_ROW_SIZE)
                             .map { it.toBrowsableItem(groupTitle = "Quick Picks") }
 
-                        val favoriteTracks = trackDao.getFavoriteTracksSync(serverId)
-                            .onlineFilter()
-                            .shuffled()
-                            .take(HOME_ROW_SIZE)
+                        val favoriteTracks = trackDao.getRandomFavoriteTracks(serverId, downloadedOnly, HOME_ROW_SIZE)
                             .map { it.toPlayableItem(groupTitle = "Favorite Tracks") }
 
-                        recentItems + addedItems + quickPicks + favoriteTracks
+                        (recentItems + addedItems + quickPicks + favoriteTracks).page(window)
                     }
                     parentId == TAB_FAVORITES -> {
                         val items = mutableListOf<MediaItem>()
 
-                        val favAlbums = albumDao.getFavoriteAlbumsSync(serverId).onlineFilter()
+                        val favAlbums = albumDao.getFavoriteAlbumsSlice(serverId, downloadedOnly, HOME_ROW_SIZE, 0)
                         if (favAlbums.isNotEmpty()) {
                             items.add(browsableItem(
                                 mediaId = FAV_ALBUMS, title = "Albums",
@@ -786,11 +810,10 @@ class MellowMediaService : MediaLibraryService() {
                                 browsableHint = CONTENT_STYLE_GRID_ITEM,
                                 iconUri = drawableUri(R.drawable.ic_aa_albums),
                             ))
-                            items.addAll(favAlbums.take(HOME_ROW_SIZE)
-                                .map { it.toPlayablePreview() })
+                            items.addAll(favAlbums.map { it.toPlayablePreview() })
                         }
 
-                        val favArtists = artistDao.getFavoriteArtistsSync(serverId).onlineFilter()
+                        val favArtists = artistDao.getFavoriteArtistsSlice(serverId, downloadedOnly, HOME_ROW_SIZE, 0)
                         if (favArtists.isNotEmpty()) {
                             items.add(browsableItem(
                                 mediaId = FAV_ARTISTS, title = "Artists",
@@ -798,11 +821,10 @@ class MellowMediaService : MediaLibraryService() {
                                 browsableHint = CONTENT_STYLE_GRID_ITEM,
                                 iconUri = drawableUri(R.drawable.ic_aa_artists),
                             ))
-                            items.addAll(favArtists.take(HOME_ROW_SIZE)
-                                .map { it.toPlayablePreview() })
+                            items.addAll(favArtists.map { it.toPlayablePreview() })
                         }
 
-                        val favTracks = trackDao.getFavoriteTracksSync(serverId).onlineFilter()
+                        val favTracks = trackDao.getFavoriteTracksSlice(serverId, downloadedOnly, HOME_ROW_SIZE, 0)
                         if (favTracks.isNotEmpty()) {
                             items.add(browsableItem(
                                 mediaId = FAV_TRACKS, title = "Tracks",
@@ -810,44 +832,40 @@ class MellowMediaService : MediaLibraryService() {
                                 playableHint = CONTENT_STYLE_GRID_ITEM,
                                 iconUri = drawableUri(R.drawable.ic_aa_songs),
                             ))
-                            items.addAll(favTracks.take(HOME_ROW_SIZE)
-                                .map { it.toPlayableItem(parentId = FAV_TRACKS) })
+                            items.addAll(favTracks.map { it.toPlayableItem(parentId = FAV_TRACKS) })
                         }
 
-                        items
+                        items.page(window)
                     }
                     parentId == FAV_ALBUMS -> {
-                        albumDao.getFavoriteAlbumsSync(serverId)
-                            .onlineFilter()
+                        albumDao.getFavoriteAlbumsSlice(serverId, downloadedOnly, window.limit, window.offset)
                             .map { it.toBrowsableItem() }
                     }
                     parentId == FAV_ARTISTS -> {
-                        artistDao.getFavoriteArtistsSync(serverId)
-                            .onlineFilter()
+                        artistDao.getFavoriteArtistsSlice(serverId, downloadedOnly, window.limit, window.offset)
                             .map { it.toBrowsableItem() }
                     }
                     parentId == FAV_TRACKS -> {
-                        trackDao.getFavoriteTracksSync(serverId)
-                            .onlineFilter()
+                        trackDao.getFavoriteTracksSlice(serverId, downloadedOnly, window.limit, window.offset)
                             .map { it.toPlayableItem(parentId = FAV_TRACKS) }
                     }
                     parentId == LIBRARY_ALBUMS -> {
-                        albumDao.getAllAlbumsByServer(serverId)
-                            .onlineFilter()
+                        albumDao.getAlbumsByServerSlice(serverId, downloadedOnly, window.limit, window.offset)
                             .map { it.toBrowsableItem() }
                     }
                     parentId == LIBRARY_ARTISTS -> {
-                        artistDao.getCanonicalArtistsByServer(serverId)
-                            .onlineFilter()
+                        artistDao.getCanonicalArtistsSlice(serverId, downloadedOnly, window.limit, window.offset)
                             .map { it.toBrowsableItem() }
                     }
                     parentId == LIBRARY_GENRES -> {
+                        // One row per distinct genre list, not per album, so this stays small.
                         val genreAlbums = albumDao.getRawGenreStrings(serverId)
                         genreAlbums
                             .flatMap { it.split(GENRE_SEPARATOR) }
                             .filter { it.isNotBlank() }
                             .distinct()
                             .sorted()
+                            .page(window)
                             .map { genre ->
                                 browsableItem(
                                     mediaId = "genre:$genre",
@@ -858,21 +876,19 @@ class MellowMediaService : MediaLibraryService() {
                             }
                     }
                     parentId == LIBRARY_SONGS -> {
-                        val allTracks = trackDao.getTracksByServerPaged(serverId, limit = AA_MAX_ITEMS, offset = 0)
-                        val filtered = allTracks.onlineFilter()
-                        Log.d(TAG, "LIBRARY_SONGS: serverId=$serverId, isOnline=$isOnline, " +
-                            "total=${allTracks.size}, afterFilter=${filtered.size}, " +
-                            "dlTrackIds=${dlTrackIds?.size}")
-                        filtered.map { it.toPlayableItem() }
+                        trackDao.getTracksByServerPaged(serverId, downloadedOnly, window.limit, window.offset)
+                            .map { it.toPlayableItem() }
                     }
                     parentId == TAB_PLAYLISTS -> {
                         playlistDao.getPlaylistsByServer(serverId)
+                            .page(window)
                             .map { it.toBrowsableItem() }
                     }
                     parentId.startsWith("album:") -> {
                         val albumId = parentId.removePrefix("album:")
                         trackDao.getTracksByAlbumSync(albumId)
                             .onlineFilter()
+                            .page(window)
                             .map { it.toPlayableItem() }
                     }
                     parentId.startsWith("artist:") -> {
@@ -886,18 +902,16 @@ class MellowMediaService : MediaLibraryService() {
                             trackDao.getTracksByResolvedArtistSync(artistId)
                                 .onlineFilter()
                                 .map { it.toPlayableItem(parentId = parentId) }
-                        }
+                        }.page(window)
                     }
                     parentId.startsWith("genre:") -> {
                         val genre = parentId.removePrefix("genre:")
-                        albumDao.getAlbumsByGenre(genre, serverId)
-                            .onlineFilter()
+                        albumDao.getAlbumsByGenreSlice(genre, serverId, downloadedOnly, window.limit, window.offset)
                             .map { it.toBrowsableItem() }
                     }
                     parentId.startsWith("playlist:") -> {
                         val playlistId = parentId.removePrefix("playlist:")
-                        playlistDao.getPlaylistTracksSync(playlistId)
-                            .onlineFilter()
+                        playlistDao.getPlaylistTracksSlice(playlistId, downloadedOnly, window.limit, window.offset)
                             .map { it.toPlayableItem(parentId = parentId) }
                     }
                     else -> emptyList()
@@ -906,8 +920,9 @@ class MellowMediaService : MediaLibraryService() {
                 // connecting, and this records whether the connection state made us filter to downloads only.
                 Log.i(
                     TAG,
-                    "onGetChildren: parent=$parentId state=${networkStateObserver.connectionState.value} " +
-                        "downloadsOnly=${!isOnline} items=${items.size} controller=${browser.packageName}",
+                    "onGetChildren: parent=$parentId page=$page pageSize=$pageSize " +
+                        "state=${networkStateObserver.connectionState.value} downloadsOnly=$downloadedOnly " +
+                        "items=${items.size} controller=${browser.packageName}",
                 )
                 LibraryResult.ofItemList(ImmutableList.copyOf(items), params)
             }
@@ -948,7 +963,8 @@ class MellowMediaService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
-            if (query.isBlank()) {
+            val window = BrowseWindow.of(page, pageSize, AA_MAX_ITEMS)
+            if (query.isBlank() || window == null) {
                 return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.of(), params))
             }
             return asyncFuture {
@@ -969,7 +985,7 @@ class MellowMediaService : MediaLibraryService() {
                     .let { if (dlTrackIds != null) it.filter { t -> t.id in dlTrackIds } else it }
                     .map { it.toPlayableItem() }
 
-                LibraryResult.ofItemList(ImmutableList.copyOf(artists + albums + tracks), params)
+                LibraryResult.ofItemList(ImmutableList.copyOf((artists + albums + tracks).page(window)), params)
             }
         }
 
