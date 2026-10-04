@@ -29,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,6 +63,11 @@ fun MellowBottomNavBar(
     modifier: Modifier = Modifier,
     windowInsets: WindowInsets = WindowInsets.navigationBars,
 ) {
+    // Below ~360dp the default padding leaves too little room for labels like "Favorites", so tighten it.
+    val windowWidth = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+    val narrow = windowWidth < NARROW_SCREEN_WIDTH
+    val barPadding = if (narrow) MellowSpacing.Sp2 else MellowSpacing.Sp6
+    val itemPadding = if (narrow) MellowSpacing.Sp2 else MellowSpacing.Sp3
     Column(modifier = modifier.windowInsetsPadding(windowInsets)) {
         HorizontalDivider(color = MellowTheme.colors.border, thickness = 1.dp)
         Row(
@@ -69,7 +76,7 @@ fun MellowBottomNavBar(
                 .fillMaxWidth()
                 .height(MellowSpacing.BottomNavHeight)
                 .background(MellowTheme.colors.background)
-                .padding(horizontal = MellowSpacing.Sp6)
+                .padding(horizontal = barPadding)
                 .selectableGroup(),
         ) {
             MellowNavDestination.entries.forEach { dest ->
@@ -98,7 +105,7 @@ fun MellowBottomNavBar(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
                             .indication(interactionSource, ripple())
-                            .padding(horizontal = MellowSpacing.Sp3, vertical = MellowSpacing.Sp1),
+                            .padding(horizontal = itemPadding, vertical = MellowSpacing.Sp1),
                     ) {
                         Crossfade(targetState = isSelected, label = "navIcon") { selected ->
                             Icon(
@@ -122,3 +129,5 @@ fun MellowBottomNavBar(
         }
     }
 }
+
+private val NARROW_SCREEN_WIDTH = 360.dp
