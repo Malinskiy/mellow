@@ -221,10 +221,12 @@ interface AlbumDao {
     )
     fun observeGenreAlbumCounts(serverId: String): Flow<List<GenreAlbumCount>>
 
+    /** The albums tagged [genre], whole genres only as in [getLibraryAlbums]: "Rap" isn't "Pop Rap". */
     @Query(
         """
         SELECT * FROM albums
-        WHERE serverId = :serverId AND genres LIKE '%' || :genre || '%'
+        WHERE serverId = :serverId
+            AND instr('$SEP' || genres || '$SEP', '$SEP' || :genre || '$SEP') > 0
             AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
         ORDER BY sortName ASC, id ASC
         LIMIT :limit OFFSET :offset

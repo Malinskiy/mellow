@@ -194,7 +194,7 @@ fun FavoritesContent(
             when (selectedTab) {
                 0 -> PagedContent(tracks, "No favorite tracks yet", "Couldn't load favorite tracks") {
                     AdaptiveTrackGrid(
-                        itemCount = tracks.itemCount,
+                        itemCount = { tracks.itemCount },
                         key = tracks.itemKey { it.id },
                         contentPadding = PaddingValues(top = topPadding),
                         modifier = Modifier.fillMaxSize(),
@@ -240,7 +240,7 @@ fun FavoritesContent(
                 }
                 2 -> PagedContent(artists, "No favorite artists yet", "Couldn't load favorite artists") {
                     AdaptiveTrackGrid(
-                        itemCount = artists.itemCount,
+                        itemCount = { artists.itemCount },
                         key = artists.itemKey { it.id },
                         contentPadding = PaddingValues(top = topPadding),
                         modifier = Modifier.fillMaxSize(),

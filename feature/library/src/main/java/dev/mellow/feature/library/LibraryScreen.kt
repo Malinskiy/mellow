@@ -462,7 +462,7 @@ private fun AlbumsListPanel(albums: LazyPagingItems<AlbumItem>, serverUrl: Strin
 @Composable
 private fun ArtistsPanel(artists: LazyPagingItems<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit, topPadding: Dp = 0.dp) {
     AdaptiveTrackGrid(
-        itemCount = artists.itemCount,
+        itemCount = { artists.itemCount },
         key = artists.itemKey { it.id.ifEmpty { it.name } },
         contentPadding = PaddingValues(top = topPadding),
         modifier = Modifier.fillMaxSize(),
@@ -489,7 +489,7 @@ private fun TracksPanel(
     topPadding: Dp = 0.dp,
 ) {
     AdaptiveTrackGrid(
-        itemCount = tracks.itemCount,
+        itemCount = { tracks.itemCount },
         key = tracks.itemKey { it.id },
         contentPadding = PaddingValues(top = topPadding),
         modifier = Modifier.fillMaxSize(),

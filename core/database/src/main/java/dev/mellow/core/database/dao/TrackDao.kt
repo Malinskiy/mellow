@@ -89,15 +89,16 @@ interface TrackDao {
     )
     suspend fun countFavoriteTracks(serverId: String, downloadedOnly: Boolean): Int
 
-    /** How many favorite tracks come before [trackId] in [getFavoriteTracksPaged] order, downloaded or not. */
+    /** How many favorite tracks (only downloaded ones if [downloadedOnly]) come before [trackId] in list order. */
     @Query(
         """
         SELECT COUNT(*) FROM tracks
         WHERE isFavorite = 1 AND serverId = :serverId
             AND rowid < (SELECT rowid FROM tracks WHERE id = :trackId)
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
         """,
     )
-    suspend fun countFavoriteTracksBefore(serverId: String, trackId: String): Int
+    suspend fun countFavoriteTracksBefore(serverId: String, trackId: String, downloadedOnly: Boolean): Int
 
     /** [limit] favorite tracks picked uniformly at random, for the home screen's Favorite Tracks row. */
     @Query("SELECT * FROM tracks WHERE isFavorite = 1 AND serverId = :serverId ORDER BY RANDOM() LIMIT :limit")
@@ -243,17 +244,26 @@ interface TrackDao {
         offset: Int,
     ): List<TrackEntity>
 
-    /** How many of the server's tracks come before the track [id] named [sortName] in [getTracksByServerPaged] order. */
+    /**
+     * How many of the server's tracks (only downloaded ones if [downloadedOnly]) come before the track [id] named
+     * [sortName] in [getTracksByServerPaged] order.
+     */
     @Query(
         """
         SELECT COUNT(*) FROM tracks
         WHERE serverId = :serverId AND (sortName < :sortName OR (sortName = :sortName AND id < :id))
+            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
         """,
     )
-    suspend fun countTracksBefore(serverId: String, sortName: String, id: String): Int
+    suspend fun countTracksBefore(serverId: String, sortName: String, id: String, downloadedOnly: Boolean): Int
 
-    @Query("SELECT COUNT(*) FROM tracks WHERE serverId = :serverId")
-    suspend fun countTracks(serverId: String): Int
+    @Query(
+        """
+        SELECT COUNT(*) FROM tracks
+        WHERE serverId = :serverId AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_TRACK_IDS))
+        """,
+    )
+    suspend fun countTracks(serverId: String, downloadedOnly: Boolean): Int
 
     @RawQuery
     suspend fun getInstantMixRaw(query: SupportSQLiteQuery): List<TrackEntity>

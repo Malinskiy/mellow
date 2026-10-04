@@ -129,8 +129,8 @@ class LibraryPagingQueriesTest {
         assertEquals(listOf("t2", "t4", "t6"), paged)
         assertEquals(listOf("t4", "t6"), db.trackDao().getFavoriteTracksSlice(SERVER, false, limit = 5, offset = 1).map { it.id })
         assertEquals(3, db.trackDao().countFavoriteTracks(SERVER, downloadedOnly = false))
-        assertEquals(1, db.trackDao().countFavoriteTracksBefore(SERVER, "t4"))
-        assertEquals(0, db.trackDao().countFavoriteTracksBefore(SERVER, "not-a-track"))
+        assertEquals(1, db.trackDao().countFavoriteTracksBefore(SERVER, "t4", downloadedOnly = false))
+        assertEquals(0, db.trackDao().countFavoriteTracksBefore(SERVER, "not-a-track", downloadedOnly = false))
     }
 
     @Test
@@ -169,7 +169,34 @@ class LibraryPagingQueriesTest {
         val ordered = db.trackDao().getTracksByServerPaged(SERVER, downloadedOnly = false, limit = 100, offset = 0)
 
         ordered.forEachIndexed { index, track ->
-            assertEquals(index, db.trackDao().countTracksBefore(SERVER, track.sortName, track.id))
+            assertEquals(index, db.trackDao().countTracksBefore(SERVER, track.sortName, track.id, downloadedOnly = false))
+        }
+    }
+
+    @Test
+    fun `offline positions count downloads only, as the downloaded lists show them`() = runTest {
+        val ids = (1..20).map { "t${it.toString().padStart(2, '0')}" }
+        db.trackDao().upsertTracks(ids.mapIndexed { i, id -> track(id, isFavorite = i % 2 == 1) })
+        db.downloadDao().upsertAll(ids.filterIndexed { i, _ -> i % 3 == 2 }.map { download(it, DownloadEntity.STATUS_COMPLETED) })
+        db.playlistDao().upsert(playlist("p"))
+        db.playlistDao().insertPlaylistTracks(ids.reversed().mapIndexed { i, id -> crossRef("p", id, i) })
+
+        val songs = db.trackDao().getTracksByServerPaged(SERVER, downloadedOnly = true, limit = 100, offset = 0)
+        val favorites = db.trackDao().getFavoriteTracksSlice(SERVER, downloadedOnly = true, limit = 100, offset = 0)
+        val playlist = db.playlistDao().getPlaylistTracksSlice("p", downloadedOnly = true, limit = 100, offset = 0)
+
+        assertEquals(6, songs.size)
+        assertEquals(songs.size, db.trackDao().countTracks(SERVER, downloadedOnly = true))
+        songs.forEachIndexed { i, t ->
+            assertEquals(i, db.trackDao().countTracksBefore(SERVER, t.sortName, t.id, downloadedOnly = true))
+        }
+        assertEquals(favorites.size, db.trackDao().countFavoriteTracks(SERVER, downloadedOnly = true))
+        favorites.forEachIndexed { i, t ->
+            assertEquals(i, db.trackDao().countFavoriteTracksBefore(SERVER, t.id, downloadedOnly = true))
+        }
+        assertEquals(playlist.size, db.playlistDao().countPlaylistTracks("p", downloadedOnly = true))
+        playlist.forEachIndexed { i, t ->
+            assertEquals(i, db.playlistDao().countPlaylistTracksBefore("p", t.id, downloadedOnly = true))
         }
     }
 
@@ -267,9 +294,9 @@ class LibraryPagingQueriesTest {
 
         assertEquals(listOf("t5", "t3", "t1", "t4"), paged)
         assertEquals(listOf("t1", "t4"), db.playlistDao().getPlaylistTracksSlice("p", false, limit = 9, offset = 2).map { it.id })
-        assertEquals(4, db.playlistDao().countPlaylistTracks("p"))
-        paged.forEachIndexed { index, id -> assertEquals(index, db.playlistDao().countPlaylistTracksBefore("p", id)) }
-        assertEquals(0, db.playlistDao().countPlaylistTracksBefore("p", "t2"))
+        assertEquals(4, db.playlistDao().countPlaylistTracks("p", downloadedOnly = false))
+        paged.forEachIndexed { index, id -> assertEquals(index, db.playlistDao().countPlaylistTracksBefore("p", id, downloadedOnly = false)) }
+        assertEquals(0, db.playlistDao().countPlaylistTracksBefore("p", "t2", downloadedOnly = false))
     }
 
     @Test

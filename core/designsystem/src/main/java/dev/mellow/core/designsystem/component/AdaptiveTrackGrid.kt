@@ -95,13 +95,16 @@ fun <T> AdaptiveTrackGrid(
 }
 
 /**
- * A scrollable [AdaptiveTrackGrid] of [itemCount] items addressed by position, for lists that load as they scroll,
- * such as Paging's `LazyPagingItems`. Items always flow left-to-right across each row: reading down a column would
- * need items from far apart in the list at once.
+ * A scrollable [AdaptiveTrackGrid] of items addressed by position, for lists that load as they scroll, such as
+ * Paging's `LazyPagingItems`. Items always flow left-to-right across each row: reading down a column would need
+ * items from far apart in the list at once.
+ *
+ * [itemCount] is read by the grid itself, from the same version of the list as [key]: the grid looks keys up as soon
+ * as the list changes, so a count taken earlier would make it ask a list that just shrank for items it no longer has.
  */
 @Composable
 fun AdaptiveTrackGrid(
-    itemCount: Int,
+    itemCount: () -> Int,
     key: (index: Int) -> Any,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
@@ -115,7 +118,7 @@ fun AdaptiveTrackGrid(
             contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize(),
         ) {
-            items(itemCount, key = key) { index -> itemContent(index, columns) }
+            items(itemCount(), key = key) { index -> itemContent(index, columns) }
         }
     }
 }

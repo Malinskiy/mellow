@@ -28,9 +28,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import dagger.hilt.android.AndroidEntryPoint
-import dev.mellow.core.common.QUEUE_WINDOW_SIZE
 import dev.mellow.core.common.jellyfinStreamUrl
-import dev.mellow.core.common.queueWindowStart
 import dev.mellow.core.data.preferences.PlaybackQueuePreferences
 import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.ArtistDao
@@ -71,6 +69,7 @@ class MellowMediaService : MediaLibraryService() {
 
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
+    private val autoQueue by lazy { AutoQueue(trackDao, playlistDao) }
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val handler = Handler(Looper.getMainLooper())
@@ -230,12 +229,14 @@ class MellowMediaService : MediaLibraryService() {
         } ?: return null
         if (serverDao.getActiveServer()?.id != saved.serverId) return null
 
-        val tracks = trackDao.getTracksById(saved.trackIds).filterValues { it.serverId == saved.serverId }
-        val plan = planQueueRestore(saved.trackIds.size, saved.index, saved.positionMs) {
-            saved.trackIds[it] in tracks
+        // The queue holds plain track IDs; read a browsed one (see BrowsedTrackId) as its track all the same.
+        val trackIds = saved.trackIds.map { BrowsedTrackId.parse(it).trackId }
+        val tracks = trackDao.getTracksById(trackIds).filterValues { it.serverId == saved.serverId }
+        val plan = planQueueRestore(trackIds.size, saved.index, saved.positionMs) {
+            trackIds[it] in tracks
         } ?: return null
         val items = enrichMediaItems(
-            plan.keptIndices.map { MediaItem.Builder().setMediaId(saved.trackIds[it]).build() },
+            plan.keptIndices.map { MediaItem.Builder().setMediaId(trackIds[it]).build() },
         )
         // A track removed in the meantime has no stream URI; skip restoring rather than queue an unplayable item.
         if (items.any { it.localConfiguration == null }) return null
@@ -320,6 +321,10 @@ class MellowMediaService : MediaLibraryService() {
         val (start, position) = remapStart(items.map { it.localConfiguration != null }, startIndex, startPositionMs)
         return MediaSession.MediaItemsWithStartPosition(playable, start, position)
     }
+
+    /** Offline, browsing lists only downloads, the tracks that can play; a queue built from a list must agree. */
+    private fun browsesDownloadsOnly(): Boolean =
+        networkStateObserver.connectionState.value != ConnectionState.Connected
 
     private fun <T> asyncFuture(block: suspend () -> T): ListenableFuture<T> {
         val future = SettableFuture.create<T>()
@@ -416,7 +421,7 @@ class MellowMediaService : MediaLibraryService() {
             putString(EXTRA_PARENT_ID, parentId ?: albumId?.let { "album:$it" } ?: "")
         }
         return MediaItem.Builder()
-            .setMediaId(id)
+            .setMediaId(browsedTrackMediaId(parentId, this))
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(name)
@@ -466,7 +471,19 @@ class MellowMediaService : MediaLibraryService() {
             )
             .build()
 
-    private suspend fun enrichMediaItems(mediaItems: List<MediaItem>): List<MediaItem> {
+    /** A track as the player's queue holds it: by its plain ID; [enrichMediaItems] adds the stream and details. */
+    private fun TrackEntity.toQueueItem(): MediaItem = MediaItem.Builder().setMediaId(id).build()
+
+    /**
+     * Gives each item its stream and details from the library. Items come by plain track ID, or by a browsed track's
+     * media ID ([BrowsedTrackId]), which is read as its track: what this returns, and the player queues, only ever
+     * has plain track IDs, as saved queues, downloads and playback reports expect.
+     */
+    private suspend fun enrichMediaItems(items: List<MediaItem>): List<MediaItem> {
+        val mediaItems = items.map { item ->
+            val trackId = BrowsedTrackId.parse(item.mediaId).trackId
+            if (trackId == item.mediaId) item else item.buildUpon().setMediaId(trackId).build()
+        }
         val server = serverDao.getActiveServer()
         if (server == null) {
             Log.w(TAG, "enrichMediaItems: no active server, returning ${mediaItems.size} unenriched items")
@@ -538,9 +555,7 @@ class MellowMediaService : MediaLibraryService() {
                         val tracks = trackDao.getTracksByAlbumSync(albumId)
                         Log.d(TAG, "onSetMediaItems: album:$albumId → ${tracks.size} tracks")
                         if (tracks.isNotEmpty()) {
-                            val enriched = enrichMediaItems(tracks.map {
-                                it.toPlayableItem(parentId = "album:$albumId")
-                            })
+                            val enriched = enrichMediaItems(tracks.map { it.toQueueItem() })
                             Log.d(TAG, "onSetMediaItems: resolved album, returning ${enriched.size} items")
                             return@asyncFuture playableOrError(browser, enriched, 0, startPositionMs)
                         }
@@ -553,80 +568,28 @@ class MellowMediaService : MediaLibraryService() {
                         Log.d(TAG, "onSetMediaItems: artist:$artistId → ${tracks.size} tracks")
                         return@asyncFuture playableOrError(
                             browser,
-                            enrichMediaItems(tracks.map { it.toPlayableItem(parentId = "artist:$artistId") }),
+                            enrichMediaItems(tracks.map { it.toQueueItem() }),
                             0,
                             startPositionMs,
                         )
                     }
 
-                    val trackId = mediaId
-                    val parentId = mediaItems[0].mediaMetadata.extras?.getString(EXTRA_PARENT_ID)
-                    val track = trackDao.getTrackById(trackId)
+                    // A head unit sends the media ID alone; the extras' parent only helps with a plain track ID.
+                    val parentHint = mediaItems[0].mediaMetadata.extras?.getString(EXTRA_PARENT_ID)
                     val serverId = serverDao.getActiveServer()?.id ?: ""
-                    Log.d(TAG, "onSetMediaItems: track lookup id=$trackId, found=${track != null}, parentId=$parentId, serverId=$serverId")
+                    Log.d(TAG, "onSetMediaItems: mediaId=$mediaId, parentHint=$parentHint, serverId=$serverId")
 
-                    // A playlist, the favorites or the library can be too long to queue whole: queue the tracks
-                    // around this one instead, as the app does.
-                    val siblings = when {
-                        parentId?.startsWith("playlist:") == true -> {
-                            val plId = parentId.removePrefix("playlist:")
-                            val position = playlistDao.countPlaylistTracksBefore(plId, trackId)
-                            val start = queueWindowStart(position, playlistDao.countPlaylistTracks(plId))
-                            playlistDao.getPlaylistTracksSlice(
-                                plId,
-                                downloadedOnly = false,
-                                limit = QUEUE_WINDOW_SIZE,
-                                offset = start,
-                            )
-                        }
-                        parentId == FAV_TRACKS -> {
-                            val position = trackDao.countFavoriteTracksBefore(serverId, trackId)
-                            val start = queueWindowStart(position, trackDao.countFavoriteTracks(serverId, false))
-                            trackDao.getFavoriteTracksSlice(
-                                serverId,
-                                downloadedOnly = false,
-                                limit = QUEUE_WINDOW_SIZE,
-                                offset = start,
-                            )
-                        }
-                        parentId == LIBRARY_SONGS -> {
-                            val position = track?.let { trackDao.countTracksBefore(serverId, it.sortName, it.id) } ?: 0
-                            val start = queueWindowStart(position, trackDao.countTracks(serverId))
-                            trackDao.getTracksByServerPaged(
-                                serverId,
-                                downloadedOnly = false,
-                                limit = QUEUE_WINDOW_SIZE,
-                                offset = start,
-                            )
-                        }
-                        parentId?.startsWith("album:") == true -> {
-                            val aId = parentId.removePrefix("album:")
-                            trackDao.getTracksByAlbumSync(aId)
-                        }
-                        track?.albumId != null -> {
-                            trackDao.getTracksByAlbumSync(track.albumId!!)
-                        }
-                        else -> null
-                    }
-                    Log.d(TAG, "onSetMediaItems: siblings=${siblings?.size}, source=${
-                        when {
-                            parentId?.startsWith("playlist:") == true -> "playlist"
-                            parentId == FAV_TRACKS -> "fav_tracks"
-                            parentId == LIBRARY_SONGS -> "library_songs"
-                            parentId?.startsWith("album:") == true -> "album_parent"
-                            track?.albumId != null -> "album_fallback"
-                            else -> "none"
-                        }
-                    }")
+                    // The list the track was picked from, around it, as Android Auto listed it.
+                    val siblings = autoQueue.forItem(mediaId, parentHint, serverId, browsesDownloadsOnly())
+                    Log.d(TAG, "onSetMediaItems: siblings=${siblings?.first?.size}")
 
-                    if (!siblings.isNullOrEmpty()) {
-                        val enriched = enrichMediaItems(siblings.map {
-                            it.toPlayableItem(parentId = parentId)
-                        })
-                        val idx = siblings.indexOfFirst { it.id == trackId }.coerceAtLeast(0)
+                    if (siblings != null) {
+                        val (tracks, idx) = siblings
+                        val enriched = enrichMediaItems(tracks.map { it.toQueueItem() })
                         Log.d(TAG, "onSetMediaItems: returning ${enriched.size} sibling items, startIdx=$idx")
                         playableOrError(browser, enriched, idx, startPositionMs)
                     } else {
+                        // Played on its own, by its plain track ID (enrichMediaItems reads a browsed ID as its track).
                         val enriched = enrichMediaItems(mediaItems)
                         Log.d(TAG, "onSetMediaItems: no siblings, returning ${enriched.size} single items")
                         playableOrError(browser, enriched, startIndex, startPositionMs)
@@ -758,9 +721,9 @@ class MellowMediaService : MediaLibraryService() {
             return asyncFuture {
                 val server = serverDao.getActiveServer()
                 val serverId = server?.id ?: ""
-                val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
                 // Offline, only downloads can play. Long lists filter in their queries; short ones filter here.
-                val downloadedOnly = !isOnline
+                val downloadedOnly = browsesDownloadsOnly()
+                val isOnline = !downloadedOnly
                 val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
                 val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
 
@@ -847,7 +810,7 @@ class MellowMediaService : MediaLibraryService() {
                     }
                     parentId == FAV_TRACKS -> {
                         trackDao.getFavoriteTracksSlice(serverId, downloadedOnly, window.limit, window.offset)
-                            .map { it.toPlayableItem(parentId = FAV_TRACKS) }
+                            .map { it.toPlayableItem(parentId = queueParentOf(parentId)) }
                     }
                     parentId == LIBRARY_ALBUMS -> {
                         albumDao.getAlbumsByServerSlice(serverId, downloadedOnly, window.limit, window.offset)
@@ -877,7 +840,7 @@ class MellowMediaService : MediaLibraryService() {
                     }
                     parentId == LIBRARY_SONGS -> {
                         trackDao.getTracksByServerPaged(serverId, downloadedOnly, window.limit, window.offset)
-                            .map { it.toPlayableItem() }
+                            .map { it.toPlayableItem(parentId = queueParentOf(parentId)) }
                     }
                     parentId == TAB_PLAYLISTS -> {
                         playlistDao.getPlaylistsByServer(serverId)
@@ -912,7 +875,7 @@ class MellowMediaService : MediaLibraryService() {
                     parentId.startsWith("playlist:") -> {
                         val playlistId = parentId.removePrefix("playlist:")
                         playlistDao.getPlaylistTracksSlice(playlistId, downloadedOnly, window.limit, window.offset)
-                            .map { it.toPlayableItem(parentId = parentId) }
+                            .map { it.toPlayableItem(parentId = queueParentOf(parentId)) }
                     }
                     else -> emptyList()
                 }
@@ -940,10 +903,8 @@ class MellowMediaService : MediaLibraryService() {
                 val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
                 val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
                 val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
-                val dlArtistNames = if (!isOnline) downloadDao.getDownloadedArtistNames().toSet() else null
 
-                val artists = artistDao.search(serverId, query, limit = 5)
-                    .let { if (dlArtistNames != null) it.filter { a -> a.name in dlArtistNames } else it }
+                val artists = artistDao.search(serverId, query, limit = 5, downloadedOnly = !isOnline)
                 val albums = albumDao.search(serverId, query, limit = 10)
                     .let { if (dlAlbumIds != null) it.filter { a -> a.id in dlAlbumIds } else it }
                 val tracks = trackDao.search(serverId, query, limit = 20)
@@ -973,10 +934,8 @@ class MellowMediaService : MediaLibraryService() {
                 val isOnline = networkStateObserver.connectionState.value == ConnectionState.Connected
                 val dlTrackIds = if (!isOnline) downloadDao.getDownloadedTrackIds().toSet() else null
                 val dlAlbumIds = if (!isOnline) downloadDao.getDownloadedAlbumIds().toSet() else null
-                val dlArtistNames = if (!isOnline) downloadDao.getDownloadedArtistNames().toSet() else null
 
-                val artists = artistDao.search(serverId, query, limit = 5)
-                    .let { if (dlArtistNames != null) it.filter { a -> a.name in dlArtistNames } else it }
+                val artists = artistDao.search(serverId, query, limit = 5, downloadedOnly = !isOnline)
                     .map { it.toBrowsableItem() }
                 val albums = albumDao.search(serverId, query, limit = 10)
                     .let { if (dlAlbumIds != null) it.filter { a -> a.id in dlAlbumIds } else it }
@@ -1092,10 +1051,10 @@ class MellowMediaService : MediaLibraryService() {
         private const val LIBRARY_ALBUMS = "library_albums"
         private const val LIBRARY_ARTISTS = "library_artists"
         private const val LIBRARY_GENRES = "library_genres"
-        private const val LIBRARY_SONGS = "library_songs"
+        internal const val LIBRARY_SONGS = "library_songs"
         private const val FAV_ALBUMS = "fav_albums"
         private const val FAV_ARTISTS = "fav_artists"
-        private const val FAV_TRACKS = "fav_tracks"
+        internal const val FAV_TRACKS = "fav_tracks"
         private const val HOME_ROW_SIZE = 3
         private const val AA_MAX_ITEMS = 500
         private const val EXTRA_PARENT_ID = "dev.mellow.PARENT_ID"

@@ -64,19 +64,28 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlists WHERE serverId = :serverId ORDER BY sortName ASC")
     suspend fun getPlaylistsByServer(serverId: String): List<PlaylistEntity>
 
-    @Query("SELECT COUNT(*) FROM tracks t INNER JOIN playlist_tracks pt ON t.id = pt.trackId WHERE pt.playlistId = :playlistId")
-    suspend fun countPlaylistTracks(playlistId: String): Int
+    @Query(
+        """
+        SELECT COUNT(*) FROM tracks t INNER JOIN playlist_tracks pt ON t.id = pt.trackId
+        WHERE pt.playlistId = :playlistId AND (:downloadedOnly = 0 OR t.id IN ($DOWNLOADED_TRACK_IDS))
+        """,
+    )
+    suspend fun countPlaylistTracks(playlistId: String, downloadedOnly: Boolean): Int
 
-    /** How many tracks come before [trackId] in [getPlaylistTracksPaged] order, downloaded or not. */
+    /**
+     * How many of the playlist's tracks (only downloaded ones if [downloadedOnly]) come before [trackId] in
+     * [getPlaylistTracksPaged] order.
+     */
     @Query(
         """
         SELECT COUNT(*) FROM tracks t INNER JOIN playlist_tracks pt ON t.id = pt.trackId
         INNER JOIN playlist_tracks target ON target.playlistId = pt.playlistId AND target.trackId = :trackId
         WHERE pt.playlistId = :playlistId
             AND (pt.position < target.position OR (pt.position = target.position AND t.id < :trackId))
+            AND (:downloadedOnly = 0 OR t.id IN ($DOWNLOADED_TRACK_IDS))
         """,
     )
-    suspend fun countPlaylistTracksBefore(playlistId: String, trackId: String): Int
+    suspend fun countPlaylistTracksBefore(playlistId: String, trackId: String, downloadedOnly: Boolean): Int
 
     /**
      * [limit] of the playlist's tracks picked uniformly at random from all of them, in random order, for shuffling a

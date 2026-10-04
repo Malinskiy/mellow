@@ -52,7 +52,7 @@ class PlaylistRepositoryImpl @Inject constructor(
 
     override suspend fun countPlaylistTracks(playlistId: String): MellowResult<Int> =
         try {
-            MellowResult.Success(playlistDao.countPlaylistTracks(playlistId))
+            MellowResult.Success(playlistDao.countPlaylistTracks(playlistId, downloadedOnly = false))
         } catch (e: Exception) {
             MellowResult.Error(e)
         }

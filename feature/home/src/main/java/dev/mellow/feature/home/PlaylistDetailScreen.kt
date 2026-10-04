@@ -139,7 +139,7 @@ fun PlaylistDetailScreen(
             tracks.itemCount == 0 -> EmptyContent("No tracks in this playlist")
             else -> {
                 AdaptiveTrackGrid(
-                    itemCount = tracks.itemCount,
+                    itemCount = { tracks.itemCount },
                     key = tracks.itemKey { it.id },
                     contentPadding = PaddingValues(bottom = MellowSpacing.Sp16),
                 ) { index, _ ->

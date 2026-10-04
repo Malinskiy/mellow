@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
 private const val FAVORITE_ARTISTS_QUERY = """
     SELECT * FROM artists
     WHERE isFavorite = 1 AND serverId = :serverId
-        AND (:downloadedOnly = 0 OR name IN ($DOWNLOADED_ARTIST_NAMES))
+        AND (:downloadedOnly = 0 OR $ARTIST_IS_DOWNLOADED)
     ORDER BY rowid
 """
 
@@ -38,7 +38,7 @@ interface ArtistDao {
             GROUP BY artistKey
         ) c ON c.artistKey = a.id
         WHERE a.serverId = :serverId
-            AND (:downloadedOnly = 0 OR a.name IN ($DOWNLOADED_ARTIST_NAMES))
+            AND (:downloadedOnly = 0 OR a.id IN ($DOWNLOADED_ARTIST_IDS))
         GROUP BY aa.canonicalArtistId
         ORDER BY
             CASE WHEN :sort = ${LibraryOrder.NAME_ASC} THEN a.name END COLLATE NOCASE ASC,
@@ -58,7 +58,7 @@ interface ArtistDao {
         SELECT a.* FROM artists a
         INNER JOIN artist_aliases aa ON a.id = aa.canonicalArtistId AND a.serverId = aa.serverId
         WHERE a.serverId = :serverId
-            AND (:downloadedOnly = 0 OR a.name IN ($DOWNLOADED_ARTIST_NAMES))
+            AND (:downloadedOnly = 0 OR a.id IN ($DOWNLOADED_ARTIST_IDS))
         GROUP BY aa.canonicalArtistId
         ORDER BY a.sortName ASC, a.id ASC
         LIMIT :limit OFFSET :offset
@@ -89,8 +89,17 @@ interface ArtistDao {
         offset: Int,
     ): List<ArtistEntity>
 
-    @Query("SELECT * FROM artists WHERE serverId = :serverId AND name LIKE '%' || :query || '%' ORDER BY sortName ASC LIMIT :limit")
-    suspend fun search(serverId: String, query: String, limit: Int = 10): List<ArtistEntity>
+    /** Artists named like [query]; only those with a downloaded track if [downloadedOnly]. */
+    @Query(
+        """
+        SELECT * FROM artists
+        WHERE serverId = :serverId AND name LIKE '%' || :query || '%'
+            AND (:downloadedOnly = 0 OR $ARTIST_IS_DOWNLOADED)
+        ORDER BY sortName ASC
+        LIMIT :limit
+        """,
+    )
+    suspend fun search(serverId: String, query: String, limit: Int = 10, downloadedOnly: Boolean = false): List<ArtistEntity>
 
     /**
      * Saves artists from the server without clearing a stored favorite: Jellyfin's `/Artists` reports
