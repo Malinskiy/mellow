@@ -1,0 +1,57 @@
+name: Perf comment
+
+# Posts the Perf workflow's report on its pull request, updating the same comment on later runs. Runs from the default
+# branch with write access, so pull requests from forks get the comment too. It never checks out or runs pull-request
+# code: it only reads the report artifact, and posts it only on the pull request whose head the report was built from.
+
+on:
+  workflow_run:
+    workflows: [Perf]
+    types: [completed]
+
+permissions:
+  actions: read
+  pull-requests: write
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the report
+        uses: actions/download-artifact@v4
+        with:
+          name: perf-report
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: perf
+
+      - name: Post or update the comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr="$(head -c 16 perf/pr-number | tr -d '[:space:]')"
+          if ! [[ "$pr" =~ ^[0-9]+$ ]]; then
+            echo "The artifact's pull request number isn't a number."
+            exit 1
+          fi
+          if [ "$(gh api "repos/$REPO/pulls/$pr" --jq .head.sha)" != "$HEAD_SHA" ]; then
+            echo "Pull request #$pr isn't at $HEAD_SHA any more (or never was); not commenting."
+            exit 0
+          fi
+          if [ "$(stat -c %s perf/report.md)" -gt 60000 ]; then
+            echo "The report is too large for a comment."
+            exit 1
+          fi
+          marker='<!-- mellow-perf-report -->'
+          printf '%s\n%s' "$marker" "$(cat perf/report.md)" > body.md
+          comment="$(gh api "repos/$REPO/issues/$pr/comments" --paginate \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" \
+            | head -n 1)"
+          if [ -n "$comment" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$comment" -F body=@body.md > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$pr/comments" -F body=@body.md > /dev/null
+          fi
