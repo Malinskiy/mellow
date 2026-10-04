@@ -293,8 +293,8 @@ interface AlbumDao {
     @Query("DELETE FROM albums WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 
-    @Query("SELECT id FROM albums WHERE serverId = :serverId AND imageTag IS NOT NULL")
-    suspend fun getIdsWithImage(serverId: String): List<String>
+    @Query("SELECT id, imageTag FROM albums WHERE serverId = :serverId AND imageTag IS NOT NULL")
+    suspend fun getImageTags(serverId: String): List<ImageTagRow>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAlbumArtists(refs: List<AlbumArtistCrossRef>)

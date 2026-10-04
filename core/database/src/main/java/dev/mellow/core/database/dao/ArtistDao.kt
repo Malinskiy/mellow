@@ -136,8 +136,8 @@ interface ArtistDao {
     @Query("DELETE FROM artists WHERE serverId = :serverId")
     suspend fun deleteByServer(serverId: String)
 
-    @Query("SELECT id FROM artists WHERE serverId = :serverId AND imageTag IS NOT NULL")
-    suspend fun getIdsWithImage(serverId: String): List<String>
+    @Query("SELECT id, imageTag FROM artists WHERE serverId = :serverId AND imageTag IS NOT NULL")
+    suspend fun getImageTags(serverId: String): List<ImageTagRow>
 }
 
 /** An artist with the number of the library's albums credited to it, counted on the device. */
