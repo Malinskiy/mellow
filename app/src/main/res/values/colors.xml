@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MellowTheme's background (Stone950), for the window before Compose draws. -->
+    <color name="mellow_background">#FF0C0A09</color>
+</resources>

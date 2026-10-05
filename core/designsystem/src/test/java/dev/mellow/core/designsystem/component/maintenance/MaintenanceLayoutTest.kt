@@ -1,0 +1,213 @@
+package dev.mellow.core.designsystem.component.maintenance
+
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import dev.mellow.core.designsystem.theme.DevicePosture
+import dev.mellow.core.designsystem.theme.FoldableState
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class MaintenanceLayoutTest {
+
+    private val spacing = MaintenanceSpacing(minMargin = 60f, gap = 40f)
+    private val caption = Size(500f, 50f)
+
+    @Test
+    fun `portrait and near-square windows stack, wide ones go side by side`() {
+        assertEquals(MaintenanceShape.Stacked, maintenanceShape(Size(1236f, 2745f), hinge = null))
+        assertEquals(MaintenanceShape.Stacked, maintenanceShape(Size(2300f, 2685f), hinge = null))
+        assertEquals(MaintenanceShape.Stacked, maintenanceShape(Size(2685f, 2300f), hinge = null))
+        assertEquals(MaintenanceShape.SideBySide, maintenanceShape(Size(2745f, 1236f), hinge = null))
+        assertEquals(MaintenanceShape.SideBySide, maintenanceShape(Size(2560f, 1600f), hinge = null))
+    }
+
+    @Test
+    fun `a hinge across splits top and bottom, an upright one left and right`() {
+        assertEquals(MaintenanceShape.Tabletop, maintenanceShape(Size(2685f, 2300f), Rect(0f, 1150f, 2685f, 1150f)))
+        assertEquals(MaintenanceShape.Book, maintenanceShape(Size(2300f, 2685f), Rect(1150f, 0f, 1150f, 2685f)))
+        // Too close to an edge to lay out around.
+        assertEquals(MaintenanceShape.Stacked, maintenanceShape(Size(2300f, 2685f), Rect(100f, 0f, 100f, 2685f)))
+    }
+
+    @Test
+    fun `only a half-folded or separating fold is laid out around`() {
+        val hinge = Rect(1150f, 0f, 1150f, 2685f)
+
+        assertNull(FoldableState(DevicePosture.Flat, hinge, isSeparating = false).layoutHinge)
+        assertNull(FoldableState().layoutHinge)
+        assertEquals(hinge, FoldableState(DevicePosture.Book, hinge, isSeparating = true).layoutHinge)
+        assertEquals(hinge, FoldableState(DevicePosture.Flat, hinge, isSeparating = true).layoutHinge)
+    }
+
+    @Test
+    fun `stacked, the graphic and the caption under it are centred together`() {
+        val area = Size(1236f, 2745f)
+        val plan = maintenancePlan(MaintenanceShape.Stacked, area, null, caption, spacing)
+
+        assertEquals(area.width, plan.graphic.width, 0.5f)
+        assertEquals(plan.graphic.bottom + spacing.gap, plan.captionTopLeft.y, 0.5f)
+        val bottom = plan.captionTopLeft.y + caption.height
+        assertEquals(area.height - bottom, plan.graphic.top, 0.5f)
+        assertEquals(area.width / 2f, plan.captionTopLeft.x + caption.width / 2f, 0.5f)
+        assertInside(area, plan)
+    }
+
+    @Test
+    fun `near square, the group keeps well clear of the top and bottom`() {
+        val area = Size(2685f, 2300f)
+        val plan = maintenancePlan(MaintenanceShape.Stacked, area, null, caption, spacing)
+
+        val bottom = plan.captionTopLeft.y + caption.height
+        val group = minOf(area.height * 0.92f, area.height - 2 * spacing.margin(area))
+        assertEquals(group, bottom - plan.graphic.top, 0.5f)
+        assertEquals(area.height - bottom, plan.graphic.top, 0.5f)
+        assertTrue(plan.graphic.top >= spacing.margin(area))
+        assertEquals(area.width / 2f, plan.graphic.center.x, 0.5f)
+        assertInside(area, plan)
+    }
+
+    @Test
+    fun `side by side, the graphic and the caption beside it are centred together`() {
+        val area = Size(2745f, 1236f)
+        val plan = maintenancePlan(MaintenanceShape.SideBySide, area, null, caption, spacing)
+
+        assertEquals(minOf(area.height * 0.92f, area.height - 2 * spacing.margin(area)), plan.graphic.height, 0.5f)
+        assertEquals(plan.graphic.right + spacing.gap, plan.captionTopLeft.x, 0.5f)
+        val right = plan.captionTopLeft.x + caption.width
+        assertEquals(area.width - right, plan.graphic.left, 0.5f)
+        assertEquals(area.height / 2f, plan.graphic.center.y, 0.5f)
+        assertEquals(area.height / 2f, plan.captionTopLeft.y + caption.height / 2f, 0.5f)
+        assertInside(area, plan)
+    }
+
+    @Test
+    fun `tabletop, the graphic stays above the hinge and the caption below it`() {
+        val area = Size(2685f, 2300f)
+        val hinge = Rect(0f, 1150f, 2685f, 1150f)
+        val plan = maintenancePlan(MaintenanceShape.Tabletop, area, hinge, caption, spacing)
+
+        assertTrue(plan.graphic.bottom <= hinge.top - spacing.minMargin + 0.5f)
+        assertTrue(plan.captionTopLeft.y > hinge.bottom)
+        assertEquals(area.width / 2f, plan.graphic.center.x, 0.5f)
+        assertInside(area, plan)
+    }
+
+    @Test
+    fun `book, the graphic stays left of the hinge and the caption right of it`() {
+        val area = Size(2300f, 2685f)
+        val hinge = Rect(1150f, 0f, 1150f, 2685f)
+        val plan = maintenancePlan(MaintenanceShape.Book, area, hinge, caption, spacing)
+
+        assertTrue(plan.graphic.right <= hinge.left - spacing.minMargin + 0.5f)
+        assertTrue(plan.captionTopLeft.x > hinge.right)
+        assertEquals((hinge.right + area.width) / 2f, plan.captionTopLeft.x + caption.width / 2f, 0.5f)
+        assertInside(area, plan)
+    }
+
+    @Test
+    fun `the caption scales with the graphic, from titleMedium to 28 sp`() {
+        assertEquals(15f, captionFontSize(slotDp = 200f, minSp = 15f, maxSp = 28f), 0.01f)
+        assertEquals(21f, captionFontSize(slotDp = 350f, minSp = 15f, maxSp = 28f), 0.01f)
+        assertEquals(28f, captionFontSize(slotDp = 800f, minSp = 15f, maxSp = 28f), 0.01f)
+    }
+
+    @Test
+    fun `the caption may use the width its place has`() {
+        val hinge = Rect(1150f, 0f, 1150f, 2685f)
+
+        assertEquals(2745f * 0.4f, captionMaxWidth(MaintenanceShape.SideBySide, Size(2745f, 1236f), null, spacing), 1f)
+        assertEquals(1030f, captionMaxWidth(MaintenanceShape.Book, Size(2300f, 2685f), hinge, spacing), 1f)
+        assertEquals(1112.4f, captionMaxWidth(MaintenanceShape.Stacked, Size(1236f, 2745f), null, spacing), 1f)
+    }
+
+    @Test
+    fun `a wider graphic keeps its aspect ratio and stays inside in every shape`() {
+        val aspect = 1.11f
+        val portrait = Size(1236f, 2745f)
+        val stacked = maintenancePlan(MaintenanceShape.Stacked, portrait, null, caption, spacing, aspect)
+        assertEquals(portrait.width, stacked.graphic.width, 0.5f)
+        assertEquals(portrait.width / 2f, stacked.graphic.center.x, 0.5f)
+        assertEquals(stacked.graphic.bottom + spacing.gap, stacked.captionTopLeft.y, 0.5f)
+        assertInside(portrait, stacked, aspect)
+
+        val wide = Size(2745f, 1236f)
+        val side = maintenancePlan(MaintenanceShape.SideBySide, wide, null, caption, spacing, aspect)
+        assertEquals(minOf(wide.height * 0.92f, wide.height - 2 * spacing.margin(wide)), side.graphic.height, 0.5f)
+        assertEquals(side.graphic.right + spacing.gap, side.captionTopLeft.x, 0.5f)
+        assertEquals(wide.width - (side.captionTopLeft.x + caption.width), side.graphic.left, 0.5f)
+        assertInside(wide, side, aspect)
+
+        val across = Rect(0f, 1150f, 2685f, 1150f)
+        val tabletop = maintenancePlan(MaintenanceShape.Tabletop, Size(2685f, 2300f), across, caption, spacing, aspect)
+        assertTrue(tabletop.graphic.bottom <= across.top - spacing.minMargin + 0.5f)
+        assertInside(Size(2685f, 2300f), tabletop, aspect)
+
+        val upright = Rect(1150f, 0f, 1150f, 2685f)
+        val book = maintenancePlan(MaintenanceShape.Book, Size(2300f, 2685f), upright, caption, spacing, aspect)
+        assertTrue(book.graphic.right <= upright.left - spacing.minMargin + 0.5f)
+        assertEquals(upright.left / 2f, book.graphic.center.x, 0.5f)
+        assertInside(Size(2300f, 2685f), book, aspect)
+    }
+
+    @Test
+    fun `a two-line caption takes room from the graphic, not from the margins`() {
+        val area = Size(1236f, 2745f)
+        val aspect = 1.11f
+        val oneLine = maintenancePlan(MaintenanceShape.Stacked, Size(area.width, 1200f), null, caption, spacing, aspect)
+        val twoLines = Size(caption.width, caption.height * 2)
+        val plan = maintenancePlan(MaintenanceShape.Stacked, Size(area.width, 1200f), null, twoLines, spacing, aspect)
+
+        assertTrue(plan.graphic.height < oneLine.graphic.height)
+        val bottom = plan.captionTopLeft.y + twoLines.height
+        assertEquals(1200f - bottom, plan.graphic.top, 0.5f)
+        assertTrue(plan.graphic.top >= spacing.margin(Size(area.width, 1200f)) - 0.5f)
+    }
+
+    @Test
+    fun `the subline is about three quarters of the title, never below bodySmall`() {
+        assertEquals(20.16f, sublineFontSize(titleSp = 28f, minSp = 13f), 0.01f)
+        assertEquals(15.12f, sublineFontSize(titleSp = 21f, minSp = 13f), 0.01f)
+        assertEquals(13f, sublineFontSize(titleSp = 15f, minSp = 13f), 0.01f)
+    }
+
+    @Test
+    fun `the graphic's padding follows its own part of the window`() {
+        val window = Size(2685f, 2300f)
+        val across = Rect(0f, 1150f, 2685f, 1150f)
+        val upright = Rect(1150f, 0f, 1150f, 2685f)
+
+        assertEquals(window, graphicPart(MaintenanceShape.Stacked, window, null))
+        assertEquals(Size(2685f, 1150f), graphicPart(MaintenanceShape.Tabletop, window, across))
+        assertEquals(Size(1150f, 2685f), graphicPart(MaintenanceShape.Book, Size(2300f, 2685f), upright))
+        assertEquals(230f, graphicPaddingPx(Size(2685f, 2300f), minPadding = 63f, fraction = 0.1f), 0.01f)
+        assertEquals(115f, graphicPaddingPx(Size(2685f, 1150f), minPadding = 63f, fraction = 0.1f), 0.01f)
+        assertEquals(63f, graphicPaddingPx(Size(500f, 400f), minPadding = 63f, fraction = 0.1f), 0.01f)
+        assertEquals(21f, graphicPaddingPx(Size(2685f, 2300f), minPadding = 21f, fraction = 0f), 0.01f)
+    }
+
+    @Test
+    fun `a collapsed window lays out without failing`() {
+        for (shape in MaintenanceShape.entries) {
+            for (aspect in listOf(1f, 1.11f)) {
+                val empty = maintenancePlan(shape, Size.Zero, null, Size.Zero, spacing, aspect)
+                assertTrue(empty.graphic.width >= 0f && empty.graphic.height >= 0f)
+                maintenancePlan(shape, Size(10f, 10f), Rect(0f, 5f, 10f, 5f), caption, spacing, aspect)
+            }
+        }
+    }
+
+    /** The graphic, [aspect] times as wide as tall, and the caption lie inside [area]. */
+    private fun assertInside(area: Size, plan: MaintenancePlan, aspect: Float = 1f) {
+        val graphic = plan.graphic
+        assertEquals("graphic not at its aspect ratio", graphic.height * aspect, graphic.width, 0.5f)
+        assertTrue("graphic $graphic outside $area", graphic.left >= -0.5f && graphic.top >= -0.5f)
+        assertTrue("graphic $graphic outside $area", graphic.right <= area.width + 0.5f)
+        assertTrue("graphic $graphic outside $area", graphic.bottom <= area.height + 0.5f)
+        val captionRight = plan.captionTopLeft.x + caption.width
+        val captionBottom = plan.captionTopLeft.y + caption.height
+        assertTrue("caption outside $area", plan.captionTopLeft.x >= 0f && captionRight <= area.width)
+        assertTrue("caption outside $area", plan.captionTopLeft.y >= 0f && captionBottom <= area.height)
+    }
+}

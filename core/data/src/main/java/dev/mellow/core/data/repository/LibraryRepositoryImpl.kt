@@ -19,12 +19,15 @@ import dev.mellow.core.common.getCleanValue
 import dev.mellow.core.database.DatabaseTransactionRunner
 import dev.mellow.core.database.converter.Converters
 import dev.mellow.core.database.dao.AlbumDao
+import dev.mellow.core.database.dao.AlbumKeysetQueryFactory
 import dev.mellow.core.database.dao.ArtistAliasDao
 import dev.mellow.core.database.dao.ArtistDao
+import dev.mellow.core.database.dao.ArtistKeysetQueryFactory
 import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.SyncPassDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.dao.getInstantMix
 import dev.mellow.core.database.dao.mark
 import dev.mellow.core.database.dao.pickRandomTracks
@@ -33,6 +36,7 @@ import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.SearchQueryEntity
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.database.entity.SyncPassKind
+import dev.mellow.core.database.dao.RecentlyPlayedAlbumsObserver
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
 import dev.mellow.core.model.LibrarySort
@@ -62,6 +66,10 @@ class LibraryRepositoryImpl @Inject constructor(
     private val artistDao: ArtistDao,
     private val artistAliasDao: ArtistAliasDao,
     private val trackDao: TrackDao,
+    private val albumKeysetQueries: AlbumKeysetQueryFactory,
+    private val artistKeysetQueries: ArtistKeysetQueryFactory,
+    private val trackKeysetQueries: TrackKeysetQueryFactory,
+    private val recentlyPlayedAlbums: RecentlyPlayedAlbumsObserver,
     private val serverDao: ServerDao,
     private val searchQueryDao: SearchQueryDao,
     private val syncPassDao: SyncPassDao,
@@ -77,6 +85,7 @@ class LibraryRepositoryImpl @Inject constructor(
         private const val ARTIST_PAGE_SIZE = 500
         private const val ALBUM_PAGE_SIZE = 500
         private const val TRACK_PAGE_SIZE = 1000
+        private const val RECENTLY_PLAYED_ALBUMS = 20
 
         /** Unseen items asked about per request when a full pass checks which of them are gone. */
         private const val GONE_CHECK_BATCH_SIZE = 100
@@ -102,7 +111,9 @@ class LibraryRepositoryImpl @Inject constructor(
         genre: String?,
         downloadedOnly: Boolean,
     ): Flow<PagingData<Album>> =
-        Pager(LIBRARY_PAGING_CONFIG) { albumDao.getLibraryAlbums(serverId, sort.toOrder(), genre, downloadedOnly) }
+        Pager(LIBRARY_PAGING_CONFIG) {
+            albumKeysetQueries.libraryPagingSource(serverId, sort.toOrder(), genre, downloadedOnly)
+        }
             .flow
             .map { page -> page.map { it.toModel() } }
 
@@ -111,7 +122,9 @@ class LibraryRepositoryImpl @Inject constructor(
         sort: LibrarySort,
         downloadedOnly: Boolean,
     ): Flow<PagingData<Artist>> =
-        Pager(LIBRARY_PAGING_CONFIG) { artistDao.getLibraryArtists(serverId, sort.toOrder(), downloadedOnly) }
+        Pager(LIBRARY_PAGING_CONFIG) {
+            artistKeysetQueries.libraryPagingSource(serverId, sort.toOrder(), downloadedOnly)
+        }
             .flow
             .map { page -> page.map { it.artist.toModel().copy(albumCount = it.localAlbumCount) } }
 
@@ -120,20 +133,30 @@ class LibraryRepositoryImpl @Inject constructor(
         sort: LibrarySort,
         downloadedOnly: Boolean,
     ): Flow<PagingData<Track>> =
-        Pager(LIBRARY_PAGING_CONFIG) { trackDao.getLibraryTracks(serverId, sort.toOrder(), downloadedOnly) }
+        Pager(LIBRARY_PAGING_CONFIG) {
+            trackKeysetQueries.libraryPagingSource(serverId, sort.toOrder(), downloadedOnly)
+        }
             .flow
             .map { page -> page.map { it.toModel() } }
 
-    override suspend fun getTracksSlice(
+    override suspend fun getTracksWindow(
         serverId: String,
         sort: LibrarySort,
         downloadedOnly: Boolean,
-        offset: Int,
+        trackId: String,
+        before: Int,
         limit: Int,
     ): MellowResult<List<Track>> =
         try {
             MellowResult.Success(
-                trackDao.getLibraryTracksSlice(serverId, sort.toOrder(), downloadedOnly, limit, offset)
+                trackKeysetQueries.libraryQueueWindow(
+                    serverId,
+                    sort.toOrder(),
+                    downloadedOnly,
+                    trackId,
+                    before,
+                    limit,
+                )
                     .map { it.toModel() },
             )
         } catch (e: Exception) {
@@ -354,12 +377,7 @@ class LibraryRepositoryImpl @Inject constructor(
             .catch { emit(MellowResult.Error(it)) }
 
     override fun getRecentlyPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
-        albumDao.getRecentlyPlayedAlbums(serverId)
-            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
-            .catch { emit(MellowResult.Error(it)) }
-
-    override fun getMostPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
-        albumDao.getMostPlayedAlbums(serverId)
+        recentlyPlayedAlbums.observe(serverId, RECENTLY_PLAYED_ALBUMS)
             .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
             .catch { emit(MellowResult.Error(it)) }
 

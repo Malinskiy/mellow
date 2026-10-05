@@ -19,12 +19,13 @@ interface LibraryRepository {
     /** The library's tracks tab, a page at a time: every track of the server, not a recent subset. */
     fun getPagedTracks(serverId: String, sort: LibrarySort, downloadedOnly: Boolean): Flow<PagingData<Track>>
 
-    /** [limit] tracks of [getPagedTracks] from position [offset]. */
-    suspend fun getTracksSlice(
+    /** Up to [limit] tracks of [getPagedTracks] around [trackId], keeping at most [before] ahead of it. */
+    suspend fun getTracksWindow(
         serverId: String,
         sort: LibrarySort,
         downloadedOnly: Boolean,
-        offset: Int,
+        trackId: String,
+        before: Int,
         limit: Int,
     ): MellowResult<List<Track>>
 
@@ -76,7 +77,6 @@ interface LibraryRepository {
     /** The [limit] genres with the most albums, most first. */
     fun getTopGenres(serverId: String, limit: Int): Flow<MellowResult<List<String>>>
     fun getRecentlyPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>>
-    fun getMostPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>>
     suspend fun syncHomeScreenPriority(serverId: String, onProgress: (SyncProgress) -> Unit = {}): MellowResult<Set<String>>
 
     /**

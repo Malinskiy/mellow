@@ -2,6 +2,7 @@ package dev.mellow.core.player
 
 import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.entity.TrackEntity
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -17,15 +18,14 @@ class AndroidAutoTapTest {
 
     private val trackDao = mockk<TrackDao>()
     private val playlistDao = mockk<PlaylistDao>()
-    private val autoQueue = AutoQueue(trackDao, playlistDao)
+    private val trackKeysetQueries = mockk<TrackKeysetQueryFactory>()
+    private val autoQueue = AutoQueue(trackDao, playlistDao, trackKeysetQueries)
 
     @Test
     fun `a song tapped in Library Songs queues the songs around it`() = runTest {
         val songs = (0 until 10).map { track("s$it", albumId = "album") }
         coEvery { trackDao.getTrackById("s5") } returns songs[5]
-        coEvery { trackDao.countTracksBefore(SERVER, "s5", "s5", false) } returns 5
-        coEvery { trackDao.countTracks(SERVER, false) } returns 10
-        coEvery { trackDao.getTracksByServerPaged(SERVER, false, 500, 0) } returns songs
+        coEvery { trackKeysetQueries.autoQueueWindow(SERVER, false, "s5", 100, 500) } returns songs
 
         assertEquals(songs to 5, tap(songs[5], listedUnder = queueParentOf(MellowMediaService.LIBRARY_SONGS)))
     }
@@ -56,9 +56,7 @@ class AndroidAutoTapTest {
     fun `offline, a song tapped in Library Songs queues the downloaded songs around it`() = runTest {
         val downloaded = listOf(track("d0", albumId = "album"), track("s5", albumId = "album"))
         coEvery { trackDao.getTrackById("s5") } returns downloaded[1]
-        coEvery { trackDao.countTracksBefore(SERVER, "s5", "s5", true) } returns 1
-        coEvery { trackDao.countTracks(SERVER, true) } returns 2
-        coEvery { trackDao.getTracksByServerPaged(SERVER, true, 500, 0) } returns downloaded
+        coEvery { trackKeysetQueries.autoQueueWindow(SERVER, true, "s5", 100, 500) } returns downloaded
 
         val queue = tap(downloaded[1], listedUnder = queueParentOf(MellowMediaService.LIBRARY_SONGS), downloadedOnly = true)
 
@@ -124,9 +122,7 @@ class AndroidAutoTapTest {
         val album = songs.take(2)
         coEvery { trackDao.getTrackById("s1") } returns songs[1]
         coEvery { trackDao.getTracksByAlbumSync("album") } returns album
-        coEvery { trackDao.countTracksBefore(SERVER, "s1", "s1", false) } returns 1
-        coEvery { trackDao.countTracks(SERVER, false) } returns 3
-        coEvery { trackDao.getTracksByServerPaged(SERVER, false, 500, 0) } returns songs
+        coEvery { trackKeysetQueries.autoQueueWindow(SERVER, false, "s1", 100, 500) } returns songs
 
         // Saved queues and the app use plain IDs: no hint, the album; a hint in the extras, that list.
         assertEquals(album to 1, autoQueue.forItem("s1", parentHint = null, SERVER, downloadedOnly = false))

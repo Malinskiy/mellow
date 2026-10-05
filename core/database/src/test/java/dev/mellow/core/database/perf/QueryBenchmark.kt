@@ -3,9 +3,14 @@ package dev.mellow.core.database.perf
 import androidx.paging.PagingSource
 import androidx.room.Room
 import dev.mellow.core.database.MellowDatabase
+import dev.mellow.core.database.dao.AlbumKeysetQueryFactory
+import dev.mellow.core.database.dao.ArtistKeysetQueryFactory
 import dev.mellow.core.database.dao.LibraryOrder
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.dao.getTracksById
 import dev.mellow.core.database.dao.pickRandomTracks
+import dev.mellow.core.database.dao.getRecentlyPlayedAlbums
+import dev.mellow.core.database.paging.KeysetPagingKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -61,36 +66,65 @@ class QueryBenchmark {
         val server = FakeLibrary.SERVER
         val trackCount = tracks.countTracks(server, downloadedOnly = false)
         val middle = trackCount / 2
+        val albumQueries = AlbumKeysetQueryFactory(db)
+        val artistQueries = ArtistKeysetQueryFactory(db)
+        val trackQueries = TrackKeysetQueryFactory(db)
 
         // The Library's Tracks tab, in each order: opening it, reopening it scrolled halfway, scrolling on from there.
         for ((name, order) in TRACK_ORDERS) {
-            measure("tracks.$name.open") { tracks.getLibraryTracks(server, order, false).refresh(0) }
-            measure("tracks.$name.reopen@50%") { tracks.getLibraryTracks(server, order, false).refresh(middle) }
-            measure("tracks.$name.scroll@50%") { tracks.getLibraryTracks(server, order, false).append(middle) }
+            measure("tracks.$name.open") {
+                trackQueries.libraryPagingSource(server, order, false).refreshKeyset(null)
+            }
+            measure("tracks.$name.reopen@50%") {
+                trackQueries.libraryPagingSource(server, order, false)
+                    .refreshKeyset(KeysetPagingKey.Position(middle))
+            }
+            val scrollSource = trackQueries.libraryPagingSource(server, order, false)
+            val middlePage = scrollSource.refreshKeyset(KeysetPagingKey.Position(middle))
+            val nextKey = requireNotNull(middlePage.nextKey)
+            measure("tracks.$name.scroll@50%") { scrollSource.appendKeyset(nextKey) }
         }
         measure("tracks.downloaded.open") {
-            tracks.getLibraryTracks(server, LibraryOrder.RECENTLY_ADDED, true).refresh(0)
+            trackQueries.libraryPagingSource(server, LibraryOrder.RECENTLY_ADDED, true).refreshKeyset(null)
         }
         measure("tracks.count") { tracks.countTracks(server, false) }
+        val queueAnchor = requireNotNull(
+            trackQueries.libraryTrackIdAtPosition(server, LibraryOrder.RECENTLY_ADDED, false, middle),
+        )
         measure("tracks.queue@50%") {
-            tracks.getLibraryTracksSlice(server, LibraryOrder.RECENTLY_ADDED, false, QUEUE, middle - 100)
+            trackQueries.libraryQueueWindow(
+                server,
+                LibraryOrder.RECENTLY_ADDED,
+                downloadedOnly = false,
+                trackId = queueAnchor,
+                before = 100,
+                size = QUEUE,
+            )
         }
         measure("tracks.shuffle") { tracks.pickRandomTracks(server, false, QUEUE) }
         measure("tracks.shuffle.downloaded") { tracks.pickRandomTracks(server, true, QUEUE) }
 
         val albumCount = library.albums
         for ((name, order) in ALBUM_ORDERS) {
-            measure("albums.$name.open") { albums.getLibraryAlbums(server, order, null, false).refresh(0) }
-            measure("albums.$name.scroll@50%") {
-                albums.getLibraryAlbums(server, order, null, false).append(albumCount / 2)
+            measure("albums.$name.open") {
+                albumQueries.libraryPagingSource(server, order, null, false).refreshKeyset(null)
             }
+            val source = albumQueries.libraryPagingSource(server, order, null, false)
+            val middlePage = source.refreshKeyset(KeysetPagingKey.Position(albumCount / 2))
+            val nextKey = requireNotNull(middlePage.nextKey)
+            measure("albums.$name.scroll@50%") { source.appendKeyset(nextKey) }
         }
         measure("albums.genre.open") {
-            albums.getLibraryAlbums(server, LibraryOrder.RECENTLY_ADDED, "Jazz", false).refresh(0)
+            albumQueries.libraryPagingSource(server, LibraryOrder.RECENTLY_ADDED, "Jazz", false).refreshKeyset(null)
         }
-        measure("artists.open") { artists.getLibraryArtists(server, LibraryOrder.NAME_ASC, false).refresh(0) }
+        measure("artists.open") {
+            artistQueries.libraryPagingSource(server, LibraryOrder.NAME_ASC, false).refreshKeyset(null)
+        }
+        val artistSource = artistQueries.libraryPagingSource(server, LibraryOrder.NAME_ASC, false)
+        val artistMiddlePage = artistSource.refreshKeyset(KeysetPagingKey.Position(library.artists / 2))
+        val artistNextKey = requireNotNull(artistMiddlePage.nextKey)
         measure("artists.scroll@50%") {
-            artists.getLibraryArtists(server, LibraryOrder.NAME_ASC, false).append(library.artists / 2)
+            artistSource.appendKeyset(artistNextKey)
         }
 
         measure("album.tracks") { tracks.getTracksByAlbumSync(library.sampleAlbumId) }
@@ -102,6 +136,8 @@ class QueryBenchmark {
         measure("home.mostPlayed") { tracks.getMostPlayed(server).first() }
         measure("home.recentlyAdded") { albums.getRecentlyAddedAlbums(server) }
         measure("home.quickPicks") { albums.observeRandomAlbums(server, 20).first() }
+        measure("home.recentlyPlayedAlbums") { albums.getRecentlyPlayedAlbums(server, 20) }
+        measure("home.favoriteTracks") { tracks.observeRandomFavoriteTracks(server, 20).first() }
 
         measure("favorites.tracks.open") { tracks.getFavoriteTracksPaged(server, false).refresh(0) }
         measure("favorites.tracks.count") { tracks.countFavoriteTracks(server, false) }
@@ -112,9 +148,11 @@ class QueryBenchmark {
         measure("search.tracks") { tracks.search(server, "river") }
         measure("search.albums") { albums.search(server, "river") }
 
-        val auto = tracks.getTracksByServerPaged(server, false, 1, middle).single()
-        measure("auto.songs.window@50%") { tracks.getTracksByServerPaged(server, false, QUEUE, middle - 100) }
-        measure("auto.songs.position@50%") { tracks.countTracksBefore(server, auto.sortName, auto.id, false) }
+        val autoId = requireNotNull(trackQueries.autoTrackIdAtPosition(server, false, middle))
+        measure("auto.songs.window@50%") {
+            trackQueries.autoQueueWindow(server, false, autoId, before = 100, size = QUEUE)
+        }
+        measure("auto.songs.position@50%") { trackQueries.findAutoTrack(server, false, autoId) }
 
         // Sync: saving tracks the library already has (a re-sync), then tracks it doesn't.
         val existing = tracks.getTracksById(tracks.getRandomTrackIds(server, false, WRITE_BATCH)).values.toList()
@@ -168,9 +206,16 @@ class QueryBenchmark {
         check(result is PagingSource.LoadResult.Page) { "Refresh at $position failed: $result" }
     }
 
-    private suspend fun <V : Any> PagingSource<Int, V>.append(position: Int) {
-        val result = load(PagingSource.LoadParams.Append(position, PAGE, placeholdersEnabled = true))
-        check(result is PagingSource.LoadResult.Page) { "Append at $position failed: $result" }
+    private suspend fun <V : Any> PagingSource<KeysetPagingKey, V>.refreshKeyset(key: KeysetPagingKey?):
+        PagingSource.LoadResult.Page<KeysetPagingKey, V> {
+        val result = load(PagingSource.LoadParams.Refresh(key, PAGE * 3, placeholdersEnabled = true))
+        check(result is PagingSource.LoadResult.Page) { "Refresh at $key failed: $result" }
+        return result
+    }
+
+    private suspend fun <V : Any> PagingSource<KeysetPagingKey, V>.appendKeyset(key: KeysetPagingKey) {
+        val result = load(PagingSource.LoadParams.Append(key, PAGE, placeholdersEnabled = true))
+        check(result is PagingSource.LoadResult.Page) { "Append at $key failed: $result" }
     }
 
     private companion object {

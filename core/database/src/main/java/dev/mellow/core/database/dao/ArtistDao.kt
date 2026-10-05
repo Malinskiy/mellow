@@ -20,53 +20,49 @@ private const val FAVORITE_ARTISTS_QUERY = """
 @Dao
 interface ArtistDao {
 
-    /**
-     * The library's artists tab: one row per canonical artist, in [LibraryOrder] `:sort` order (by name, or else by
-     * sort name), each with the number of the library's albums credited to it (only downloaded ones if
-     * [downloadedOnly]). The ID makes the order total, so pages never overlap or skip an artist.
-     */
-    @Query(
-        """
-        SELECT a.*, COALESCE(c.albumCount, 0) AS localAlbumCount
-        FROM artists a
-        INNER JOIN artist_aliases aa ON a.id = aa.canonicalArtistId AND a.serverId = aa.serverId
-        LEFT JOIN (
-            SELECT COALESCE(resolvedArtistId, artistId) AS artistKey, COUNT(*) AS albumCount
-            FROM albums
-            WHERE serverId = :serverId
-                AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
-            GROUP BY artistKey
-        ) c ON c.artistKey = a.id
-        WHERE a.serverId = :serverId
-            AND (:downloadedOnly = 0 OR a.id IN ($DOWNLOADED_ARTIST_IDS))
-        GROUP BY aa.canonicalArtistId
-        ORDER BY
-            CASE WHEN :sort = ${LibraryOrder.NAME_ASC} THEN a.name END COLLATE NOCASE ASC,
-            CASE WHEN :sort = ${LibraryOrder.NAME_DESC} THEN a.name END COLLATE NOCASE DESC,
-            a.sortName ASC,
-            a.id ASC
-        """,
-    )
-    fun getLibraryArtists(
+    /** Android Auto's Artists list; EXISTS avoids joining every alias and grouping the result. */
+    @Transaction
+    suspend fun getCanonicalArtistsSlice(
         serverId: String,
-        sort: Int,
         downloadedOnly: Boolean,
-    ): PagingSource<Int, ArtistWithAlbumCount>
+        limit: Int,
+        offset: Int,
+    ): List<ArtistEntity> = if (downloadedOnly) {
+        getDownloadedCanonicalArtistsSlice(serverId, limit, offset)
+    } else {
+        getAllCanonicalArtistsSlice(serverId, limit, offset)
+    }
 
     @Query(
         """
         SELECT a.* FROM artists a
-        INNER JOIN artist_aliases aa ON a.id = aa.canonicalArtistId AND a.serverId = aa.serverId
-        WHERE a.serverId = :serverId
-            AND (:downloadedOnly = 0 OR a.id IN ($DOWNLOADED_ARTIST_IDS))
-        GROUP BY aa.canonicalArtistId
+        WHERE a.serverId = :serverId AND EXISTS (
+            SELECT 1 FROM artist_aliases aa
+            WHERE aa.serverId = a.serverId AND aa.canonicalArtistId = a.id
+        )
         ORDER BY a.sortName ASC, a.id ASC
         LIMIT :limit OFFSET :offset
         """,
     )
-    suspend fun getCanonicalArtistsSlice(
+    suspend fun getAllCanonicalArtistsSlice(
         serverId: String,
-        downloadedOnly: Boolean,
+        limit: Int,
+        offset: Int,
+    ): List<ArtistEntity>
+
+    @Query(
+        """
+        SELECT a.* FROM artists a
+        WHERE a.serverId = :serverId AND a.id IN ($DOWNLOADED_ARTIST_IDS) AND EXISTS (
+            SELECT 1 FROM artist_aliases aa
+            WHERE aa.serverId = a.serverId AND aa.canonicalArtistId = a.id
+        )
+        ORDER BY a.sortName ASC, a.id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getDownloadedCanonicalArtistsSlice(
+        serverId: String,
         limit: Int,
         offset: Int,
     ): List<ArtistEntity>

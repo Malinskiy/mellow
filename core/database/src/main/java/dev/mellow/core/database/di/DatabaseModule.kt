@@ -10,6 +10,10 @@ import dagger.hilt.components.SingletonComponent
 import dev.mellow.core.database.DatabaseTransactionRunner
 import dev.mellow.core.database.MellowDatabase
 import dev.mellow.core.database.RoomTransactionRunner
+import dev.mellow.core.database.dao.AlbumKeysetQueryFactory
+import dev.mellow.core.database.dao.ArtistKeysetQueryFactory
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
+import dev.mellow.core.database.dao.RecentlyPlayedAlbumsObserver
 import dev.mellow.core.database.migration.Migrations
 import javax.inject.Singleton
 
@@ -23,7 +27,7 @@ object DatabaseModule {
         Room.databaseBuilder(
             context,
             MellowDatabase::class.java,
-            "mellow.db",
+            MellowDatabase.NAME,
         )
             .addMigrations(
                 Migrations.MIGRATION_2_3,
@@ -36,6 +40,7 @@ object DatabaseModule {
                 Migrations.MIGRATION_9_10,
                 Migrations.MIGRATION_10_11,
                 Migrations.MIGRATION_11_12,
+                Migrations.MIGRATION_12_13,
             )
             .build()
 
@@ -56,6 +61,22 @@ object DatabaseModule {
 
     @Provides
     fun provideTrackDao(db: MellowDatabase) = db.trackDao()
+
+    @Provides
+    @Singleton
+    fun provideAlbumKeysetQueryFactory(db: MellowDatabase) = AlbumKeysetQueryFactory(db)
+
+    @Provides
+    @Singleton
+    fun provideArtistKeysetQueryFactory(db: MellowDatabase) = ArtistKeysetQueryFactory(db)
+
+    @Provides
+    @Singleton
+    fun provideTrackKeysetQueryFactory(db: MellowDatabase) = TrackKeysetQueryFactory(db)
+
+    @Provides
+    @Singleton
+    fun provideRecentlyPlayedAlbumsObserver(db: MellowDatabase) = RecentlyPlayedAlbumsObserver(db)
 
     @Provides
     fun providePlaylistDao(db: MellowDatabase) = db.playlistDao()

@@ -63,6 +63,10 @@ Room is the source of truth. The Jellyfin API is a sync target.
 # Run Android instrumented tests
 ./gradlew connectedAndroidTest
 
+# Database checks on a device's own SQLite (query plans, keyset paging, migrations). Before a release that changes
+# a query, an index or a migration, run them on an Android 8 (API 26, SQLite 3.18) emulator:
+ANDROID_SERIAL=<emulator serial> ./gradlew :core:database:connectedDebugAndroidTest
+
 # Lint check
 ./gradlew lint
 

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +37,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -62,8 +64,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import dev.mellow.core.designsystem.component.AnimatedAlbumDownloadIndicator
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -74,6 +80,8 @@ import dev.mellow.core.designsystem.component.GrainientBackground
 import dev.mellow.core.designsystem.component.IridescenceBackground
 import dev.mellow.core.designsystem.component.PixelBlastPlaceholder
 import dev.mellow.core.designsystem.component.Shimmer
+import dev.mellow.core.designsystem.component.maintenance.DatabaseMaintenanceRepressing
+import dev.mellow.core.designsystem.component.maintenance.DatabaseMaintenanceScreen
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -373,6 +381,9 @@ fun DevIconComparisonScreen(onBack: () -> Unit) {
             item { SectionDivider() }
             item { SectionHeader("05g", "Album Download") }
             item { AlbumDownloadDemo() }
+            item { SectionDivider() }
+            item { SectionHeader("05h", "Maintenance Screen") }
+            item { MaintenanceReplayDemo() }
             item { SectionDivider() }
 
             item { SectionHeader("06", "The Choice") }
@@ -1606,5 +1617,72 @@ private fun AlbumDownloadDemo() {
                 Text("Reset", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.foreground)
             }
         }
+    }
+}
+
+/** Which maintenance screen is looping full screen. */
+private enum class MaintenancePreview { Plexus, Repressing }
+
+/**
+ * The maintenance screens, each looping full screen until the back arrow or Back: the plexus (shown while the library
+ * database migrates at startup) and re-pressing, a possible alternative.
+ */
+@Composable
+private fun MaintenanceReplayDemo() {
+    var preview by remember { mutableStateOf<MaintenancePreview?>(null) }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = MellowSpacing.Sp6),
+    ) {
+        Text(
+            "Shown while the library database migrates at startup",
+            style = MaterialTheme.typography.labelSmall,
+            color = MellowTheme.colors.muted,
+        )
+        Spacer(Modifier.height(MellowSpacing.Sp4))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MaintenancePill("Plexus", onClick = { preview = MaintenancePreview.Plexus })
+            MaintenancePill("Re-pressing", onClick = { preview = MaintenancePreview.Repressing })
+        }
+    }
+
+    val shown = preview ?: return
+    Dialog(
+        onDismissRequest = { preview = null },
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        // Over the whole window, mini player included: nothing to pad for.
+        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect { window?.setDimAmount(0f) }
+        Box(Modifier.fillMaxSize()) {
+            when (shown) {
+                MaintenancePreview.Plexus -> DatabaseMaintenanceScreen()
+                MaintenancePreview.Repressing -> DatabaseMaintenanceRepressing()
+            }
+            IconButton(
+                onClick = { preview = null },
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(MellowSpacing.Sp2),
+            ) {
+                Icon(PhosphorIcons.ArrowLeft, contentDescription = "Back", tint = MellowTheme.colors.foreground)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaintenancePill(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(MellowTheme.colors.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.foreground)
     }
 }

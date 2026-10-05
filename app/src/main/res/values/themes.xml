@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Mellow" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Dark window background: the app is dark only, and the launch window (and Android 12+'s splash screen) shows
+         this colour before the first frame. A light one flashed white before the dark UI. -->
+    <style name="Theme.Mellow" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/mellow_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

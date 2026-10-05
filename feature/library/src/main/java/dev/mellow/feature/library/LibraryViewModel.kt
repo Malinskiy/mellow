@@ -7,9 +7,9 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.common.MellowResult
+import dev.mellow.core.common.QUEUE_WINDOW_BEFORE
 import dev.mellow.core.common.QUEUE_WINDOW_SIZE
 import dev.mellow.core.common.formatTrackDuration
-import dev.mellow.core.common.queueWindow
 import dev.mellow.core.data.preferences.DisplayPreferences
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.model.LibrarySort
@@ -110,23 +110,24 @@ class LibraryViewModel @Inject constructor(
 
     /**
      * What to queue when the track [trackId] at [index] of the tracks tab, a list of [count] tracks, is played, and
-     * where that track is in it. The library can be too large to queue whole, so this is the part of the list
-     * around the track, or all of it if it's short. `null` if the track can't be found.
+     * where that track is in it. The database seeks from the track instead of trusting the possibly stale position.
      */
     suspend fun tracksToPlay(index: Int, trackId: String, count: Int): Pair<List<Track>, Int>? {
         val shown = selection.value ?: return null
         val downloadedOnly = downloadedOnlyPreference.value ?: return null
-        return queueWindow(
-            index = index,
-            count = count,
-            trackId = trackId,
-            idOf = Track::id,
-            loadSlice = { offset, limit ->
-                val slice = libraryRepository.getTracksSlice(shown.serverId, shown.sort, downloadedOnly, offset, limit)
-                (slice as? MellowResult.Success)?.data
-            },
-            loadTrack = { id -> (libraryRepository.getTrack(id) as? MellowResult.Success)?.data },
+        val result = libraryRepository.getTracksWindow(
+            shown.serverId,
+            shown.sort,
+            downloadedOnly,
+            trackId,
+            QUEUE_WINDOW_BEFORE,
+            QUEUE_WINDOW_SIZE,
         )
+        val window = (result as? MellowResult.Success)?.data ?: return null
+        val position = window.indexOfFirst { it.id == trackId }
+        if (position >= 0) return window to position
+        val track = (libraryRepository.getTrack(trackId) as? MellowResult.Success)?.data ?: return null
+        return listOf(track) to 0
     }
 
     /**

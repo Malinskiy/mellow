@@ -2,6 +2,7 @@ package dev.mellow.core.player
 
 import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.entity.TrackEntity
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -15,15 +16,14 @@ class AutoQueueTest {
 
     private val trackDao = mockk<TrackDao>()
     private val playlistDao = mockk<PlaylistDao>()
-    private val autoQueue = AutoQueue(trackDao, playlistDao)
+    private val trackKeysetQueries = mockk<TrackKeysetQueryFactory>()
+    private val autoQueue = AutoQueue(trackDao, playlistDao, trackKeysetQueries)
 
     @Test
     fun `a song picked from Library Songs queues the songs around it, not its album`() = runTest {
         val song = track("s5", albumId = "album-of-s5")
         val songs = (0 until 10).map { track("s$it") }
-        coEvery { trackDao.countTracksBefore(SERVER, "s5", "s5", false) } returns 5
-        coEvery { trackDao.countTracks(SERVER, false) } returns 10
-        coEvery { trackDao.getTracksByServerPaged(SERVER, false, 500, 0) } returns songs
+        coEvery { trackKeysetQueries.autoQueueWindow(SERVER, false, "s5", 100, 500) } returns songs
 
         // The parent the songs Android Auto lists under Library > Songs carry.
         val parent = queueParentOf(MellowMediaService.LIBRARY_SONGS)
@@ -43,9 +43,7 @@ class AutoQueueTest {
     fun `offline, a song is queued among the downloaded songs Android Auto listed`() = runTest {
         val song = track("s5")
         val downloaded = listOf(track("d0"), track("d1"), song)
-        coEvery { trackDao.countTracksBefore(SERVER, "s5", "s5", true) } returns 2
-        coEvery { trackDao.countTracks(SERVER, true) } returns 3
-        coEvery { trackDao.getTracksByServerPaged(SERVER, true, 500, 0) } returns downloaded
+        coEvery { trackKeysetQueries.autoQueueWindow(SERVER, true, "s5", 100, 500) } returns downloaded
 
         val queue = autoQueue.around("s5", song, MellowMediaService.LIBRARY_SONGS, SERVER, downloadedOnly = true)
 
@@ -79,18 +77,14 @@ class AutoQueueTest {
     @Test
     fun `a track missing from the part of its list that was read plays on its own`() = runTest {
         val song = track("s5")
-        coEvery { trackDao.countTracksBefore(SERVER, "s5", "s5", false) } returns 5
-        coEvery { trackDao.countTracks(SERVER, false) } returns 10
-        coEvery { trackDao.getTracksByServerPaged(SERVER, false, 500, 0) } returns listOf(track("s0"), track("s1"))
+        coEvery { trackKeysetQueries.autoQueueWindow(SERVER, false, "s5", 100, 500) } returns
+            listOf(track("s0"), track("s1"))
 
         assertNull(autoQueue.around("s5", song, MellowMediaService.LIBRARY_SONGS, SERVER, downloadedOnly = false))
     }
 
     @Test
     fun `a song no longer in the library plays on its own`() = runTest {
-        coEvery { trackDao.countTracks(SERVER, false) } returns 3
-        coEvery { trackDao.getTracksByServerPaged(SERVER, false, 500, 0) } returns listOf(track("s0"), track("s1"))
-
         assertNull(autoQueue.around("gone", null, MellowMediaService.LIBRARY_SONGS, SERVER, downloadedOnly = false))
     }
 

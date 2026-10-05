@@ -52,6 +52,7 @@ security-crypto = "1.1.0-alpha07"
 robolectric = "4.14.1"
 junit = "4.13.2"
 junit-ext = "1.2.1"
+test-runner = "1.6.1"
 espresso = "3.6.1"
 coroutines-test = "1.10.1"
 turbine = "1.2.0"
@@ -150,6 +151,7 @@ security-crypto = { group = "androidx.security", name = "security-crypto", versi
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 junit-ext = { group = "androidx.test.ext", name = "junit", version.ref = "junit-ext" }
+test-runner = { group = "androidx.test", name = "runner", version.ref = "test-runner" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines-test" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }

@@ -37,4 +37,5 @@ dependencies {
     implementation(libs.material)
 
     testImplementation(libs.bundles.testing)
+    testImplementation(libs.robolectric)
 }

@@ -1,9 +1,11 @@
 package dev.mellow.core.database.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "downloads")
+/** A track's download. The index lets "Downloaded only" lists start from the downloads instead of every track. */
+@Entity(tableName = "downloads", indices = [Index("status", "serverId", "trackId")])
 data class DownloadEntity(
     @PrimaryKey val trackId: String,
     val albumId: String?,

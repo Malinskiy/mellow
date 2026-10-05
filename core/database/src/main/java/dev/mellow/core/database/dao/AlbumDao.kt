@@ -30,47 +30,42 @@ private const val SEP = Converters.SEPARATOR
 @Dao
 interface AlbumDao {
 
-    /**
-     * The library's albums tab in [LibraryOrder] `:sort` order, only those of [genre] if it's set. Ties keep the
-     * sort-name order, and the ID makes the order total, so pages never overlap or skip an album.
-     */
-    @Query(
-        """
-        SELECT * FROM albums
-        WHERE serverId = :serverId
-            AND (:genre IS NULL OR instr('$SEP' || genres || '$SEP', '$SEP' || :genre || '$SEP') > 0)
-            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
-        ORDER BY
-            CASE WHEN :sort = ${LibraryOrder.RECENTLY_ADDED} THEN dateAdded END DESC,
-            CASE WHEN :sort = ${LibraryOrder.NAME_ASC} THEN name END COLLATE NOCASE ASC,
-            CASE WHEN :sort = ${LibraryOrder.NAME_DESC} THEN name END COLLATE NOCASE DESC,
-            CASE WHEN :sort = ${LibraryOrder.YEAR} THEN COALESCE(year, 0) END DESC,
-            sortName ASC,
-            id ASC
-        """,
-    )
-    fun getLibraryAlbums(
-        serverId: String,
-        sort: Int,
-        genre: String?,
-        downloadedOnly: Boolean,
-    ): PagingSource<Int, AlbumEntity>
-
-    @Query(
-        """
-        SELECT * FROM albums
-        WHERE serverId = :serverId
-            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
-        ORDER BY sortName ASC, id ASC
-        LIMIT :limit OFFSET :offset
-        """,
-    )
+    /** Android Auto's Albums list; the common online path follows the sort-name index. */
+    @Transaction
     suspend fun getAlbumsByServerSlice(
         serverId: String,
         downloadedOnly: Boolean,
         limit: Int,
         offset: Int,
+    ): List<AlbumEntity> = if (downloadedOnly) {
+        getDownloadedAlbumsByServerSlice(serverId, limit, offset)
+    } else {
+        getAllAlbumsByServerSlice(serverId, limit, offset)
+    }
+
+    @Query(
+        """
+        SELECT * FROM albums
+        WHERE serverId = :serverId
+        ORDER BY sortName ASC, id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getAllAlbumsByServerSlice(
+        serverId: String,
+        limit: Int,
+        offset: Int,
     ): List<AlbumEntity>
+
+    @Query(
+        """
+        SELECT * FROM albums
+        WHERE serverId = :serverId AND id IN ($DOWNLOADED_ALBUM_IDS)
+        ORDER BY sortName ASC, id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getDownloadedAlbumsByServerSlice(serverId: String, limit: Int, offset: Int): List<AlbumEntity>
 
     @Query("SELECT * FROM albums WHERE id = :id")
     suspend fun getAlbumById(id: String): AlbumEntity?
@@ -168,32 +163,6 @@ interface AlbumDao {
     @Query("UPDATE albums SET isFavorite = :isFavorite WHERE id = :albumId")
     suspend fun setFavorite(albumId: String, isFavorite: Boolean)
 
-    @Query("""
-        SELECT a.* FROM albums a 
-        INNER JOIN (
-            SELECT albumId, MAX(lastPlayedAt) as maxPlayed 
-            FROM tracks 
-            WHERE serverId = :serverId AND lastPlayedAt > 0 AND albumId IS NOT NULL
-            GROUP BY albumId
-        ) t ON a.id = t.albumId 
-        ORDER BY t.maxPlayed DESC 
-        LIMIT :limit
-    """)
-    fun getRecentlyPlayedAlbums(serverId: String, limit: Int = 20): Flow<List<AlbumEntity>>
-
-    @Query("""
-        SELECT a.* FROM albums a 
-        INNER JOIN (
-            SELECT albumId, SUM(playCount) as totalPlays 
-            FROM tracks 
-            WHERE serverId = :serverId AND playCount > 0 AND albumId IS NOT NULL
-            GROUP BY albumId
-        ) t ON a.id = t.albumId 
-        ORDER BY t.totalPlays DESC 
-        LIMIT :limit
-    """)
-    fun getMostPlayedAlbums(serverId: String, limit: Int = 20): Flow<List<AlbumEntity>>
-
     @Query("SELECT DISTINCT genres FROM albums WHERE serverId = :serverId AND genres != ''")
     suspend fun getRawGenreStrings(serverId: String): List<String>
 
@@ -221,7 +190,7 @@ interface AlbumDao {
     )
     fun observeGenreAlbumCounts(serverId: String): Flow<List<GenreAlbumCount>>
 
-    /** The albums tagged [genre], whole genres only as in [getLibraryAlbums]: "Rap" isn't "Pop Rap". */
+    /** The albums tagged [genre], whole genres only as in the Library tab: "Rap" isn't "Pop Rap". */
     @Query(
         """
         SELECT * FROM albums
@@ -337,34 +306,26 @@ interface AlbumDao {
     @Query("SELECT COUNT(*) FROM album_artists WHERE artistId = :artistId")
     suspend fun countAlbumsByArtistCrossRef(artistId: String): Int
 
-    @Query("""
-        SELECT a.* FROM albums a 
-        INNER JOIN (
-            SELECT albumId, MAX(lastPlayedAt) as maxPlayed 
-            FROM tracks 
-            WHERE serverId = :serverId AND lastPlayedAt > 0 AND albumId IS NOT NULL
-            GROUP BY albumId
-        ) t ON a.id = t.albumId 
-        ORDER BY t.maxPlayed DESC 
-        LIMIT :limit
-    """)
-    suspend fun getRecentlyPlayedAlbumsSync(serverId: String, limit: Int = 12): List<AlbumEntity>
-
     @Query("SELECT * FROM albums WHERE serverId = :serverId ORDER BY dateAdded DESC LIMIT :limit")
     suspend fun getRecentlyAddedAlbums(serverId: String, limit: Int = 20): List<AlbumEntity>
 
-    @Query("""
-        SELECT a.* FROM albums a 
-        INNER JOIN (
-            SELECT albumId, SUM(playCount) as totalPlays 
-            FROM tracks 
-            WHERE serverId = :serverId AND playCount > 0 AND albumId IS NOT NULL
-            GROUP BY albumId
-        ) t ON a.id = t.albumId 
-        ORDER BY t.totalPlays DESC 
-        LIMIT :limit
-    """)
-    suspend fun getMostPlayedAlbumsSync(serverId: String, limit: Int = 20): List<AlbumEntity>
+    /**
+     * The albums of the server's played tracks, the latest play first, one entry per track: [limit] entries from
+     * [offset]. Reads only the index on (serverId, lastPlayedAt, albumId). See [getRecentlyPlayedAlbums].
+     */
+    @Query(
+        """
+        SELECT albumId FROM tracks
+        WHERE serverId = :serverId AND lastPlayedAt > 0 AND albumId IS NOT NULL
+        ORDER BY lastPlayedAt DESC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getPlayedAlbumIds(serverId: String, limit: Int, offset: Int): List<String>
+
+    /** The albums [ids], in no particular order; IDs without an album are left out. */
+    @Query("SELECT * FROM albums WHERE id IN (:ids)")
+    suspend fun getAlbumsByIds(ids: List<String>): List<AlbumEntity>
 }
 
 /** How many albums have the genre list [genres], as [Converters] stores it. */

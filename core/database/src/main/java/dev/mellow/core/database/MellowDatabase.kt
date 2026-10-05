@@ -47,7 +47,7 @@ import dev.mellow.core.database.entity.TrackEntity
         SearchQueryEntity::class,
         SyncPassItemEntity::class,
     ],
-    version = 12,
+    version = MellowDatabase.VERSION,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -63,4 +63,15 @@ abstract class MellowDatabase : RoomDatabase() {
     abstract fun lyricsDao(): LyricsDao
     abstract fun searchQueryDao(): SearchQueryDao
     abstract fun syncPassDao(): SyncPassDao
+
+    companion object {
+        /** The database file's name, in the app's databases directory. */
+        const val NAME = "mellow.db"
+
+        /**
+         * The schema version. Bumping it needs a migration (see Migrations), and shows the maintenance screen while it
+         * runs at startup, unless the migration is quick: see SKIP_MAINTENANCE_SCREEN_FROM.
+         */
+        const val VERSION = 13
+    }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Mellow" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/mellow_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Android 12+ splash screen: the app icon on the app's own background, not the light default. -->
+        <item name="android:windowSplashScreenBackground">@color/mellow_background</item>
+    </style>
+</resources>
