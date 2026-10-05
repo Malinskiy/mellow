@@ -28,10 +28,6 @@ private const val FAVORITE_TRACKS_QUERY = """
 @Dao
 interface TrackDao {
 
-    /** Pages of a [LibraryTracksQuery]: use [getLibraryTracks]. */
-    @RawQuery(observedEntities = [TrackEntity::class, DownloadEntity::class])
-    fun getLibraryTracksPaged(query: SupportSQLiteQuery): PagingSource<Int, TrackEntity>
-
     /** Tracks of a query over the tracks table that selects whole rows. */
     @RawQuery(observedEntities = [TrackEntity::class, DownloadEntity::class])
     suspend fun getTracksRaw(query: SupportSQLiteQuery): List<TrackEntity>
@@ -369,19 +365,6 @@ suspend fun TrackDao.getInstantMix(
 
     return getInstantMixRaw(SimpleSQLiteQuery(sb.toString(), args.toTypedArray()))
 }
-
-/** The Library's Tracks tab in [LibraryOrder] [sort] order (see [LibraryTracksQuery]). */
-fun TrackDao.getLibraryTracks(serverId: String, sort: Int, downloadedOnly: Boolean): PagingSource<Int, TrackEntity> =
-    getLibraryTracksPaged(LibraryTracksQuery.page(serverId, sort, downloadedOnly))
-
-/** [limit] tracks of [getLibraryTracks] from position [offset]. */
-suspend fun TrackDao.getLibraryTracksSlice(
-    serverId: String,
-    sort: Int,
-    downloadedOnly: Boolean,
-    limit: Int,
-    offset: Int,
-): List<TrackEntity> = getTracksRaw(LibraryTracksQuery.slice(serverId, sort, downloadedOnly, limit, offset))
 
 /**
  * [limit] tracks picked uniformly at random from the server's library (its downloaded tracks only, if

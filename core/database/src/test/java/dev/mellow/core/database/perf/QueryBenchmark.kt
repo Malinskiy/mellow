@@ -4,10 +4,10 @@ import androidx.paging.PagingSource
 import androidx.room.Room
 import dev.mellow.core.database.MellowDatabase
 import dev.mellow.core.database.dao.LibraryOrder
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.dao.getTracksById
 import dev.mellow.core.database.dao.pickRandomTracks
-import dev.mellow.core.database.dao.getLibraryTracksSlice
-import dev.mellow.core.database.dao.getLibraryTracks
+import dev.mellow.core.database.paging.KeysetPagingKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -63,19 +63,38 @@ class QueryBenchmark {
         val server = FakeLibrary.SERVER
         val trackCount = tracks.countTracks(server, downloadedOnly = false)
         val middle = trackCount / 2
+        val trackQueries = TrackKeysetQueryFactory(db)
 
         // The Library's Tracks tab, in each order: opening it, reopening it scrolled halfway, scrolling on from there.
         for ((name, order) in TRACK_ORDERS) {
-            measure("tracks.$name.open") { tracks.getLibraryTracks(server, order, false).refresh(0) }
-            measure("tracks.$name.reopen@50%") { tracks.getLibraryTracks(server, order, false).refresh(middle) }
-            measure("tracks.$name.scroll@50%") { tracks.getLibraryTracks(server, order, false).append(middle) }
+            measure("tracks.$name.open") {
+                trackQueries.libraryPagingSource(server, order, false).refreshKeyset(null)
+            }
+            measure("tracks.$name.reopen@50%") {
+                trackQueries.libraryPagingSource(server, order, false)
+                    .refreshKeyset(KeysetPagingKey.Position(middle))
+            }
+            val scrollSource = trackQueries.libraryPagingSource(server, order, false)
+            val middlePage = scrollSource.refreshKeyset(KeysetPagingKey.Position(middle))
+            val nextKey = requireNotNull(middlePage.nextKey)
+            measure("tracks.$name.scroll@50%") { scrollSource.appendKeyset(nextKey) }
         }
         measure("tracks.downloaded.open") {
-            tracks.getLibraryTracks(server, LibraryOrder.RECENTLY_ADDED, true).refresh(0)
+            trackQueries.libraryPagingSource(server, LibraryOrder.RECENTLY_ADDED, true).refreshKeyset(null)
         }
         measure("tracks.count") { tracks.countTracks(server, false) }
+        val queueAnchor = requireNotNull(
+            trackQueries.libraryTrackIdAtPosition(server, LibraryOrder.RECENTLY_ADDED, false, middle),
+        )
         measure("tracks.queue@50%") {
-            tracks.getLibraryTracksSlice(server, LibraryOrder.RECENTLY_ADDED, false, QUEUE, middle - 100)
+            trackQueries.libraryQueueWindow(
+                server,
+                LibraryOrder.RECENTLY_ADDED,
+                downloadedOnly = false,
+                trackId = queueAnchor,
+                before = 100,
+                size = QUEUE,
+            )
         }
         measure("tracks.shuffle") { tracks.pickRandomTracks(server, false, QUEUE) }
         measure("tracks.shuffle.downloaded") { tracks.pickRandomTracks(server, true, QUEUE) }
@@ -117,9 +136,11 @@ class QueryBenchmark {
         measure("search.tracks") { tracks.search(server, "river") }
         measure("search.albums") { albums.search(server, "river") }
 
-        val auto = tracks.getTracksByServerPaged(server, false, 1, middle).single()
-        measure("auto.songs.window@50%") { tracks.getTracksByServerPaged(server, false, QUEUE, middle - 100) }
-        measure("auto.songs.position@50%") { tracks.countTracksBefore(server, auto.sortName, auto.id, false) }
+        val autoId = requireNotNull(trackQueries.autoTrackIdAtPosition(server, false, middle))
+        measure("auto.songs.window@50%") {
+            trackQueries.autoQueueWindow(server, false, autoId, before = 100, size = QUEUE)
+        }
+        measure("auto.songs.position@50%") { trackQueries.findAutoTrack(server, false, autoId) }
 
         // Sync: saving tracks the library already has (a re-sync), then tracks it doesn't.
         val existing = tracks.getTracksById(tracks.getRandomTrackIds(server, false, WRITE_BATCH)).values.toList()
@@ -176,6 +197,18 @@ class QueryBenchmark {
     private suspend fun <V : Any> PagingSource<Int, V>.append(position: Int) {
         val result = load(PagingSource.LoadParams.Append(position, PAGE, placeholdersEnabled = true))
         check(result is PagingSource.LoadResult.Page) { "Append at $position failed: $result" }
+    }
+
+    private suspend fun <V : Any> PagingSource<KeysetPagingKey, V>.refreshKeyset(key: KeysetPagingKey?):
+        PagingSource.LoadResult.Page<KeysetPagingKey, V> {
+        val result = load(PagingSource.LoadParams.Refresh(key, PAGE * 3, placeholdersEnabled = true))
+        check(result is PagingSource.LoadResult.Page) { "Refresh at $key failed: $result" }
+        return result
+    }
+
+    private suspend fun <V : Any> PagingSource<KeysetPagingKey, V>.appendKeyset(key: KeysetPagingKey) {
+        val result = load(PagingSource.LoadParams.Append(key, PAGE, placeholdersEnabled = true))
+        check(result is PagingSource.LoadResult.Page) { "Append at $key failed: $result" }
     }
 
     private companion object {

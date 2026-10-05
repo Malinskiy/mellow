@@ -19,12 +19,13 @@ interface LibraryRepository {
     /** The library's tracks tab, a page at a time: every track of the server, not a recent subset. */
     fun getPagedTracks(serverId: String, sort: LibrarySort, downloadedOnly: Boolean): Flow<PagingData<Track>>
 
-    /** [limit] tracks of [getPagedTracks] from position [offset]. */
-    suspend fun getTracksSlice(
+    /** Up to [limit] tracks of [getPagedTracks] around [trackId], keeping at most [before] ahead of it. */
+    suspend fun getTracksWindow(
         serverId: String,
         sort: LibrarySort,
         downloadedOnly: Boolean,
-        offset: Int,
+        trackId: String,
+        before: Int,
         limit: Int,
     ): MellowResult<List<Track>>
 

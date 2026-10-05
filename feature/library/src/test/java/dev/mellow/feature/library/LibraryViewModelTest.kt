@@ -47,7 +47,7 @@ class LibraryViewModelTest {
     @Test
     fun `playing a track of a long list queues the tracks around it`() = runTest {
         val window = tracks(900 until 1_400)
-        coEvery { repository.getTracksSlice(SERVER, LibrarySort.RecentlyAdded, false, 900, 500) } returns
+        coEvery { repository.getTracksWindow(SERVER, LibrarySort.RecentlyAdded, false, "t1000", 100, 500) } returns
             MellowResult.Success(window)
         val viewModel = viewModel()
 
@@ -60,7 +60,7 @@ class LibraryViewModelTest {
     @Test
     fun `playing a track of a short list queues the whole list`() = runTest {
         val all = tracks(0 until 300)
-        coEvery { repository.getTracksSlice(SERVER, LibrarySort.RecentlyAdded, false, 0, 500) } returns
+        coEvery { repository.getTracksWindow(SERVER, LibrarySort.RecentlyAdded, false, "t250", 100, 500) } returns
             MellowResult.Success(all)
         val viewModel = viewModel()
 
@@ -73,19 +73,19 @@ class LibraryViewModelTest {
     @Test
     fun `the queue comes in the order and filter the list shows`() = runTest {
         downloadedOnly.value = true
-        coEvery { repository.getTracksSlice(any(), any(), any(), any(), any()) } returns
+        coEvery { repository.getTracksWindow(any(), any(), any(), any(), any(), any()) } returns
             MellowResult.Success(tracks(0 until 1))
         val viewModel = viewModel(sort = LibrarySort.NameDescending)
 
         viewModel.tracksToPlay(index = 0, trackId = "t0", count = 1)
 
-        coVerify { repository.getTracksSlice(SERVER, LibrarySort.NameDescending, true, 0, 500) }
+        coVerify { repository.getTracksWindow(SERVER, LibrarySort.NameDescending, true, "t0", 100, 500) }
     }
 
     @Test
     fun `a track that moved since the list was shown plays on its own`() = runTest {
         val moved = track(7)
-        coEvery { repository.getTracksSlice(any(), any(), any(), any(), any()) } returns
+        coEvery { repository.getTracksWindow(any(), any(), any(), any(), any(), any()) } returns
             MellowResult.Success(tracks(0 until 5))
         coEvery { repository.getTrack("t7") } returns MellowResult.Success(moved)
         val viewModel = viewModel()

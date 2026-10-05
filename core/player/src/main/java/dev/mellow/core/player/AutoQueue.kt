@@ -1,9 +1,11 @@
 package dev.mellow.core.player
 
+import dev.mellow.core.common.QUEUE_WINDOW_BEFORE
 import dev.mellow.core.common.QUEUE_WINDOW_SIZE
 import dev.mellow.core.common.queueWindowStart
 import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.entity.TrackEntity
 
 /**
@@ -14,6 +16,7 @@ import dev.mellow.core.database.entity.TrackEntity
 internal class AutoQueue(
     private val trackDao: TrackDao,
     private val playlistDao: PlaylistDao,
+    private val trackKeysetQueries: TrackKeysetQueryFactory,
 ) {
     /**
      * The queue for the item Android Auto asked to play by its [mediaId], and where the picked track is in it. The
@@ -57,9 +60,13 @@ internal class AutoQueue(
             parentId == MellowMediaService.LIBRARY_SONGS -> {
                 // A song that isn't in the library has no place among the songs.
                 val song = track ?: return null
-                val position = trackDao.countTracksBefore(serverId, song.sortName, song.id, downloadedOnly)
-                val start = queueWindowStart(position, trackDao.countTracks(serverId, downloadedOnly))
-                trackDao.getTracksByServerPaged(serverId, downloadedOnly, QUEUE_WINDOW_SIZE, start)
+                trackKeysetQueries.autoQueueWindow(
+                    serverId,
+                    downloadedOnly,
+                    song.id,
+                    QUEUE_WINDOW_BEFORE,
+                    QUEUE_WINDOW_SIZE,
+                )
             }
             parentId?.startsWith("album:") == true -> trackDao.getTracksByAlbumSync(parentId.removePrefix("album:"))
             // The top tracks an artist with no albums lists, as the app's artist screen plays them.

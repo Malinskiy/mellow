@@ -43,7 +43,8 @@ class LibraryPagingQueriesTest {
     fun `the tracks tab pages through every track, newest first, past the old 500 cap`() = runTest {
         db.trackDao().upsertTracks((1..1_234).map { track("t$it", dateAdded = it.toLong()) })
 
-        val ids = db.trackDao().getLibraryTracks(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = false)
+        val ids = TrackKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = false)
             .loadAll(pageSize = 100)
             .map { it.id }
 
@@ -54,7 +55,8 @@ class LibraryPagingQueriesTest {
     fun `tracks added at the same time are ordered by ID, so pages never overlap or skip`() = runTest {
         db.trackDao().upsertTracks((1..250).map { track("t${it.toString().padStart(3, '0')}", dateAdded = 7) })
 
-        val ids = db.trackDao().getLibraryTracks(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = false)
+        val ids = TrackKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = false)
             .loadAll(pageSize = 7)
             .map { it.id }
 
@@ -96,7 +98,8 @@ class LibraryPagingQueriesTest {
         db.trackDao().upsertTracks(listOf(track("done", dateAdded = 1), track("busy", dateAdded = 2), track("none", dateAdded = 3)))
         db.downloadDao().upsertAll(listOf(download("done", DownloadEntity.STATUS_COMPLETED), download("busy", DownloadEntity.STATUS_DOWNLOADING)))
 
-        val ids = db.trackDao().getLibraryTracks(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = true)
+        val ids = TrackKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = true)
             .loadAll()
             .map { it.id }
 
@@ -104,11 +107,18 @@ class LibraryPagingQueriesTest {
     }
 
     @Test
-    fun `a slice is the same part of the list a page shows`() = runTest {
+    fun `a keyed window is the same part of the list a page shows`() = runTest {
         db.trackDao().upsertTracks((1..40).map { track("t$it", name = "n${it % 7}", dateAdded = it.toLong()) })
         val all = libraryTrackIds(LibraryOrder.NAME_ASC)
 
-        val slice = db.trackDao().getLibraryTracksSlice(SERVER, LibraryOrder.NAME_ASC, false, limit = 5, offset = 10)
+        val slice = TrackKeysetQueryFactory(db).libraryQueueWindow(
+            SERVER,
+            LibraryOrder.NAME_ASC,
+            downloadedOnly = false,
+            trackId = all[10],
+            before = 0,
+            size = 5,
+        )
 
         assertEquals(all.subList(10, 15), slice.map { it.id })
     }
@@ -374,13 +384,13 @@ class LibraryPagingQueriesTest {
     }
 
     private suspend fun libraryTrackIds(sort: Int): List<String> =
-        db.trackDao().getLibraryTracks(SERVER, sort, downloadedOnly = false).loadAll().map { it.id }
+        TrackKeysetQueryFactory(db).libraryPagingSource(SERVER, sort, downloadedOnly = false).loadAll().map { it.id }
 
     private suspend fun libraryAlbumIds(sort: Int): List<String> =
         db.albumDao().getLibraryAlbums(SERVER, sort, genre = null, downloadedOnly = false).loadAll().map { it.id }
 
     /** Loads every page the way Paging does: a refresh, then appends until there's no next page. */
-    private suspend fun <T : Any> PagingSource<Int, T>.loadAll(pageSize: Int = 50): List<T> {
+    private suspend fun <K : Any, T : Any> PagingSource<K, T>.loadAll(pageSize: Int = 50): List<T> {
         val items = mutableListOf<T>()
         var page = load(PagingSource.LoadParams.Refresh(key = null, loadSize = pageSize, placeholdersEnabled = false))
         while (true) {

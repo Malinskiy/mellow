@@ -36,6 +36,7 @@ import dev.mellow.core.database.dao.DownloadDao
 import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.dao.getTracksById
 import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
@@ -61,6 +62,7 @@ class MellowMediaService : MediaLibraryService() {
     @Inject lateinit var albumDao: AlbumDao
     @Inject lateinit var artistDao: ArtistDao
     @Inject lateinit var trackDao: TrackDao
+    @Inject lateinit var trackKeysetQueries: TrackKeysetQueryFactory
     @Inject lateinit var playlistDao: PlaylistDao
     @Inject lateinit var downloadDao: DownloadDao
     @Inject lateinit var networkStateObserver: NetworkStateObserver
@@ -69,7 +71,7 @@ class MellowMediaService : MediaLibraryService() {
 
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
-    private val autoQueue by lazy { AutoQueue(trackDao, playlistDao) }
+    private val autoQueue by lazy { AutoQueue(trackDao, playlistDao, trackKeysetQueries) }
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val handler = Handler(Looper.getMainLooper())

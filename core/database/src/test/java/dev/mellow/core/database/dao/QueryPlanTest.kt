@@ -6,6 +6,7 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SimpleSQLiteQuery
 import dev.mellow.core.database.MellowDatabase
 import dev.mellow.core.database.perf.FakeLibrary
+import dev.mellow.core.database.paging.KeysetPagingKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -21,8 +22,8 @@ import java.util.Collections
 
 /**
  * How SQLite runs the hot queries: each uses the index meant for it, and the lists read that index in order instead
- * of sorting. Checks the statements Room actually runs (paging wraps a query in a LIMIT/OFFSET and a COUNT), on a
- * small library: the plan doesn't depend on the size, and QueryBenchmark measures the time on a million tracks.
+ * of sorting. Checks the statements the keyed pager and Room DAOs actually run on a small library: the plan doesn't
+ * depend on the size, and QueryBenchmark measures the time on a million tracks.
  *
  * Robolectric's SQLite (3.32) is newer than the oldest supported Android's (3.18); the plans are rechecked on an
  * Android 8 emulator before a release that changes them.
@@ -57,26 +58,48 @@ class QueryPlanTest {
             LibraryOrder.YEAR to "index_tracks_serverId_albumName_dateAdded_id",
         )
         for ((order, index) in indexes) {
-            val page = plans { db.trackDao().getLibraryTracks(server, order, false).loadAt(1_000) }
-                .single { "LIMIT" in it.sql }
-            page.assertUses(index)
-            page.assertNoSort()
-            val slice = plans { db.trackDao().getLibraryTracksSlice(server, order, false, 500, 1_000) }.single()
-            slice.assertUses(index)
-            slice.assertNoSort()
+            val factory = TrackKeysetQueryFactory(db)
+            val first = factory.libraryPagingSource(server, order, false).loadAt(1_000)
+            val rowKey = requireNotNull(first.nextKey)
+            val keyedPlans = plans {
+                factory.libraryPagingSource(server, order, false).loadAt(rowKey)
+            }
+            val total = keyedPlans.single { it.sql.startsWith("SELECT COUNT(*)") && " AND " !in it.sql }
+            val before = keyedPlans.single { it.sql.startsWith("SELECT COUNT(*)") && " AND " in it.sql }
+            assertFalse("The fast count must not wrap a sorted query:\n$total", "ORDER BY" in total.sql)
+            assertFalse("The position count must not wrap a sorted query:\n$before", "ORDER BY" in before.sql)
+            total.assertNoSort()
+            total.assertNoTrackScan()
+            (keyedPlans.filter { it.sql.startsWith("SELECT t.*") } + before).forEach { plan ->
+                plan.assertUses(index)
+                plan.assertNoSort()
+                plan.assertNoTrackScan()
+            }
+
+            val anchor = requireNotNull(factory.libraryTrackIdAtPosition(server, order, false, 1_000))
+            plans { factory.libraryQueueWindow(server, order, false, anchor, before = 100, size = 500) }
+                .forEach { plan ->
+                    if ("ORDER BY" in plan.sql) plan.assertUses(index)
+                    plan.assertNoSort()
+                    plan.assertNoTrackScan()
+                }
         }
     }
 
     @Test
     fun `downloaded only starts from the downloads`() = runTest {
-        val page = plans { db.trackDao().getLibraryTracks(server, LibraryOrder.NAME_ASC, true).loadAt(0) }
-            .single { "LIMIT" in it.sql }
+        val pages = plans {
+            TrackKeysetQueryFactory(db).libraryPagingSource(server, LibraryOrder.NAME_ASC, true).loadAt(0)
+        }.filter { it.sql.startsWith("SELECT t.*") }
 
-        val firstTable = page.details.first { it.startsWith("SEARCH") || it.startsWith("SCAN") }
-        assertTrue(
-            "Expected to start from the downloads:\n$page",
-            "index_downloads_status_serverId_trackId" in firstTable,
-        )
+        assertTrue(pages.isNotEmpty())
+        pages.forEach { page ->
+            val firstTable = page.details.first { it.startsWith("SEARCH") || it.startsWith("SCAN") }
+            assertTrue(
+                "Expected to start from the downloads:\n$page",
+                "index_downloads_status_serverId_trackId" in firstTable,
+            )
+        }
     }
 
     @Test
@@ -103,7 +126,8 @@ class QueryPlanTest {
             assertUses("index_tracks_serverId_playCount")
             assertNoSort()
         }
-        plans { db.trackDao().getFavoriteTracksPaged(server, false).loadAt(0) }.single { "LIMIT" in it.sql }.apply {
+        plans { db.trackDao().getFavoriteTracksPaged(server, false).loadOffset(0) }
+            .single { "LIMIT" in it.sql }.apply {
             assertUses("index_tracks_serverId_isFavorite")
             assertNoSort()
         }
@@ -111,9 +135,12 @@ class QueryPlanTest {
 
     @Test
     fun `Android Auto's songs read their index`() = runTest {
-        plans { db.trackDao().getTracksByServerPaged(server, false, 500, 1_000) }.single().apply {
-            assertUses("index_tracks_serverId_sortName_id")
-            assertNoSort()
+        val queries = TrackKeysetQueryFactory(db)
+        val anchor = requireNotNull(queries.autoTrackIdAtPosition(server, false, 1_000))
+        plans { queries.autoQueueWindow(server, false, anchor, before = 100, size = 500) }.forEach { plan ->
+            if ("ORDER BY" in plan.sql) plan.assertUses("index_tracks_serverId_sortName_id")
+            plan.assertNoSort()
+            plan.assertNoTrackScan()
         }
     }
 
@@ -135,6 +162,10 @@ class QueryPlanTest {
             // Also "FOR RIGHT PART OF ORDER BY" and "FOR LAST TERM OF ORDER BY": partial sorts.
             details.any { "TEMP B-TREE FOR" in it && "ORDER BY" in it },
         )
+        fun assertNoTrackScan() = assertFalse(
+            "Scans tracks instead of seeking an index:\n$this",
+            details.any { it.startsWith("SCAN") && "tracks" in it },
+        )
         override fun toString() = "$sql\n" + details.joinToString("\n") { "  $it" }
     }
 
@@ -154,7 +185,17 @@ class QueryPlanTest {
             }
     }
 
-    private suspend fun <V : Any> PagingSource<Int, V>.loadAt(position: Int) {
+    private suspend fun <V : Any> PagingSource<KeysetPagingKey, V>.loadAt(position: Int):
+        PagingSource.LoadResult.Page<KeysetPagingKey, V> = loadAt(KeysetPagingKey.Position(position))
+
+    private suspend fun <V : Any> PagingSource<KeysetPagingKey, V>.loadAt(key: KeysetPagingKey):
+        PagingSource.LoadResult.Page<KeysetPagingKey, V> {
+        val result = load(PagingSource.LoadParams.Refresh(key, 60, placeholdersEnabled = true))
+        check(result is PagingSource.LoadResult.Page) { "Load at $key failed: $result" }
+        return result
+    }
+
+    private suspend fun <V : Any> PagingSource<Int, V>.loadOffset(position: Int) {
         val result = load(PagingSource.LoadParams.Refresh(position, 60, placeholdersEnabled = true))
         check(result is PagingSource.LoadResult.Page) { "Load at $position failed: $result" }
     }

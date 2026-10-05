@@ -25,11 +25,10 @@ import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.SyncPassDao
 import dev.mellow.core.database.dao.TrackDao
+import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.dao.getInstantMix
 import dev.mellow.core.database.dao.mark
 import dev.mellow.core.database.dao.pickRandomTracks
-import dev.mellow.core.database.dao.getLibraryTracksSlice
-import dev.mellow.core.database.dao.getLibraryTracks
 import dev.mellow.core.database.entity.ArtistAliasEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.SearchQueryEntity
@@ -64,6 +63,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val artistDao: ArtistDao,
     private val artistAliasDao: ArtistAliasDao,
     private val trackDao: TrackDao,
+    private val trackKeysetQueries: TrackKeysetQueryFactory,
     private val serverDao: ServerDao,
     private val searchQueryDao: SearchQueryDao,
     private val syncPassDao: SyncPassDao,
@@ -122,20 +122,30 @@ class LibraryRepositoryImpl @Inject constructor(
         sort: LibrarySort,
         downloadedOnly: Boolean,
     ): Flow<PagingData<Track>> =
-        Pager(LIBRARY_PAGING_CONFIG) { trackDao.getLibraryTracks(serverId, sort.toOrder(), downloadedOnly) }
+        Pager(LIBRARY_PAGING_CONFIG) {
+            trackKeysetQueries.libraryPagingSource(serverId, sort.toOrder(), downloadedOnly)
+        }
             .flow
             .map { page -> page.map { it.toModel() } }
 
-    override suspend fun getTracksSlice(
+    override suspend fun getTracksWindow(
         serverId: String,
         sort: LibrarySort,
         downloadedOnly: Boolean,
-        offset: Int,
+        trackId: String,
+        before: Int,
         limit: Int,
     ): MellowResult<List<Track>> =
         try {
             MellowResult.Success(
-                trackDao.getLibraryTracksSlice(serverId, sort.toOrder(), downloadedOnly, limit, offset)
+                trackKeysetQueries.libraryQueueWindow(
+                    serverId,
+                    sort.toOrder(),
+                    downloadedOnly,
+                    trackId,
+                    before,
+                    limit,
+                )
                     .map { it.toModel() },
             )
         } catch (e: Exception) {
