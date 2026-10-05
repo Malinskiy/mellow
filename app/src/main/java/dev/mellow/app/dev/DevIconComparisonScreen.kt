@@ -36,6 +36,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -62,8 +63,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import dev.mellow.app.maintenance.MaintenanceOverlay
 import dev.mellow.core.designsystem.component.AnimatedAlbumDownloadIndicator
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -373,6 +379,9 @@ fun DevIconComparisonScreen(onBack: () -> Unit) {
             item { SectionDivider() }
             item { SectionHeader("05g", "Album Download") }
             item { AlbumDownloadDemo() }
+            item { SectionDivider() }
+            item { SectionHeader("05h", "Maintenance Screen") }
+            item { MaintenanceReplayDemo() }
             item { SectionDivider() }
 
             item { SectionHeader("06", "The Choice") }
@@ -1605,6 +1614,61 @@ private fun AlbumDownloadDemo() {
             ) {
                 Text("Reset", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.foreground)
             }
+        }
+    }
+}
+
+/** How long the replayed maintenance screen's simulated migration takes. */
+private const val SIMULATED_MIGRATION_MILLIS = 2_000L
+
+/**
+ * Replays the startup maintenance screen, with its real timing and exit, over a simulated migration (a delay, no
+ * database), full screen; back on this page once it has faded away, or on Back.
+ */
+@Composable
+private fun MaintenanceReplayDemo() {
+    var replaying by remember { mutableStateOf(false) }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = MellowSpacing.Sp6),
+    ) {
+        Text(
+            "Shown while the library database migrates at startup",
+            style = MaterialTheme.typography.labelSmall,
+            color = MellowTheme.colors.muted,
+        )
+        Spacer(Modifier.height(MellowSpacing.Sp4))
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(MellowTheme.colors.surface)
+                .clickable { replaying = true }
+                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+        ) {
+            Text(
+                "Replay startup screen",
+                style = MaterialTheme.typography.labelSmall,
+                color = MellowTheme.colors.foreground,
+            )
+        }
+    }
+
+    if (replaying) {
+        Dialog(
+            onDismissRequest = { replaying = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            // The page shows through as the screen fades away: no dimming behind the dialog.
+            val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+            SideEffect { window?.setDimAmount(0f) }
+            MaintenanceOverlay(
+                work = { delay(SIMULATED_MIGRATION_MILLIS) },
+                onContentReady = {},
+                onFinished = { replaying = false },
+            )
         }
     }
 }

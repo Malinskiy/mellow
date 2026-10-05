@@ -27,7 +27,7 @@ object DatabaseModule {
         Room.databaseBuilder(
             context,
             MellowDatabase::class.java,
-            "mellow.db",
+            MellowDatabase.NAME,
         )
             .addMigrations(
                 Migrations.MIGRATION_2_3,
