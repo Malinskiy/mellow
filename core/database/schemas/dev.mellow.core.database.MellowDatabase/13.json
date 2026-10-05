@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 13,
-    "identityHash": "6c99929d44baf3488680429ea6fb8362",
+    "identityHash": "89e00a0bab53aeb17ae3b17f7c9b6b17",
     "entities": [
       {
         "tableName": "servers",
@@ -656,14 +656,15 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_tracks_resolvedArtistId_playCount` ON `${TABLE_NAME}` (`resolvedArtistId` ASC, `playCount` DESC)"
           },
           {
-            "name": "index_tracks_serverId_lastPlayedAt",
+            "name": "index_tracks_serverId_lastPlayedAt_albumId",
             "unique": false,
             "columnNames": [
               "serverId",
-              "lastPlayedAt"
+              "lastPlayedAt",
+              "albumId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_tracks_serverId_lastPlayedAt` ON `${TABLE_NAME}` (`serverId`, `lastPlayedAt`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tracks_serverId_lastPlayedAt_albumId` ON `${TABLE_NAME}` (`serverId`, `lastPlayedAt`, `albumId`)"
           },
           {
             "name": "index_tracks_serverId_playCount",
@@ -1201,7 +1202,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6c99929d44baf3488680429ea6fb8362')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '89e00a0bab53aeb17ae3b17f7c9b6b17')"
     ]
   }
 }

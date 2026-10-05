@@ -17,6 +17,7 @@ import dev.mellow.core.database.RoomTransactionRunner
 import dev.mellow.core.database.dao.AlbumKeysetQueryFactory
 import dev.mellow.core.database.dao.ArtistKeysetQueryFactory
 import dev.mellow.core.database.dao.TrackKeysetQueryFactory
+import dev.mellow.core.database.dao.RecentlyPlayedAlbumsObserver
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.model.Server
 import dev.mellow.core.network.JellyfinClientWrapper
@@ -108,6 +109,7 @@ class LibrarySyncWorkerArtworkTest {
             albumKeysetQueries = AlbumKeysetQueryFactory(db),
             artistKeysetQueries = ArtistKeysetQueryFactory(db),
             trackKeysetQueries = TrackKeysetQueryFactory(db),
+            recentlyPlayedAlbums = RecentlyPlayedAlbumsObserver(db),
             serverDao = db.serverDao(),
             searchQueryDao = db.searchQueryDao(),
             syncPassDao = db.syncPassDao(),

@@ -13,6 +13,7 @@ import dev.mellow.core.database.RoomTransactionRunner
 import dev.mellow.core.database.dao.AlbumKeysetQueryFactory
 import dev.mellow.core.database.dao.ArtistKeysetQueryFactory
 import dev.mellow.core.database.dao.TrackKeysetQueryFactory
+import dev.mellow.core.database.dao.RecentlyPlayedAlbumsObserver
 import dev.mellow.core.database.migration.Migrations
 import javax.inject.Singleton
 
@@ -72,6 +73,10 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideTrackKeysetQueryFactory(db: MellowDatabase) = TrackKeysetQueryFactory(db)
+
+    @Provides
+    @Singleton
+    fun provideRecentlyPlayedAlbumsObserver(db: MellowDatabase) = RecentlyPlayedAlbumsObserver(db)
 
     @Provides
     fun providePlaylistDao(db: MellowDatabase) = db.playlistDao()

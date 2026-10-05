@@ -77,7 +77,6 @@ interface LibraryRepository {
     /** The [limit] genres with the most albums, most first. */
     fun getTopGenres(serverId: String, limit: Int): Flow<MellowResult<List<String>>>
     fun getRecentlyPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>>
-    fun getMostPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>>
     suspend fun syncHomeScreenPriority(serverId: String, onProgress: (SyncProgress) -> Unit = {}): MellowResult<Set<String>>
 
     /**

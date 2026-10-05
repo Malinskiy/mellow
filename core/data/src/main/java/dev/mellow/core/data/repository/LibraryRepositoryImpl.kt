@@ -36,6 +36,7 @@ import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.SearchQueryEntity
 import dev.mellow.core.database.entity.ServerEntity
 import dev.mellow.core.database.entity.SyncPassKind
+import dev.mellow.core.database.dao.RecentlyPlayedAlbumsObserver
 import dev.mellow.core.model.Album
 import dev.mellow.core.model.Artist
 import dev.mellow.core.model.LibrarySort
@@ -68,6 +69,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val albumKeysetQueries: AlbumKeysetQueryFactory,
     private val artistKeysetQueries: ArtistKeysetQueryFactory,
     private val trackKeysetQueries: TrackKeysetQueryFactory,
+    private val recentlyPlayedAlbums: RecentlyPlayedAlbumsObserver,
     private val serverDao: ServerDao,
     private val searchQueryDao: SearchQueryDao,
     private val syncPassDao: SyncPassDao,
@@ -83,6 +85,7 @@ class LibraryRepositoryImpl @Inject constructor(
         private const val ARTIST_PAGE_SIZE = 500
         private const val ALBUM_PAGE_SIZE = 500
         private const val TRACK_PAGE_SIZE = 1000
+        private const val RECENTLY_PLAYED_ALBUMS = 20
 
         /** Unseen items asked about per request when a full pass checks which of them are gone. */
         private const val GONE_CHECK_BATCH_SIZE = 100
@@ -374,12 +377,7 @@ class LibraryRepositoryImpl @Inject constructor(
             .catch { emit(MellowResult.Error(it)) }
 
     override fun getRecentlyPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
-        albumDao.getRecentlyPlayedAlbums(serverId)
-            .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
-            .catch { emit(MellowResult.Error(it)) }
-
-    override fun getMostPlayedAlbums(serverId: String): Flow<MellowResult<List<Album>>> =
-        albumDao.getMostPlayedAlbums(serverId)
+        recentlyPlayedAlbums.observe(serverId, RECENTLY_PLAYED_ALBUMS)
             .map { entities -> MellowResult.Success(entities.map { it.toModel() }) as MellowResult<List<Album>> }
             .catch { emit(MellowResult.Error(it)) }
 

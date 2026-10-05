@@ -146,7 +146,10 @@ object Migrations {
                 "CREATE INDEX `index_tracks_resolvedArtistId_playCount` " +
                     "ON `tracks` (`resolvedArtistId` ASC, `playCount` DESC)",
             )
-            db.execSQL("CREATE INDEX `index_tracks_serverId_lastPlayedAt` ON `tracks` (`serverId`, `lastPlayedAt`)")
+            db.execSQL(
+                "CREATE INDEX `index_tracks_serverId_lastPlayedAt_albumId` " +
+                    "ON `tracks` (`serverId`, `lastPlayedAt`, `albumId`)",
+            )
             db.execSQL("CREATE INDEX `index_tracks_serverId_playCount` ON `tracks` (`serverId`, `playCount`)")
             db.execSQL("CREATE INDEX `index_tracks_serverId_isFavorite` ON `tracks` (`serverId`, `isFavorite`)")
             db.execSQL(

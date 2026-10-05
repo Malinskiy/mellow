@@ -42,6 +42,7 @@ import dev.mellow.core.database.entity.AlbumEntity
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.PlaylistEntity
 import dev.mellow.core.database.entity.TrackEntity
+import dev.mellow.core.database.dao.getRecentlyPlayedAlbums
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.JellyfinClientWrapper
 import dev.mellow.core.network.NetworkStateObserver
@@ -736,7 +737,7 @@ class MellowMediaService : MediaLibraryService() {
 
                 val items = when {
                     parentId == TAB_HOME -> {
-                        val recentAlbums = albumDao.getRecentlyPlayedAlbumsSync(serverId, limit = HOME_ROW_SIZE)
+                        val recentAlbums = albumDao.getRecentlyPlayedAlbums(serverId, limit = HOME_ROW_SIZE)
                             .onlineFilter()
                         val recentItems = recentAlbums
                             .map { it.toBrowsableItem(groupTitle = "Recently Played") }

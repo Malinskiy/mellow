@@ -24,8 +24,9 @@ import androidx.room.PrimaryKey
         // An album's tracks, and an artist's top tracks.
         Index("albumId", "discNumber", "trackNumber", "id"),
         Index(value = ["resolvedArtistId", "playCount"], orders = [ASC, DESC]),
-        // Home's played rows, and the favorites (in the order they were saved: rowid, the last column of every index).
-        Index("serverId", "lastPlayedAt"),
+        // Home's played rows (albumId: Recently Played albums read only this index), and the favorites (in the order
+        // they were saved: rowid, the last column of every index).
+        Index("serverId", "lastPlayedAt", "albumId"),
         Index("serverId", "playCount"),
         Index("serverId", "isFavorite"),
     ],

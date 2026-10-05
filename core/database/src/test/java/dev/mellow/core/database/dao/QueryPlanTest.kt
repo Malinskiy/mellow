@@ -206,9 +206,16 @@ class QueryPlanTest {
     @Test
     fun `home and favorites read their tracks by index`() = runTest {
         plans { db.trackDao().getRecentlyPlayedTracks(server) }.single().apply {
-            assertUses("index_tracks_serverId_lastPlayedAt")
+            assertUses("index_tracks_serverId_lastPlayedAt_albumId")
             assertNoSort()
         }
+        plans { db.albumDao().getRecentlyPlayedAlbums(server, 20) }
+            .first { "lastPlayedAt" in it.sql }.apply {
+                // The walk over the latest plays reads only the index: no grouping, no sorting, no table rows.
+                assertUses("COVERING INDEX index_tracks_serverId_lastPlayedAt_albumId")
+                assertNoSort()
+                assertFalse(toString(), details.any { "GROUP BY" in it })
+            }
         plans { db.trackDao().getMostPlayed(server).first() }.single().apply {
             assertUses("index_tracks_serverId_playCount")
             assertNoSort()

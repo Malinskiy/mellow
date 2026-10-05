@@ -9,6 +9,7 @@ import dev.mellow.core.database.dao.LibraryOrder
 import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.dao.getTracksById
 import dev.mellow.core.database.dao.pickRandomTracks
+import dev.mellow.core.database.dao.getRecentlyPlayedAlbums
 import dev.mellow.core.database.paging.KeysetPagingKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -135,8 +136,7 @@ class QueryBenchmark {
         measure("home.mostPlayed") { tracks.getMostPlayed(server).first() }
         measure("home.recentlyAdded") { albums.getRecentlyAddedAlbums(server) }
         measure("home.quickPicks") { albums.observeRandomAlbums(server, 20).first() }
-        measure("home.recentlyPlayedAlbums") { albums.getRecentlyPlayedAlbums(server).first() }
-        measure("home.mostPlayedAlbums") { albums.getMostPlayedAlbums(server).first() }
+        measure("home.recentlyPlayedAlbums") { albums.getRecentlyPlayedAlbums(server, 20) }
         measure("home.favoriteTracks") { tracks.observeRandomFavoriteTracks(server, 20).first() }
 
         measure("favorites.tracks.open") { tracks.getFavoriteTracksPaged(server, false).refresh(0) }
