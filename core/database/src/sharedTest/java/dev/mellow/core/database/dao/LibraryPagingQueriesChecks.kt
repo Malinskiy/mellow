@@ -1,0 +1,382 @@
+package dev.mellow.core.database.dao
+
+import android.content.Context
+import androidx.paging.PagingSource
+import androidx.room.Room
+import dev.mellow.core.database.MellowDatabase
+import dev.mellow.core.database.dao.TestEntities.SERVER
+import dev.mellow.core.database.dao.TestEntities.album
+import dev.mellow.core.database.dao.TestEntities.alias
+import dev.mellow.core.database.dao.TestEntities.artist
+import dev.mellow.core.database.dao.TestEntities.crossRef
+import dev.mellow.core.database.dao.TestEntities.download
+import dev.mellow.core.database.dao.TestEntities.playlist
+import dev.mellow.core.database.dao.TestEntities.track
+import dev.mellow.core.database.entity.DownloadEntity
+import kotlinx.coroutines.flow.first
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+
+/**
+ * The paged, sliced and sampled queries that let the app show and play large lists a part at a time. Run by
+ * LibraryPagingQueriesTest under Robolectric and by LibraryPagingQueriesDeviceTest on a device's own SQLite.
+ */
+class LibraryPagingQueriesChecks {
+
+    private lateinit var db: MellowDatabase
+
+    fun setUp(context: Context) {
+        db = Room.inMemoryDatabaseBuilder(context, MellowDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+    }
+
+    fun tearDown() = db.close()
+
+    suspend fun theTracksTabPagesThroughEveryTrackNewestFirstPastTheOld500Cap() {
+        db.trackDao().upsertTracks((1..1_234).map { track("t$it", dateAdded = it.toLong()) })
+
+        val ids = TrackKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = false)
+            .loadAll(pageSize = 100)
+            .map { it.id }
+
+        assertEquals((1_234 downTo 1).map { "t$it" }, ids)
+    }
+
+    suspend fun tracksAddedAtTheSameTimeAreOrderedByIdSoPagesNeverOverlapOrSkip() {
+        db.trackDao().upsertTracks((1..250).map { track("t${it.toString().padStart(3, '0')}", dateAdded = 7) })
+
+        val ids = TrackKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = false)
+            .loadAll(pageSize = 7)
+            .map { it.id }
+
+        assertEquals((1..250).map { "t${it.toString().padStart(3, '0')}" }, ids)
+    }
+
+    suspend fun nameOrdersIgnoreCaseAndZToAIsTheExactReverseOfAToZ() {
+        db.trackDao().upsertTracks(
+            listOf(
+                track("old-a", name = "A", dateAdded = 1),
+                track("b", name = "b", dateAdded = 2),
+                track("new-a", name = "a", dateAdded = 3),
+                track("c", name = "C", dateAdded = 4),
+            ),
+        )
+
+        assertEquals(listOf("new-a", "old-a", "b", "c"), libraryTrackIds(LibraryOrder.NAME_ASC))
+        // The reverse order reads the same index backwards, so equal names come oldest first.
+        assertEquals(listOf("c", "b", "old-a", "new-a"), libraryTrackIds(LibraryOrder.NAME_DESC))
+    }
+
+    suspend fun theYearOrderSortsTracksByAlbumNameZToATracksWithoutAnAlbumLast() {
+        db.trackDao().upsertTracks(
+            listOf(
+                track("none", albumName = null, dateAdded = 4),
+                track("amnesiac", albumName = "Amnesiac", dateAdded = 1),
+                track("kid-a", albumName = "Kid A", dateAdded = 2),
+                track("bends", albumName = "The Bends", dateAdded = 3),
+            ),
+        )
+
+        assertEquals(listOf("bends", "kid-a", "amnesiac", "none"), libraryTrackIds(LibraryOrder.YEAR))
+    }
+
+    suspend fun downloadedOnlyKeepsTracksWhoseDownloadCompleted() {
+        db.trackDao().upsertTracks(listOf(track("done", dateAdded = 1), track("busy", dateAdded = 2), track("none", dateAdded = 3)))
+        db.downloadDao().upsertAll(listOf(download("done", DownloadEntity.STATUS_COMPLETED), download("busy", DownloadEntity.STATUS_DOWNLOADING)))
+
+        val ids = TrackKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.RECENTLY_ADDED, downloadedOnly = true)
+            .loadAll()
+            .map { it.id }
+
+        assertEquals(listOf("done"), ids)
+    }
+
+    suspend fun aKeyedWindowIsTheSamePartOfTheListAPageShows() {
+        db.trackDao().upsertTracks((1..40).map { track("t$it", name = "n${it % 7}", dateAdded = it.toLong()) })
+        val all = libraryTrackIds(LibraryOrder.NAME_ASC)
+
+        val slice = TrackKeysetQueryFactory(db).libraryQueueWindow(
+            SERVER,
+            LibraryOrder.NAME_ASC,
+            downloadedOnly = false,
+            trackId = all[10],
+            before = 0,
+            size = 5,
+        )
+
+        assertEquals(all.subList(10, 15), slice.map { it.id })
+    }
+
+    suspend fun otherServersTracksNeverShow() {
+        db.trackDao().upsertTracks(listOf(track("mine", dateAdded = 1), track("theirs", serverId = "other", dateAdded = 2)))
+
+        assertEquals(listOf("mine"), libraryTrackIds(LibraryOrder.RECENTLY_ADDED))
+        assertEquals(listOf("mine"), db.trackDao().getTracksByServerPaged(SERVER, false, limit = 10, offset = 0).map { it.id })
+    }
+
+    suspend fun favoriteTracksKeepTheOrderTheyWereSavedInAndPositionsAndCountsMatchIt() {
+        db.trackDao().upsertTracks((1..6).map { track("t$it", isFavorite = it % 2 == 0) })
+
+        val paged = db.trackDao().getFavoriteTracksPaged(SERVER, downloadedOnly = false).loadAll(pageSize = 2).map { it.id }
+
+        assertEquals(listOf("t2", "t4", "t6"), paged)
+        assertEquals(listOf("t4", "t6"), db.trackDao().getFavoriteTracksSlice(SERVER, false, limit = 5, offset = 1).map { it.id })
+        assertEquals(3, db.trackDao().countFavoriteTracks(SERVER, downloadedOnly = false))
+        assertEquals(1, db.trackDao().countFavoriteTracksBefore(SERVER, "t4", downloadedOnly = false))
+        assertEquals(0, db.trackDao().countFavoriteTracksBefore(SERVER, "not-a-track", downloadedOnly = false))
+    }
+
+    suspend fun aFavoritesShuffleIsABoundedRandomPickOfTheFavoritesOfDownloadsOnlyIfAsked() {
+        db.trackDao().upsertTracks(
+            (1..30).map { track("fav$it", isFavorite = true) } +
+                (1..10).map { track("other$it") } +
+                listOf(track("theirs", serverId = "elsewhere", isFavorite = true)),
+        )
+        db.downloadDao().upsertAll((1..4).map { download("fav$it", DownloadEntity.STATUS_COMPLETED) })
+        val favorites = (1..30).map { "fav$it" }.toSet()
+
+        val sample = db.trackDao().getRandomFavoriteTracks(SERVER, downloadedOnly = false, limit = 10).map { it.id }
+        val all = db.trackDao().getRandomFavoriteTracks(SERVER, downloadedOnly = false, limit = 500).map { it.id }
+        val downloaded = db.trackDao().getRandomFavoriteTracks(SERVER, downloadedOnly = true, limit = 500).map { it.id }
+
+        assertEquals(10, sample.toSet().size)
+        assertTrue(favorites.containsAll(sample))
+        assertEquals(favorites, all.toSet())
+        assertEquals(30, all.size)
+        assertEquals((1..4).map { "fav$it" }.toSet(), downloaded.toSet())
+        assertEquals(4, db.trackDao().countFavoriteTracks(SERVER, downloadedOnly = true))
+    }
+
+    suspend fun aLibraryShuffleIsABoundedRandomPickOfTheServersTracksOfDownloadsOnlyIfAsked() {
+        db.trackDao().upsertTracks(
+            (1..40).map { track("t$it", isFavorite = it % 2 == 0) } +
+                listOf(track("theirs", serverId = "elsewhere")),
+        )
+        db.downloadDao().upsertAll((1..4).map { download("t$it", DownloadEntity.STATUS_COMPLETED) })
+        val library = (1..40).map { "t$it" }.toSet()
+
+        val sample = db.trackDao().getRandomTrackIds(SERVER, downloadedOnly = false, limit = 10)
+        val all = db.trackDao().getRandomTrackIds(SERVER, downloadedOnly = false, limit = 500)
+        val downloaded = db.trackDao().getRandomTrackIds(SERVER, downloadedOnly = true, limit = 500)
+
+        assertEquals(10, sample.toSet().size)
+        assertTrue(library.containsAll(sample))
+        assertEquals(library, all.toSet())
+        assertEquals(40, all.size)
+        assertEquals((1..4).map { "t$it" }.toSet(), downloaded.toSet())
+    }
+
+    suspend fun downloadedOnlyKeepsFavoritesWhoseDownloadCompleted() {
+        db.trackDao().upsertTracks(listOf(track("kept", isFavorite = true), track("dropped", isFavorite = true)))
+        db.downloadDao().upsertAll(listOf(download("kept", DownloadEntity.STATUS_COMPLETED)))
+
+        assertEquals(listOf("kept"), db.trackDao().getFavoriteTracksPaged(SERVER, downloadedOnly = true).loadAll().map { it.id })
+    }
+
+    suspend fun aTracksPositionAmongTheServersTracksMatchesTheSlicedOrder() {
+        db.trackDao().upsertTracks((1..30).map { track("t$it", name = "n${it % 4}") })
+        val ordered = db.trackDao().getTracksByServerPaged(SERVER, downloadedOnly = false, limit = 100, offset = 0)
+
+        ordered.forEachIndexed { index, track ->
+            assertEquals(index, db.trackDao().countTracksBefore(SERVER, track.sortName, track.id, downloadedOnly = false))
+        }
+    }
+
+    suspend fun offlinePositionsCountDownloadsOnlyAsTheDownloadedListsShowThem() {
+        val ids = (1..20).map { "t${it.toString().padStart(2, '0')}" }
+        db.trackDao().upsertTracks(ids.mapIndexed { i, id -> track(id, isFavorite = i % 2 == 1) })
+        db.downloadDao().upsertAll(ids.filterIndexed { i, _ -> i % 3 == 2 }.map { download(it, DownloadEntity.STATUS_COMPLETED) })
+        db.playlistDao().upsert(playlist("p"))
+        db.playlistDao().insertPlaylistTracks(ids.reversed().mapIndexed { i, id -> crossRef("p", id, i) })
+
+        val songs = db.trackDao().getTracksByServerPaged(SERVER, downloadedOnly = true, limit = 100, offset = 0)
+        val favorites = db.trackDao().getFavoriteTracksSlice(SERVER, downloadedOnly = true, limit = 100, offset = 0)
+        val playlist = db.playlistDao().getPlaylistTracksSlice("p", downloadedOnly = true, limit = 100, offset = 0)
+
+        assertEquals(6, songs.size)
+        assertEquals(songs.size, db.trackDao().countTracks(SERVER, downloadedOnly = true))
+        songs.forEachIndexed { i, t ->
+            assertEquals(i, db.trackDao().countTracksBefore(SERVER, t.sortName, t.id, downloadedOnly = true))
+        }
+        assertEquals(favorites.size, db.trackDao().countFavoriteTracks(SERVER, downloadedOnly = true))
+        favorites.forEachIndexed { i, t ->
+            assertEquals(i, db.trackDao().countFavoriteTracksBefore(SERVER, t.id, downloadedOnly = true))
+        }
+        assertEquals(playlist.size, db.playlistDao().countPlaylistTracks("p", downloadedOnly = true))
+        playlist.forEachIndexed { i, t ->
+            assertEquals(i, db.playlistDao().countPlaylistTracksBefore("p", t.id, downloadedOnly = true))
+        }
+    }
+
+    suspend fun theGenreFilterMatchesWholeGenresOnly() {
+        db.albumDao().upsertAlbums(
+            listOf(
+                album("punk", genres = listOf("Punk Rock")),
+                album("rock-pop", genres = listOf("Pop", "Rock")),
+                album("none"),
+            ),
+        )
+
+        val rock = AlbumKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.NAME_ASC, genre = "Rock", downloadedOnly = false)
+            .loadAll()
+            .map { it.id }
+
+        assertEquals(listOf("rock-pop"), rock)
+    }
+
+    suspend fun albumOrders() {
+        db.albumDao().upsertAlbums(
+            listOf(
+                album("b", name = "b", year = 1997, dateAdded = 1),
+                album("a", name = "A", year = null, dateAdded = 3),
+                album("c", name = "c", year = 2007, dateAdded = 2),
+            ),
+        )
+
+        assertEquals(listOf("a", "c", "b"), libraryAlbumIds(LibraryOrder.RECENTLY_ADDED))
+        assertEquals(listOf("a", "b", "c"), libraryAlbumIds(LibraryOrder.NAME_ASC))
+        assertEquals(listOf("c", "b", "a"), libraryAlbumIds(LibraryOrder.NAME_DESC))
+        assertEquals(listOf("c", "b", "a"), libraryAlbumIds(LibraryOrder.YEAR))
+    }
+
+    suspend fun downloadedOnlyKeepsAlbumsWithADownloadedTrack() {
+        db.albumDao().upsertAlbums(listOf(album("kept"), album("dropped")))
+        db.trackDao().upsertTracks(listOf(track("t1", albumId = "kept"), track("t2", albumId = "dropped")))
+        db.downloadDao().upsertAll(listOf(download("t1", DownloadEntity.STATUS_COMPLETED)))
+
+        val ids = AlbumKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.NAME_ASC, genre = null, downloadedOnly = true)
+            .loadAll()
+            .map { it.id }
+
+        assertEquals(listOf("kept"), ids)
+    }
+
+    suspend fun genresComeFromDistinctGenreListsWithAlbumCountsForTheTopGenres() {
+        db.albumDao().upsertAlbums(
+            listOf(
+                album("a1", name = "a1", genres = listOf("Rock", "Pop")),
+                album("a2", name = "a2", genres = listOf("Rock", "Pop")),
+                album("a3", name = "a3", genres = listOf("Jazz")),
+                album("a4", name = "a4"),
+            ),
+        )
+
+        val raw = db.albumDao().observeRawGenreStrings(SERVER, downloadedOnly = false).first()
+        val counts = db.albumDao().observeGenreAlbumCounts(SERVER).first()
+
+        assertEquals(setOf("Rock|||Pop", "Jazz"), raw.toSet())
+        assertEquals(listOf(GenreAlbumCount("Rock|||Pop", 2), GenreAlbumCount("Jazz", 1)), counts)
+    }
+
+    suspend fun theArtistsTabMergesAliasesAndCountsTheAlbumsCreditedToEachArtist() {
+        db.artistDao().upsertArtists(listOf(artist("canonical", "Radiohead"), artist("alias", "radiohead"), artist("solo", "Bon Iver")))
+        db.artistAliasDao().upsertAliases(
+            listOf(alias("canonical", "canonical"), alias("alias", "canonical"), alias("solo", "solo")),
+        )
+        db.albumDao().upsertAlbums(
+            listOf(
+                album("ok", artistId = "alias", resolvedArtistId = "canonical"),
+                album("kid-a", artistId = "canonical"),
+                album("bon-iver", artistId = "solo"),
+            ),
+        )
+
+        val artists = ArtistKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.NAME_ASC, downloadedOnly = false)
+            .loadAll()
+
+        assertEquals(listOf("solo", "canonical"), artists.map { it.artist.id })
+        assertEquals(listOf(1, 2), artists.map { it.localAlbumCount })
+    }
+
+    suspend fun playlistTracksPageInPlaylistOrderAndPositionsAndCountsMatchIt() {
+        db.trackDao().upsertTracks((1..5).map { track("t$it") })
+        db.playlistDao().upsert(playlist("p"))
+        db.playlistDao().insertPlaylistTracks(listOf("t5", "t3", "t1", "t4").mapIndexed { i, id -> crossRef("p", id, i) })
+
+        val paged = db.playlistDao().getPlaylistTracksPaged("p", downloadedOnly = false).loadAll(pageSize = 3).map { it.id }
+
+        assertEquals(listOf("t5", "t3", "t1", "t4"), paged)
+        assertEquals(listOf("t1", "t4"), db.playlistDao().getPlaylistTracksSlice("p", false, limit = 9, offset = 2).map { it.id })
+        assertEquals(4, db.playlistDao().countPlaylistTracks("p", downloadedOnly = false))
+        paged.forEachIndexed { index, id -> assertEquals(index, db.playlistDao().countPlaylistTracksBefore("p", id, downloadedOnly = false)) }
+        assertEquals(0, db.playlistDao().countPlaylistTracksBefore("p", "t2", downloadedOnly = false))
+    }
+
+    suspend fun aPlaylistShuffleIsABoundedRandomPickOfThatPlaylistsTracksOnly() {
+        db.trackDao().upsertTracks((1..40).map { track("t$it") })
+        db.playlistDao().upsert(playlist("p"))
+        db.playlistDao().upsert(playlist("other"))
+        db.playlistDao().insertPlaylistTracks((1..30).map { crossRef("p", "t$it", it) })
+        db.playlistDao().insertPlaylistTracks((31..40).map { crossRef("other", "t$it", it) })
+        val inPlaylist = (1..30).map { "t$it" }.toSet()
+
+        val sample = db.playlistDao().getRandomPlaylistTracks("p", limit = 10).map { it.id }
+        val all = db.playlistDao().getRandomPlaylistTracks("p", limit = 500).map { it.id }
+
+        assertEquals(10, sample.toSet().size)
+        assertTrue(inPlaylist.containsAll(sample))
+        assertEquals(inPlaylist, all.toSet())
+        assertEquals(30, all.size)
+    }
+
+    suspend fun serverAlbumsAndCanonicalArtistsComeASliceAtATime() {
+        db.albumDao().upsertAlbums((1..12).map { album("a${it.toString().padStart(2, '0')}") })
+        db.artistDao().upsertArtists((1..12).map { artist("r${it.toString().padStart(2, '0')}", "Artist ${it.toString().padStart(2, '0')}") })
+        db.artistAliasDao().upsertAliases((1..12).map { "r${it.toString().padStart(2, '0')}" }.map { alias(it, it) })
+
+        val albums = db.albumDao().getAlbumsByServerSlice(SERVER, downloadedOnly = false, limit = 5, offset = 10)
+        val artists = db.artistDao().getCanonicalArtistsSlice(SERVER, downloadedOnly = false, limit = 5, offset = 10)
+
+        assertEquals(listOf("a11", "a12"), albums.map { it.id })
+        assertEquals(listOf("r11", "r12"), artists.map { it.id })
+    }
+
+    suspend fun homeRowsReadNoMoreRowsThanTheyShow() {
+        db.albumDao().upsertAlbums(
+            (1..30).map { album("a${it.toString().padStart(2, '0')}", dateAdded = it.toLong()) } +
+                listOf(album("fav", isFavorite = true), album("played")),
+        )
+        db.trackDao().upsertTracks(
+            listOf(track("t1", albumId = "played", playCount = 5)) + (1..9).map { track("f$it", isFavorite = true) },
+        )
+
+        val recent = db.albumDao().observeRecentlyAddedAlbums(SERVER, limit = 12).first()
+        val random = db.albumDao().observeRandomAlbums(SERVER, limit = 24).first()
+        val picks = db.albumDao().getRandomFavoriteOrMostPlayedAlbums(SERVER, 20, downloadedOnly = false, limit = 10)
+        val favoriteTracks = db.trackDao().observeRandomFavoriteTracks(SERVER, limit = 5).first()
+
+        assertEquals((30 downTo 19).map { "a$it" }, recent.map { it.id })
+        assertEquals(24, random.map { it.id }.toSet().size)
+        assertEquals(setOf("fav", "played"), picks.map { it.id }.toSet())
+        assertEquals(5, favoriteTracks.size)
+        assertTrue(favoriteTracks.all { it.isFavorite })
+    }
+
+    private suspend fun libraryTrackIds(sort: Int): List<String> =
+        TrackKeysetQueryFactory(db).libraryPagingSource(SERVER, sort, downloadedOnly = false).loadAll().map { it.id }
+
+    private suspend fun libraryAlbumIds(sort: Int): List<String> =
+        AlbumKeysetQueryFactory(db).libraryPagingSource(SERVER, sort, genre = null, downloadedOnly = false)
+            .loadAll()
+            .map { it.id }
+
+    /** Loads every page the way Paging does: a refresh, then appends until there's no next page. */
+    private suspend fun <K : Any, T : Any> PagingSource<K, T>.loadAll(pageSize: Int = 50): List<T> {
+        val items = mutableListOf<T>()
+        var page = load(PagingSource.LoadParams.Refresh(key = null, loadSize = pageSize, placeholdersEnabled = false))
+        while (true) {
+            assertTrue("Unexpected $page", page is PagingSource.LoadResult.Page)
+            page as PagingSource.LoadResult.Page
+            items += page.data
+            val next = page.nextKey ?: return items
+            page = load(PagingSource.LoadParams.Append(key = next, loadSize = pageSize, placeholdersEnabled = false))
+        }
+    }
+}

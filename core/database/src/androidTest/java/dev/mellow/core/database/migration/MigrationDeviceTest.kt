@@ -2,18 +2,19 @@ package dev.mellow.core.database.migration
 
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.mellow.core.database.MellowDatabase
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-/** [MigrationChecks] under Robolectric. MigrationDeviceTest runs them on a device's own SQLite. */
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
-class MigrationTest {
+/**
+ * [MigrationChecks] on the device's own SQLite (see QueryPlanDeviceTest for when and how to run it). 12 to 13 rebuilds
+ * tables with ALTER TABLE ... RENAME TO, whose rules changed in SQLite 3.25 and 3.26, after Android 8's 3.18.
+ */
+@RunWith(AndroidJUnit4::class)
+class MigrationDeviceTest {
 
     @get:Rule
     val helper = MigrationTestHelper(
@@ -26,14 +27,14 @@ class MigrationTest {
     private val checks = MigrationChecks(helper)
 
     @Test
-    fun `11 to 12 keeps the library and adds the sync pass table`() =
+    fun migration11To12KeepsTheLibraryAndAddsTheSyncPassTable() =
         checks.migration11To12KeepsTheLibraryAndAddsTheSyncPassTable()
 
     @Test
-    fun `12 to 13 keeps rebuilt tables and their children, and sorts names ignoring case`() =
+    fun migration12To13KeepsRebuiltTablesAndTheirChildrenAndSortsNamesIgnoringCase() =
         checks.migration12To13KeepsRebuiltTablesAndTheirChildrenAndSortsNamesIgnoringCase()
 
     @Test
-    fun `12 to 13 keeps every cascading child even with foreign keys on`() =
+    fun migration12To13KeepsEveryCascadingChildEvenWithForeignKeysOn() =
         checks.migration12To13KeepsEveryCascadingChildEvenWithForeignKeysOn()
 }

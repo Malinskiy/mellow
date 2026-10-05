@@ -42,9 +42,9 @@ class PickRandomTracksTest {
         assertEquals(emptyList<String>(), trackDao.pickRandomTracks(SERVER, downloadedOnly = false, limit = 3))
     }
 
-    private fun track(id: String) = LibraryPagingQueriesTest.track(id)
+    private fun track(id: String) = TestEntities.track(id)
 
     private companion object {
-        const val SERVER = LibraryPagingQueriesTest.SERVER
+        const val SERVER = TestEntities.SERVER
     }
 }

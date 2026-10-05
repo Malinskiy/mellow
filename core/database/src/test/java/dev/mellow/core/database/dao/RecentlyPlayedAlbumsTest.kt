@@ -42,7 +42,7 @@ class RecentlyPlayedAlbumsTest {
         val playTimes = (1L..3_000L).shuffled(random).iterator()
         val tracks = (0 until 1_500).map { i ->
             val played = random.nextInt(3) != 0
-            LibraryPagingQueriesTest.track(
+            TestEntities.track(
                 "t$i",
                 serverId = if (i % 25 == 0) "elsewhere" else SERVER,
                 albumId = if (i % 31 == 0) null else "a${random.nextInt(60)}",
@@ -62,7 +62,7 @@ class RecentlyPlayedAlbumsTest {
     @Test
     fun `nothing played gives nothing`() = runTest {
         db.albumDao().upsertAlbums(listOf(album("a1")))
-        db.trackDao().upsertTracks(listOf(LibraryPagingQueriesTest.track("t1", albumId = "a1")))
+        db.trackDao().upsertTracks(listOf(TestEntities.track("t1", albumId = "a1")))
 
         assertEquals(emptyList<AlbumEntity>(), db.albumDao().getRecentlyPlayedAlbums(SERVER, 20))
     }
@@ -72,8 +72,8 @@ class RecentlyPlayedAlbumsTest {
         db.albumDao().upsertAlbums(listOf(album("a1"), album("a2")))
         db.trackDao().upsertTracks(
             listOf(
-                LibraryPagingQueriesTest.track("t1", albumId = "a1").copy(lastPlayedAt = 10),
-                LibraryPagingQueriesTest.track("t2", albumId = "a2").copy(lastPlayedAt = 20),
+                TestEntities.track("t1", albumId = "a1").copy(lastPlayedAt = 10),
+                TestEntities.track("t2", albumId = "a2").copy(lastPlayedAt = 20),
             ),
         )
         RecentlyPlayedAlbumsObserver(db).observe(SERVER, 20).test {
@@ -107,9 +107,9 @@ class RecentlyPlayedAlbumsTest {
         return ids.map { album(it) }
     }
 
-    private fun album(id: String) = LibraryPagingQueriesTest.album(id)
+    private fun album(id: String) = TestEntities.album(id)
 
     private companion object {
-        const val SERVER = LibraryPagingQueriesTest.SERVER
+        const val SERVER = TestEntities.SERVER
     }
 }

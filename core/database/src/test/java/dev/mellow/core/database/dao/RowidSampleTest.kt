@@ -91,9 +91,9 @@ class RowidSampleTest {
         assertEquals((0 until 40).map { "t$it" }.toSet(), picked.map { it.id }.toSet())
     }
 
-    private fun track(id: String, serverId: String = SERVER) = LibraryPagingQueriesTest.track(id, serverId = serverId)
+    private fun track(id: String, serverId: String = SERVER) = TestEntities.track(id, serverId = serverId)
 
     private companion object {
-        const val SERVER = LibraryPagingQueriesTest.SERVER
+        const val SERVER = TestEntities.SERVER
     }
 }
