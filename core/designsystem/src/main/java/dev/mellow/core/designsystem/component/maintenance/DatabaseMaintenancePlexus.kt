@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import dev.mellow.core.designsystem.theme.LocalBatterySaverActive
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -103,6 +104,15 @@ private const val GLOW_WIDTH = 6f
 private const val MIN_DRIFT_RADIUS = 100f
 private const val DRIFT_RADIUS_RANGE = 200f
 
+/** Points fainter than this (at the cloud's rim) aren't drawn. */
+private const val MIN_POINT_ALPHA = 0.1f
+
+/** The outer share of the cloud's radius over which points and links fade out. */
+private const val RIM_FADE_WIDTH = 0.3f
+
+/** A point's drift circle is at most this share of the cloud's radius, so the cloud keeps a full, even disc. */
+private const val MAX_ORBIT_SHARE = 0.35f
+
 /**
  * Where the plexus draws, in its own coordinates: the points drift inside [driftArea]; the logo's square box, centred
  * on [logoCenter], is [logoSize] wide, and the links' reach, the points, the lines and the drift scale with it.
@@ -151,6 +161,13 @@ private class PlexusState {
     val targetX = FloatArray(POINT_COUNT)
     val targetY = FloatArray(POINT_COUNT)
     val cx = FloatArray(POINT_COUNT)
+
+    // The round cloud's centre and radius, and each point's fade towards its rim (1 inside, 0 at the edge), so the
+    // circle reads as a soft round cloud rather than a ragged cut-out.
+    var discX = 0f
+    var discY = 0f
+    var discRadius = 1f
+    val rimFade = FloatArray(POINT_COUNT)
     val cy = FloatArray(POINT_COUNT)
     val r1 = FloatArray(POINT_COUNT)
     val r2 = FloatArray(POINT_COUNT)
@@ -309,25 +326,28 @@ private class PlexusState {
             }
         }
 
-        // Each point circles a centre of its own; the circles stay inside the drift area.
+        // Each point circles a centre of its own, and the cloud is round: the centres are spread evenly over a disc in the
+        // drift area (radius ∝ √u keeps the density even), and each circle shrinks so it never leaves the disc.
         val area = geometry.driftArea
+        discRadius = min(area.width, area.height) / 2f
+        discX = area.center.x
+        discY = area.center.y
         for (i in 0 until POINT_COUNT) {
-            r1[i] = min((MIN_DRIFT_RADIUS + prng.nextFloat() * DRIFT_RADIUS_RANGE) * unit, area.width / 2f)
-            r2[i] = min((MIN_DRIFT_RADIUS + prng.nextFloat() * DRIFT_RADIUS_RANGE) * unit, area.height / 2f)
-            cx[i] = spread(area.left, area.right, r1[i], prng.nextFloat())
-            cy[i] = spread(area.top, area.bottom, r2[i], prng.nextFloat())
+            val wanted = (MIN_DRIFT_RADIUS + prng.nextFloat() * DRIFT_RADIUS_RANGE) * unit
+            val orbit = min(wanted, discRadius * MAX_ORBIT_SHARE)
+            val reach = (discRadius - orbit).coerceAtLeast(0f)
+            val distance = reach * sqrt(prng.nextFloat())
+            val angle = prng.nextFloat() * (Math.PI.toFloat() * 2f)
+            cx[i] = discX + cos(angle) * distance
+            cy[i] = discY + sin(angle) * distance
+            r1[i] = orbit
+            r2[i] = orbit
             phaseX[i] = prng.nextFloat() * (Math.PI.toFloat() * 2f)
             phaseY[i] = prng.nextFloat() * (Math.PI.toFloat() * 2f)
         }
     }
 }
 
-/** A point [at] (0 to 1) of the way between [start] + [radius] and [end] − [radius]. */
-private fun spread(start: Float, end: Float, radius: Float, at: Float): Float {
-    val from = start + radius
-    val to = end - radius
-    return if (to > from) from + at * (to - from) else (start + end) / 2f
-}
 
 /**
  * How bright the link between points [i] and [j] is, or a negative value for no link. Once both are mostly settled
@@ -343,7 +363,7 @@ private fun PlexusState.linkAlpha(i: Int, j: Int, maxDist: Float, maxDistSq: Flo
     val falloff = 1f - sqrt(distSq) / maxDist
     val alpha = falloff * falloff
     val lineAlpha = if (avgResolve > 0.8f) alpha * 0.9f else alpha * 0.6f + avgResolve * 0.3f
-    return lineAlpha * pulseAlpha
+    return lineAlpha * pulseAlpha * min(rimFade[i], rimFade[j])
 }
 
 private fun easeInOutCubic(x: Float): Float {
@@ -425,6 +445,10 @@ fun DatabaseMaintenancePlexus(
 
             state.currentX[i] = driftX + (state.targetX[i] - driftX) * progress
             state.currentY[i] = driftY + (state.targetY[i] - driftY) * progress
+            // Fade over the outer part of the disc; settled points (the logo) never fade.
+            val fromCentre = hypot(driftX - state.discX, driftY - state.discY) / state.discRadius
+            val fade = ((1f - fromCentre) / RIM_FADE_WIDTH).coerceIn(0f, 1f)
+            state.rimFade[i] = fade + (1f - fade) * progress
         }
         val avgGlobalResolve = totalResolve / POINT_COUNT
 
@@ -478,7 +502,8 @@ fun DatabaseMaintenancePlexus(
         }
 
         for (i in 0 until POINT_COUNT) {
-            val alpha = (0.6f + state.resolveProgress[i] * 0.4f) * pulseAlpha
+            val alpha = (0.6f + state.resolveProgress[i] * 0.4f) * pulseAlpha * state.rimFade[i]
+            if (alpha < MIN_POINT_ALPHA) continue
             val bucketIdx = (alpha * (NUM_BUCKETS - 1)).toInt().coerceIn(0, NUM_BUCKETS - 1)
             val baseIdx = state.pointCounts[bucketIdx]
             state.pointBuckets[bucketIdx][baseIdx] = state.currentX[i]
