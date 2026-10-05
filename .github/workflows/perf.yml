@@ -54,11 +54,23 @@ jobs:
             echo "The base branch has no benchmark yet."
             exit 0
           fi
-          ./gradlew :core:database:testDebugUnitTest --tests "$BENCHMARK" -PperfOutput="$RUNNER_TEMP/perf/base.json"
+          # --rerun: the build cache would otherwise replay an earlier run of the same commit without timing anything.
+          ./gradlew :core:database:testDebugUnitTest --tests "$BENCHMARK" --rerun \
+            -PperfOutput="$RUNNER_TEMP/perf/base.json"
+          if [ ! -f "$RUNNER_TEMP/perf/base.json" ]; then
+            echo "::error::The base branch's benchmark produced no results."
+            exit 1
+          fi
 
       - name: Benchmark the pull request
         working-directory: head
-        run: ./gradlew :core:database:testDebugUnitTest --tests "$BENCHMARK" -PperfOutput="$RUNNER_TEMP/perf/head.json"
+        run: |
+          ./gradlew :core:database:testDebugUnitTest --tests "$BENCHMARK" --rerun \
+            -PperfOutput="$RUNNER_TEMP/perf/head.json"
+          if [ ! -f "$RUNNER_TEMP/perf/head.json" ]; then
+            echo "::error::The benchmark produced no results."
+            exit 1
+          fi
 
       - name: Compare
         run: |

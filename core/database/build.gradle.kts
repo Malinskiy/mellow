@@ -41,7 +41,12 @@ room {
 
 // The million-track query benchmark (QueryBenchmark) runs only when asked for, with -PperfOutput=<results.json>.
 tasks.withType<Test>().configureEach {
-    providers.gradleProperty("perfOutput").orNull?.let { systemProperty("mellow.perf.output", it) }
+    providers.gradleProperty("perfOutput").orNull?.let { output ->
+        systemProperty("mellow.perf.output", output)
+        // A benchmark has to run: never replay a cached or up-to-date result.
+        outputs.cacheIf { false }
+        outputs.upToDateWhen { false }
+    }
 }
 
 dependencies {
