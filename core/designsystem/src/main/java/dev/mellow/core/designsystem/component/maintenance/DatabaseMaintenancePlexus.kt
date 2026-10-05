@@ -89,6 +89,18 @@ private const val CONTOUR_COUNT = (POINT_COUNT * 0.4f).toInt()
 /** Opacity of the glow under the settled logo's inner links. */
 private const val GLOW_ALPHA = 0.25f
 
+/** The settled logo's links reach this share of the drift's: near neighbours only (~10 each instead of ~100). */
+private const val GLYPH_LINK_SHARE = 0.35f
+
+/** The logo's fill starts fading in when the points are on average this far into it (0 drifting, 1 settled). */
+private const val FILL_START_RESOLVE = 0.85f
+
+/** The settled logo's light at its brightest. */
+private const val FILL_ALPHA = 1f
+
+/** Random spots tried per point of the logo's even fill. */
+private const val FILL_CANDIDATES = 12
+
 /** Points closer than this (at the reference size) are linked. */
 private const val MAX_LINK_DISTANCE = 130f
 
@@ -117,7 +129,7 @@ private const val MAX_ORBIT_SHARE = 0.35f
  * Where the plexus draws, in its own coordinates: the points drift inside [driftArea]; the logo's square box, centred
  * on [logoCenter], is [logoSize] wide, and the links' reach, the points, the lines and the drift scale with it.
  */
-private data class PlexusGeometry(
+internal data class PlexusGeometry(
     val driftArea: Rect,
     val logoCenter: Offset,
     val logoSize: Float,
@@ -157,7 +169,7 @@ private class PRNG(private var a: Int) {
     }
 }
 
-private class PlexusState {
+internal class PlexusState {
     val targetX = FloatArray(POINT_COUNT)
     val targetY = FloatArray(POINT_COUNT)
     val cx = FloatArray(POINT_COUNT)
@@ -196,6 +208,18 @@ private class PlexusState {
     val glowPaint = Paint().apply {
         isAntiAlias = true
         style = Paint.Style.STROKE
+        color = android.graphics.Color.argb(255, 245, 245, 244)
+    }
+
+    /**
+     * The settled logo's shape, filled under its outline points as it settles: those points bead its edge, so it still
+     * reads as built from the network. The links alone give a patchy fill: an even, solid one needed so many
+     * overlapping lines (~26,000 a frame) that it dropped frames.
+     */
+    val logoFill = android.graphics.Path()
+    val logoFillPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
         color = android.graphics.Color.argb(255, 245, 245, 244)
     }
 
@@ -263,6 +287,7 @@ private class PlexusState {
                 postTranslate(geometry.logoCenter.x, geometry.logoCenter.y)
             },
         )
+        logoFill.set(logoPath)
 
         val measure = PathMeasure(logoPath, false)
         val totalLength = measure.length
@@ -286,18 +311,39 @@ private class PlexusState {
             ),
         )
 
+        // Even fill (best candidate): each point is the one of a few random spots inside the glyph that is furthest
+        // from the points placed so far. Plain random spots clump, and with short links clumps read as bright knots
+        // next to dark holes.
         val prng = PRNG(42)
         var index = CONTOUR_COUNT
         var tries = 0
         while (index < POINT_COUNT && tries < MAX_SAMPLING_TRIES) {
-            tries++
-            val x = bounds.left + prng.nextFloat() * bounds.width()
-            val y = bounds.top + prng.nextFloat() * bounds.height()
-            if (region.contains(x.toInt(), y.toInt())) {
-                targetX[index] = x
-                targetY[index] = y
-                index++
+            var bestX = 0f
+            var bestY = 0f
+            var bestDistSq = -1f
+            var candidates = 0
+            while (candidates < FILL_CANDIDATES && tries < MAX_SAMPLING_TRIES) {
+                tries++
+                val x = bounds.left + prng.nextFloat() * bounds.width()
+                val y = bounds.top + prng.nextFloat() * bounds.height()
+                if (!region.contains(x.toInt(), y.toInt())) continue
+                candidates++
+                var nearestSq = Float.MAX_VALUE
+                for (k in 0 until index) {
+                    val dx = targetX[k] - x
+                    val dy = targetY[k] - y
+                    nearestSq = min(nearestSq, dx * dx + dy * dy)
+                }
+                if (nearestSq > bestDistSq) {
+                    bestDistSq = nearestSq
+                    bestX = x
+                    bestY = y
+                }
             }
+            if (bestDistSq < 0f) break
+            targetX[index] = bestX
+            targetY[index] = bestY
+            index++
         }
         // A degenerate glyph (too small to hold points): stack the rest on the outline rather than spin.
         while (index < POINT_COUNT) {
@@ -306,7 +352,9 @@ private class PlexusState {
             index++
         }
 
-        val maxDistSq = maxLinkDistance * maxLinkDistance
+        // The settled logo links only near neighbours: at the drift's reach every point of the small glyph linked to
+        // ~100 others, ~26,000 overlapping lines a frame (40 fps at 120 Hz, and a washed-out blob).
+        val maxDistSq = maxLinkDistance * maxLinkDistance * GLYPH_LINK_SHARE * GLYPH_LINK_SHARE
         for (i in 0 until POINT_COUNT) {
             for (j in i + 1 until POINT_COUNT) {
                 val dx = targetX[i] - targetX[j]
@@ -360,10 +408,19 @@ private fun PlexusState.linkAlpha(i: Int, j: Int, maxDist: Float, maxDistSq: Flo
     if (distSq >= maxDistSq) return -1f
     val avgResolve = (resolveProgress[i] + resolveProgress[j]) * 0.5f
     if (avgResolve > 0.5f && !linkedInGlyph[i * POINT_COUNT + j]) return -1f
-    val falloff = 1f - sqrt(distSq) / maxDist
+    // The reach shrinks to the logo's as the two points settle, so links thin out while the logo forms.
+    val reach = maxDist * (1f - (1f - GLYPH_LINK_SHARE) * avgResolve)
+    if (distSq >= reach * reach) return -1f
+    val falloff = 1f - sqrt(distSq) / reach
     val alpha = falloff * falloff
     val lineAlpha = if (avgResolve > 0.8f) alpha * 0.9f else alpha * 0.6f + avgResolve * 0.3f
     return lineAlpha * pulseAlpha * min(rimFade[i], rimFade[j])
+}
+
+/** How far the logo's fill (and halo) is in: 0 until the points are nearly settled, 1 once they are. */
+private fun logoFillAmount(avgResolve: Float): Float {
+    val f = ((avgResolve - FILL_START_RESOLVE) / (1f - FILL_START_RESOLVE)).coerceIn(0f, 1f)
+    return f * f * (3f - 2f * f)
 }
 
 private fun easeInOutCubic(x: Float): Float {
@@ -432,91 +489,25 @@ fun DatabaseMaintenancePlexus(
         val elapsed = fixedTimeSeconds ?: clock.seconds
         val time = if (still) STILL_FRAME_SECONDS else elapsed % PLEXUS_LOOP_SECONDS
         val pulseAlpha = if (still) 0.5f + 0.3f * sin(elapsed) else 1f
-        val angle = (time / PLEXUS_LOOP_SECONDS) * (Math.PI.toFloat() * 2f)
 
-        var totalResolve = 0f
-        for (i in 0 until POINT_COUNT) {
-            val progress = resolveProgress(time, i)
-            state.resolveProgress[i] = progress
-            totalResolve += progress
-
-            val driftX = state.cx[i] + cos(angle + state.phaseX[i]) * state.r1[i]
-            val driftY = state.cy[i] + sin(angle + state.phaseY[i]) * state.r2[i]
-
-            state.currentX[i] = driftX + (state.targetX[i] - driftX) * progress
-            state.currentY[i] = driftY + (state.targetY[i] - driftY) * progress
-            // Fade over the outer part of the disc; settled points (the logo) never fade.
-            val fromCentre = hypot(driftX - state.discX, driftY - state.discY) / state.discRadius
-            val fade = ((1f - fromCentre) / RIM_FADE_WIDTH).coerceIn(0f, 1f)
-            state.rimFade[i] = fade + (1f - fade) * progress
-        }
-        val avgGlobalResolve = totalResolve / POINT_COUNT
-
-        for (i in 0 until NUM_BUCKETS) {
-            state.lineCounts[i] = 0
-            state.pointCounts[i] = 0
-        }
-
-        val maxDist = state.maxLinkDistance
-        val maxDistSq = maxDist * maxDist
-
-        // Still: points only, no neighbour search.
-        state.glowCount = 0
-        if (!still) {
-            for (pass in 0..1) {
-                for (i in 0 until POINT_COUNT) {
-                    for (j in i + 1 until POINT_COUNT) {
-                        val lineAlpha = state.linkAlpha(i, j, maxDist, maxDistSq, pulseAlpha)
-                        if (lineAlpha <= 0f) continue
-                        val bucket = (lineAlpha * (NUM_BUCKETS - 1)).toInt().coerceIn(0, NUM_BUCKETS - 1)
-                        if (pass == 0) {
-                            state.lineCounts[bucket] += 4
-                            val settled = (state.resolveProgress[i] + state.resolveProgress[j]) * 0.5f > 0.8f
-                            if (settled && i >= CONTOUR_COUNT && j >= CONTOUR_COUNT) {
-                                val at = state.glowCount
-                                state.glowBuffer[at] = state.currentX[i]
-                                state.glowBuffer[at + 1] = state.currentY[i]
-                                state.glowBuffer[at + 2] = state.currentX[j]
-                                state.glowBuffer[at + 3] = state.currentY[j]
-                                state.glowCount += 4
-                            }
-                        } else {
-                            val at = state.lineOffsets[bucket] + state.lineFill[bucket]
-                            state.lineBuffer[at] = state.currentX[i]
-                            state.lineBuffer[at + 1] = state.currentY[i]
-                            state.lineBuffer[at + 2] = state.currentX[j]
-                            state.lineBuffer[at + 3] = state.currentY[j]
-                            state.lineFill[bucket] += 4
-                        }
-                    }
-                }
-                if (pass == 0) {
-                    var offset = 0
-                    for (b in 0 until NUM_BUCKETS) {
-                        state.lineOffsets[b] = offset
-                        state.lineFill[b] = 0
-                        offset += state.lineCounts[b]
-                    }
-                }
-            }
-        }
-
-        for (i in 0 until POINT_COUNT) {
-            val alpha = (0.6f + state.resolveProgress[i] * 0.4f) * pulseAlpha * state.rimFade[i]
-            if (alpha < MIN_POINT_ALPHA) continue
-            val bucketIdx = (alpha * (NUM_BUCKETS - 1)).toInt().coerceIn(0, NUM_BUCKETS - 1)
-            val baseIdx = state.pointCounts[bucketIdx]
-            state.pointBuckets[bucketIdx][baseIdx] = state.currentX[i]
-            state.pointBuckets[bucketIdx][baseIdx + 1] = state.currentY[i]
-            state.pointCounts[bucketIdx] += 2
-        }
+        val avgGlobalResolve = state.update(time, still, pulseAlpha)
 
         drawIntoCanvas { canvas ->
             val nativeCanvas = canvas.nativeCanvas
             val glowScale = if (avgGlobalResolve > 0.8f) (avgGlobalResolve - 0.8f) / 0.2f else 0f
 
+            val fill = logoFillAmount(avgGlobalResolve)
+            // The glow between filling points gives way to the fill (the links stay: along the outline they join its
+            // beads, as they did when the links were the fill).
+            val networkShare = 1f - fill
+            if (fill > 0f) {
+                state.logoFillPaint.alpha = (FILL_ALPHA * 255 * fill * pulseAlpha).toInt().coerceIn(0, 255)
+                nativeCanvas.drawPath(state.logoFill, state.logoFillPaint)
+            }
+
             if (glowScale > 0f && !still && state.glowCount > 0) {
-                state.glowPaint.alpha = (GLOW_ALPHA * 255 * glowScale * pulseAlpha).toInt().coerceIn(0, 255)
+                val glowAlpha = GLOW_ALPHA * 255 * glowScale * pulseAlpha * networkShare
+                state.glowPaint.alpha = glowAlpha.toInt().coerceIn(0, 255)
                 nativeCanvas.drawLines(state.glowBuffer, 0, state.glowCount, state.glowPaint)
             }
 
@@ -542,3 +533,97 @@ fun DatabaseMaintenancePlexus(
         }
     }
 }
+
+/**
+ * Moves the points to loop time [time] and fills the frame's line, glow and point buffers. Returns how far the points
+ * are into the logo on average (0 drifting, 1 all settled).
+ */
+internal fun PlexusState.update(time: Float, still: Boolean, pulseAlpha: Float): Float {
+    val angle = (time / PLEXUS_LOOP_SECONDS) * (Math.PI.toFloat() * 2f)
+            var totalResolve = 0f
+            for (i in 0 until POINT_COUNT) {
+                val progress = resolveProgress(time, i)
+                resolveProgress[i] = progress
+                totalResolve += progress
+
+                val driftX = cx[i] + cos(angle + phaseX[i]) * r1[i]
+                val driftY = cy[i] + sin(angle + phaseY[i]) * r2[i]
+
+                currentX[i] = driftX + (targetX[i] - driftX) * progress
+                currentY[i] = driftY + (targetY[i] - driftY) * progress
+                // Fade over the outer part of the disc; settled points (the logo) never fade.
+                val fromCentre = hypot(driftX - discX, driftY - discY) / discRadius
+                val fade = ((1f - fromCentre) / RIM_FADE_WIDTH).coerceIn(0f, 1f)
+                rimFade[i] = fade + (1f - fade) * progress
+            }
+            val avgGlobalResolve = totalResolve / POINT_COUNT
+
+            for (i in 0 until NUM_BUCKETS) {
+                lineCounts[i] = 0
+                pointCounts[i] = 0
+            }
+
+            val maxDist = maxLinkDistance
+            val maxDistSq = maxDist * maxDist
+
+            // Still: points only, no neighbour search.
+            glowCount = 0
+            if (!still) {
+                for (pass in 0..1) {
+                    for (i in 0 until POINT_COUNT) {
+                        for (j in i + 1 until POINT_COUNT) {
+                            val lineAlpha = linkAlpha(i, j, maxDist, maxDistSq, pulseAlpha)
+                            if (lineAlpha <= 0f) continue
+                            val bucket = (lineAlpha * (NUM_BUCKETS - 1)).toInt().coerceIn(0, NUM_BUCKETS - 1)
+                            if (pass == 0) {
+                                lineCounts[bucket] += 4
+                                val settled = (resolveProgress[i] + resolveProgress[j]) * 0.5f > 0.8f
+                                if (settled && i >= CONTOUR_COUNT && j >= CONTOUR_COUNT) {
+                                    val at = glowCount
+                                    glowBuffer[at] = currentX[i]
+                                    glowBuffer[at + 1] = currentY[i]
+                                    glowBuffer[at + 2] = currentX[j]
+                                    glowBuffer[at + 3] = currentY[j]
+                                    glowCount += 4
+                                }
+                            } else {
+                                val at = lineOffsets[bucket] + lineFill[bucket]
+                                lineBuffer[at] = currentX[i]
+                                lineBuffer[at + 1] = currentY[i]
+                                lineBuffer[at + 2] = currentX[j]
+                                lineBuffer[at + 3] = currentY[j]
+                                lineFill[bucket] += 4
+                            }
+                        }
+                    }
+                    if (pass == 0) {
+                        var offset = 0
+                        for (b in 0 until NUM_BUCKETS) {
+                            lineOffsets[b] = offset
+                            lineFill[b] = 0
+                            offset += lineCounts[b]
+                        }
+                    }
+                }
+            }
+
+            // The filling points give way to the fill; the outline's stay on top of it and bead the logo's edge.
+            val fillingShare = 1f - logoFillAmount(avgGlobalResolve)
+            for (i in 0 until POINT_COUNT) {
+                val share = if (i < CONTOUR_COUNT) 1f else fillingShare
+                val alpha = (0.6f + resolveProgress[i] * 0.4f) * pulseAlpha * rimFade[i] * share
+                if (alpha < MIN_POINT_ALPHA) continue
+                val bucketIdx = (alpha * (NUM_BUCKETS - 1)).toInt().coerceIn(0, NUM_BUCKETS - 1)
+                val baseIdx = pointCounts[bucketIdx]
+                pointBuckets[bucketIdx][baseIdx] = currentX[i]
+                pointBuckets[bucketIdx][baseIdx + 1] = currentY[i]
+                pointCounts[bucketIdx] += 2
+            }
+    return avgGlobalResolve
+}
+
+/** Lines in the frame last computed by [update]. */
+internal val PlexusState.lineCount: Int get() = lineCounts.sum() / 4
+
+/** Glow lines in the frame last computed by [update]. */
+internal val PlexusState.glowLineCount: Int get() = glowCount / 4
