@@ -18,8 +18,8 @@ import dev.mellow.core.designsystem.theme.MellowTheme
 private const val CAPTION = "Tidying up your library\u2026"
 
 /** The plexus keeps only this share of the window's shorter side clear around it: its network spreads out. */
-private const val PLEXUS_PADDING_FRACTION = 0.04f
-private val MIN_PLEXUS_PADDING = 12.dp
+private const val PLEXUS_PADDING_FRACTION = 0.02f
+private val MIN_PLEXUS_PADDING = 8.dp
 
 /**
  * The screen shown while the library's database is migrated: the plexus settling into the Mellow logo, and a caption,

@@ -60,7 +60,8 @@ class MaintenanceLayoutTest {
         val plan = maintenancePlan(MaintenanceShape.Stacked, area, null, caption, spacing)
 
         val bottom = plan.captionTopLeft.y + caption.height
-        assertEquals(area.height * 0.82f, bottom - plan.graphic.top, 0.5f)
+        val group = minOf(area.height * 0.92f, area.height - 2 * spacing.margin(area))
+        assertEquals(group, bottom - plan.graphic.top, 0.5f)
         assertEquals(area.height - bottom, plan.graphic.top, 0.5f)
         assertTrue(plan.graphic.top >= spacing.margin(area))
         assertEquals(area.width / 2f, plan.graphic.center.x, 0.5f)
@@ -72,7 +73,7 @@ class MaintenanceLayoutTest {
         val area = Size(2745f, 1236f)
         val plan = maintenancePlan(MaintenanceShape.SideBySide, area, null, caption, spacing)
 
-        assertEquals(area.height * 0.82f, plan.graphic.height, 0.5f)
+        assertEquals(minOf(area.height * 0.92f, area.height - 2 * spacing.margin(area)), plan.graphic.height, 0.5f)
         assertEquals(plan.graphic.right + spacing.gap, plan.captionTopLeft.x, 0.5f)
         val right = plan.captionTopLeft.x + caption.width
         assertEquals(area.width - right, plan.graphic.left, 0.5f)
@@ -106,10 +107,10 @@ class MaintenanceLayoutTest {
     }
 
     @Test
-    fun `the caption scales with the graphic, from titleMedium to headlineMedium`() {
-        assertEquals(15f, captionFontSize(slotDp = 300f, minSp = 15f, maxSp = 18f), 0.01f)
-        assertEquals(16f, captionFontSize(slotDp = 457.1f, minSp = 15f, maxSp = 18f), 0.01f)
-        assertEquals(18f, captionFontSize(slotDp = 800f, minSp = 15f, maxSp = 18f), 0.01f)
+    fun `the caption scales with the graphic, from titleMedium to 28 sp`() {
+        assertEquals(15f, captionFontSize(slotDp = 200f, minSp = 15f, maxSp = 28f), 0.01f)
+        assertEquals(21f, captionFontSize(slotDp = 350f, minSp = 15f, maxSp = 28f), 0.01f)
+        assertEquals(28f, captionFontSize(slotDp = 800f, minSp = 15f, maxSp = 28f), 0.01f)
     }
 
     @Test

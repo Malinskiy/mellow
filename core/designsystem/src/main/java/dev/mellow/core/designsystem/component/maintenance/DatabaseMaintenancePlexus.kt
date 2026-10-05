@@ -54,19 +54,19 @@ private const val REFERENCE_SLOT = 1080f
 private const val LOGO_SIZE_FRACTION = REFERENCE_LOGO_SIZE / REFERENCE_SLOT
 
 /** One loop of the plexus: the points drift, settle into the logo, hold it, then drift off again. */
-const val PLEXUS_LOOP_SECONDS = 10f
+const val PLEXUS_LOOP_SECONDS = 9f
 
 /** When, in each loop, the first point starts settling into the logo. */
-private const val SETTLE_START_SECONDS = 1f
+private const val SETTLE_START_SECONDS = 0.4f
 
 /** When, in each loop, the first point leaves the logo again. */
-private const val RELEASE_START_SECONDS = 6f
+private const val RELEASE_START_SECONDS = 4.6f
 
 /** How long one point takes to settle into the logo, or to leave it. */
-private const val MOVE_SECONDS = 2.5f
+private const val MOVE_SECONDS = 2.2f
 
 /** Points further from the middle of the list move later: the furthest by this much. */
-private const val MAX_STAGGER_SECONDS = 1.5f
+private const val MAX_STAGGER_SECONDS = 1.0f
 
 /**
  * When, in each loop, the last point has settled: from here until [PLEXUS_LOGO_HOLD_END_SECONDS] the logo holds
@@ -326,8 +326,8 @@ private class PlexusState {
             }
         }
 
-        // Each point circles a centre of its own, and the cloud is round: the centres are spread evenly over a disc in the
-        // drift area (radius ∝ √u keeps the density even), and each circle shrinks so it never leaves the disc.
+        // Each point circles a centre of its own, and the cloud is round: the centres are spread evenly over a disc in
+        // the drift area (radius ∝ √u keeps the density even), and each circle shrinks so it never leaves the disc.
         val area = geometry.driftArea
         discRadius = min(area.width, area.height) / 2f
         discX = area.center.x

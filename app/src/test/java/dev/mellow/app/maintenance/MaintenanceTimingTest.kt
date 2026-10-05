@@ -50,13 +50,13 @@ class MaintenanceTimingTest {
 
     @Test
     fun `on the plexus's own hold, the content composes once the logo holds and the screen leaves at its end`() {
-        assertEquals(5f, PLEXUS_LOGO_HOLD_START_SECONDS, DELTA)
-        assertEquals(6f, PLEXUS_LOGO_HOLD_END_SECONDS, DELTA)
-        assertEquals(10f, PLEXUS_LOOP_SECONDS, DELTA)
+        assertEquals(3.6f, PLEXUS_LOGO_HOLD_START_SECONDS, DELTA)
+        assertEquals(4.6f, PLEXUS_LOGO_HOLD_END_SECONDS, DELTA)
+        assertEquals(9f, PLEXUS_LOOP_SECONDS, DELTA)
 
-        assertEquals(MaintenanceExit(contentAt = 5f, exitAt = 6f), maintenanceExit(doneAt = 1.2f, still = false))
-        assertEquals(MaintenanceExit(contentAt = 5.4f, exitAt = 6f), maintenanceExit(doneAt = 5.4f, still = false))
-        assertEquals(MaintenanceExit(contentAt = 15f, exitAt = 16f), maintenanceExit(doneAt = 7f, still = false))
+        assertEquals(MaintenanceExit(contentAt = 3.6f, exitAt = 4.6f), maintenanceExit(doneAt = 1.2f, still = false))
+        assertEquals(MaintenanceExit(contentAt = 4.2f, exitAt = 4.6f), maintenanceExit(doneAt = 4.2f, still = false))
+        assertEquals(MaintenanceExit(contentAt = 12.6f, exitAt = 13.6f), maintenanceExit(doneAt = 7f, still = false))
     }
 
     @Test

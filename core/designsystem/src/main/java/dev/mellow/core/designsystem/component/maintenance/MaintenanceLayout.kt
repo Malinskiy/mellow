@@ -36,15 +36,19 @@ private const val SIDE_BY_SIDE_ASPECT = 1.25f
 /** A hinge closer than this share of the window's shorter side to an edge isn't laid out around. */
 private const val MIN_HINGE_PART = 0.25f
 
-/** The caption's font size relative to the graphic's slot (dp to sp), between titleMedium and headlineMedium. */
-private const val CAPTION_SIZE_FRACTION = 0.035f
+/** The caption's font size relative to the graphic's slot (dp to sp), between titleMedium and [MAX_CAPTION_SP]. */
+private const val CAPTION_SIZE_FRACTION = 0.06f
+
+/** The largest caption: Material's headlineMedium size. Mellow's own headlineMedium (18 sp) is small next to a big
+ * graphic. */
+private const val MAX_CAPTION_SP = 28f
 
 /** Clear space kept around the group, relative to the shorter side of its part of the window; at least 24 dp. */
 private const val OUTER_MARGIN_FRACTION = 0.05f
 private val MIN_OUTER_MARGIN = 24.dp
 
 /** The group spans at most this share of the window along its stacking axis: never edge to edge. */
-private const val MAX_GROUP_SHARE = 0.82f
+private const val MAX_GROUP_SHARE = 0.92f
 
 /** Between the graphic's slot and the caption. */
 private val CAPTION_GAP = 16.dp
@@ -176,7 +180,7 @@ private enum class MaintenanceSlot { Graphic, Caption }
  * A maintenance screen's layout: a square [graphic] and its [caption], one group centred in the available space.
  * Portrait or near square, the graphic sits above the caption; wide, beside it. Half folded, the hinge splits them:
  * the graphic above it (tabletop) or left of it (book), the caption on the other side. The caption's text style
- * scales with the graphic, from titleMedium up to headlineMedium.
+ * scales with the graphic, from titleMedium up to 28 sp.
  *
  * @param graphicPadding space kept clear inside the graphic's square, around what it draws.
  * @param hingeBounds the hinge to lay out around, in window coordinates; null for none.
@@ -193,7 +197,6 @@ fun MaintenanceLayout(
     // Where the layout sits in the window, to bring the hinge into its coordinates.
     var origin by remember { mutableStateOf(Offset.Zero) }
     val smallest = MaterialTheme.typography.titleMedium
-    val largest = MaterialTheme.typography.headlineMedium
 
     SubcomposeLayout(modifier = modifier.onPlaced { origin = it.positionInWindow() }) { constraints ->
         val width = if (constraints.hasBoundedWidth) constraints.maxWidth else constraints.minWidth
@@ -205,9 +208,9 @@ fun MaintenanceLayout(
         val maxCaptionWidth = captionMaxWidth(shape, area, hinge, spacing).roundToInt()
 
         // The caption's size follows the slot's, and the slot's the caption's: size the slot for a large caption first.
-        val roughCaption = Size(maxCaptionWidth.toFloat(), largest.fontSize.toPx() * 1.5f)
+        val roughCaption = Size(maxCaptionWidth.toFloat(), MAX_CAPTION_SP.sp.toPx() * 1.5f)
         val roughSlot = maintenancePlan(shape, area, hinge, roughCaption, spacing).graphic.width
-        val fontSize = captionFontSize(roughSlot.toDp().value, smallest.fontSize.value, largest.fontSize.value).sp
+        val fontSize = captionFontSize(roughSlot.toDp().value, smallest.fontSize.value, MAX_CAPTION_SP).sp
         val style = smallest.copy(
             fontSize = fontSize,
             textAlign = if (shape == MaintenanceShape.SideBySide) TextAlign.Start else TextAlign.Center,
