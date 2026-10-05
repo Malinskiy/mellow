@@ -79,11 +79,13 @@ fun TrackContextMenu(
     onCancelDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
     onTrackInfo: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        modifier = modifier,
         sheetState = sheetState,
         containerColor = MellowTheme.colors.surfaceElevated,
         contentColor = MellowTheme.colors.foreground,
@@ -220,24 +222,41 @@ private fun DownloadAction(
     onCancelDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     when (download) {
-        TrackMenuDownload.Available -> MenuAction(PhosphorIcons.DownloadSimple, "Download", onClick = {
-            onDownload()
-            onDismiss()
-        })
-        TrackMenuDownload.Downloading -> MenuAction(PhosphorIcons.X, "Cancel download", onClick = {
-            onCancelDownload()
-            onDismiss()
-        })
-        TrackMenuDownload.Downloaded -> MenuAction(PhosphorIcons.Trash, "Remove download", onClick = {
-            onRemoveDownload()
-            onDismiss()
-        })
+        TrackMenuDownload.Available -> MenuAction(
+            icon = PhosphorIcons.DownloadSimple,
+            label = "Download",
+            onClick = {
+                onDownload()
+                onDismiss()
+            },
+            modifier = modifier,
+        )
+        TrackMenuDownload.Downloading -> MenuAction(
+            icon = PhosphorIcons.X,
+            label = "Cancel download",
+            onClick = {
+                onCancelDownload()
+                onDismiss()
+            },
+            modifier = modifier,
+        )
+        TrackMenuDownload.Downloaded -> MenuAction(
+            icon = PhosphorIcons.Trash,
+            label = "Remove download",
+            onClick = {
+                onRemoveDownload()
+                onDismiss()
+            },
+            modifier = modifier,
+        )
         TrackMenuDownload.Offline -> MenuAction(
             icon = PhosphorIcons.DownloadSimple,
             label = "Download",
             onClick = {},
+            modifier = modifier,
             enabled = false,
             supportingText = "Offline",
         )
@@ -245,6 +264,7 @@ private fun DownloadAction(
             icon = PhosphorIcons.DownloadSimple,
             label = "Download",
             onClick = {},
+            modifier = modifier,
             enabled = false,
             supportingText = "Storage limit reached",
         )
@@ -299,6 +319,7 @@ private fun MenuAction(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     tint: Color = MellowTheme.colors.foreground,
     enabled: Boolean = true,
     supportingText: String? = null,
@@ -306,14 +327,15 @@ private fun MenuAction(
     val muted = MellowTheme.colors.muted
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp3),
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = label,
+            // Decorative: the label next to it says what the action is.
+            contentDescription = null,
             tint = if (enabled) tint else muted,
             modifier = Modifier.size(22.dp),
         )
