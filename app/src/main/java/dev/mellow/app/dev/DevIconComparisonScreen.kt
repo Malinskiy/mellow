@@ -70,7 +70,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
-import dev.mellow.app.maintenance.MaintenanceOverlay
 import dev.mellow.core.designsystem.component.AnimatedAlbumDownloadIndicator
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -82,6 +81,7 @@ import dev.mellow.core.designsystem.component.IridescenceBackground
 import dev.mellow.core.designsystem.component.PixelBlastPlaceholder
 import dev.mellow.core.designsystem.component.Shimmer
 import dev.mellow.core.designsystem.component.maintenance.DatabaseMaintenanceRepressing
+import dev.mellow.core.designsystem.component.maintenance.DatabaseMaintenanceScreen
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -1620,18 +1620,16 @@ private fun AlbumDownloadDemo() {
     }
 }
 
-/** How long the replayed maintenance screen's simulated migration takes. */
-private const val SIMULATED_MIGRATION_MILLIS = 2_000L
+/** Which maintenance screen is looping full screen. */
+private enum class MaintenancePreview { Plexus, Repressing }
 
 /**
- * Replays the startup maintenance screen, with its real timing and exit, over a simulated migration (a delay, no
- * database), full screen; back on this page once it has faded away, or on Back. Beside it, the re-pressing animation,
- * a possible alternative, full screen until the back arrow or Back.
+ * The maintenance screens, each looping full screen until the back arrow or Back: the plexus (shown while the library
+ * database migrates at startup) and re-pressing, a possible alternative.
  */
 @Composable
 private fun MaintenanceReplayDemo() {
-    var replaying by remember { mutableStateOf(false) }
-    var repressing by remember { mutableStateOf(false) }
+    var preview by remember { mutableStateOf<MaintenancePreview?>(null) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1646,45 +1644,31 @@ private fun MaintenanceReplayDemo() {
         )
         Spacer(Modifier.height(MellowSpacing.Sp4))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MaintenancePill("Replay startup screen", onClick = { replaying = true })
-            MaintenancePill("Re-pressing", onClick = { repressing = true })
+            MaintenancePill("Plexus", onClick = { preview = MaintenancePreview.Plexus })
+            MaintenancePill("Re-pressing", onClick = { preview = MaintenancePreview.Repressing })
         }
     }
 
-    if (replaying) {
-        Dialog(
-            onDismissRequest = { replaying = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-        ) {
-            // The page shows through as the screen fades away: no dimming behind the dialog.
-            val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-            SideEffect { window?.setDimAmount(0f) }
-            MaintenanceOverlay(
-                work = { delay(SIMULATED_MIGRATION_MILLIS) },
-                onContentReady = {},
-                onFinished = { replaying = false },
-            )
-        }
-    }
-
-    if (repressing) {
-        Dialog(
-            onDismissRequest = { repressing = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-        ) {
-            // Over the whole window, mini player included: nothing to pad for.
-            val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-            SideEffect { window?.setDimAmount(0f) }
-            Box(Modifier.fillMaxSize()) {
-                DatabaseMaintenanceRepressing()
-                IconButton(
-                    onClick = { repressing = false },
-                    modifier = Modifier
-                        .statusBarsPadding()
-                        .padding(MellowSpacing.Sp2),
-                ) {
-                    Icon(PhosphorIcons.ArrowLeft, contentDescription = "Back", tint = MellowTheme.colors.foreground)
-                }
+    val shown = preview ?: return
+    Dialog(
+        onDismissRequest = { preview = null },
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        // Over the whole window, mini player included: nothing to pad for.
+        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect { window?.setDimAmount(0f) }
+        Box(Modifier.fillMaxSize()) {
+            when (shown) {
+                MaintenancePreview.Plexus -> DatabaseMaintenanceScreen()
+                MaintenancePreview.Repressing -> DatabaseMaintenanceRepressing()
+            }
+            IconButton(
+                onClick = { preview = null },
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(MellowSpacing.Sp2),
+            ) {
+                Icon(PhosphorIcons.ArrowLeft, contentDescription = "Back", tint = MellowTheme.colors.foreground)
             }
         }
     }
