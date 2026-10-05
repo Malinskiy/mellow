@@ -1,6 +1,7 @@
 package dev.mellow.app.screenshot
 
 import androidx.compose.ui.geometry.Rect
+import dev.mellow.core.designsystem.component.maintenance.DatabaseMaintenanceRepressing
 import dev.mellow.core.designsystem.component.maintenance.DatabaseMaintenanceScreen
 import dev.mellow.core.designsystem.component.maintenance.PLEXUS_LOGO_HOLD_END_SECONDS
 import dev.mellow.core.designsystem.component.maintenance.PLEXUS_LOGO_HOLD_START_SECONDS
@@ -19,7 +20,13 @@ private const val HOLD_FRAME_SECONDS = (PLEXUS_LOGO_HOLD_START_SECONDS + PLEXUS_
 /** Every point still drifting, before the first starts to settle. */
 private const val DRIFT_FRAME_SECONDS = 0.5f
 
-/** The maintenance screen at the logo hold and mid-drift; ScreenshotCapture provides the fold. */
+/** The re-pressing preview mid-cycle: the arm lowered, about half the grooves pressed. */
+private const val REPRESSING_FRACTION = 0.45f
+
+/**
+ * The maintenance screen at the logo hold and mid-drift, and the re-pressing preview mid-cycle; ScreenshotCapture
+ * provides the fold.
+ */
 abstract class MaintenanceScreenshotTests : ScreenshotCapture() {
 
     @Test
@@ -30,6 +37,11 @@ abstract class MaintenanceScreenshotTests : ScreenshotCapture() {
     @Test
     fun maintenanceDrift() = capture("maintenance-drift") {
         DatabaseMaintenanceScreen(fixedTimeSeconds = DRIFT_FRAME_SECONDS)
+    }
+
+    @Test
+    fun maintenanceRepressing() = capture("maintenance-repressing") {
+        DatabaseMaintenanceRepressing(fixedTimeFraction = REPRESSING_FRACTION)
     }
 }
 

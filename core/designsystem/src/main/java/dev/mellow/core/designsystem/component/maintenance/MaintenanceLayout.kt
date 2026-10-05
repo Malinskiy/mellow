@@ -1,15 +1,21 @@
 package dev.mellow.core.designsystem.component.maintenance
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -26,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import dev.mellow.core.designsystem.theme.DevicePosture
 import dev.mellow.core.designsystem.theme.FoldableState
 import dev.mellow.core.designsystem.theme.LocalFoldableState
+import dev.mellow.core.designsystem.theme.MellowTheme
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -49,6 +56,15 @@ private val MIN_OUTER_MARGIN = 24.dp
 
 /** The group spans at most this share of the window along its stacking axis: never edge to edge. */
 private const val MAX_GROUP_SHARE = 0.92f
+
+/** A [MaintenanceCaption]'s subline, relative to its title. */
+private const val SUBLINE_SIZE_RATIO = 0.72f
+
+/** Between a [MaintenanceCaption]'s title and its subline, relative to the title's size (sp to dp). */
+private const val SUBLINE_GAP_RATIO = 0.3f
+
+/** The narrowest graphic slot [MaintenanceLayout] takes, as width over height. */
+private const val MIN_ASPECT = 0.1f
 
 /** Between the graphic's slot and the caption. */
 private val CAPTION_GAP = 16.dp
@@ -80,7 +96,7 @@ internal data class MaintenanceSpacing(val minMargin: Float, val gap: Float) {
     fun margin(part: Size): Float = max(minMargin, min(part.width, part.height) * OUTER_MARGIN_FRACTION)
 }
 
-/** Where [MaintenanceLayout] puts its square [graphic] slot and its caption, in px. */
+/** Where [MaintenanceLayout] puts its [graphic] slot and its caption, in px. */
 internal data class MaintenancePlan(val shape: MaintenanceShape, val graphic: Rect, val captionTopLeft: Offset)
 
 /** The hinge to lay out around: only while the device is half folded, or when its fold splits the screen. */
@@ -109,40 +125,58 @@ internal fun captionMaxWidth(shape: MaintenanceShape, area: Size, hinge: Rect?, 
         else -> area.width - 2 * spacing.margin(area)
     }.coerceAtLeast(0f)
 
-/** The caption's font size (sp) for a graphic slot of [slotDp], between [minSp] and [maxSp]. */
+/** The part of an [area] (px) the graphic is laid out in: above or left of the hinge when folded, else all of it. */
+internal fun graphicPart(shape: MaintenanceShape, area: Size, hinge: Rect?): Size = when (shape) {
+    MaintenanceShape.Tabletop -> Size(area.width, hinge?.top ?: (area.height / 2f))
+    MaintenanceShape.Book -> Size(hinge?.left ?: (area.width / 2f), area.height)
+    else -> area
+}
+
+/** The graphic's padding (px): [fraction] of the shorter side of its [part] of the window, at least [minPadding]. */
+internal fun graphicPaddingPx(part: Size, minPadding: Float, fraction: Float): Float =
+    max(minPadding, part.minDimension * fraction)
+
+/** The caption's font size (sp) for a graphic slot whose shorter side is [slotDp], between [minSp] and [maxSp]. */
 internal fun captionFontSize(slotDp: Float, minSp: Float, maxSp: Float): Float =
     (slotDp * CAPTION_SIZE_FRACTION).coerceIn(minSp, maxSp)
 
-/** Where the square graphic and a [caption] of that size go in an [area] (px), as one centred group. */
+/** A [MaintenanceCaption]'s subline size (sp) under a title of [titleSp], never below [minSp]. */
+internal fun sublineFontSize(titleSp: Float, minSp: Float): Float = max(minSp, titleSp * SUBLINE_SIZE_RATIO)
+
+/**
+ * Where the graphic, [aspect] times as wide as tall, and a [caption] of that size go in an [area] (px), as one centred
+ * group.
+ */
 internal fun maintenancePlan(
     shape: MaintenanceShape,
     area: Size,
     hinge: Rect?,
     caption: Size,
     spacing: MaintenanceSpacing,
+    aspect: Float = 1f,
 ): MaintenancePlan {
     return when (shape) {
         MaintenanceShape.Stacked -> {
             val beside = spacing.gap + caption.height
             val tall = min(area.height - 2 * spacing.margin(area), area.height * MAX_GROUP_SHARE) - beside
-            val side = max(0f, min(area.width, tall))
-            val top = (area.height - (side + beside)) / 2f
+            val graphic = Size(area.width, tall).fit(aspect)
+            val top = (area.height - (graphic.height + beside)) / 2f
             MaintenancePlan(
                 shape = shape,
-                graphic = Rect(Offset((area.width - side) / 2f, top), Size(side, side)),
-                captionTopLeft = Offset((area.width - caption.width) / 2f, top + side + spacing.gap),
+                graphic = Rect(Offset((area.width - graphic.width) / 2f, top), graphic),
+                captionTopLeft = Offset((area.width - caption.width) / 2f, top + graphic.height + spacing.gap),
             )
         }
         MaintenanceShape.SideBySide -> {
             val margin = spacing.margin(area)
             val beside = spacing.gap + caption.width
             val wide = min(area.width - 2 * margin, area.width * MAX_GROUP_SHARE) - beside
-            val side = max(0f, minOf(area.height - 2 * margin, area.height * MAX_GROUP_SHARE, wide))
-            val left = (area.width - (side + beside)) / 2f
+            val graphic = Size(wide, min(area.height - 2 * margin, area.height * MAX_GROUP_SHARE)).fit(aspect)
+            val left = (area.width - (graphic.width + beside)) / 2f
             MaintenancePlan(
                 shape = shape,
-                graphic = Rect(Offset(left, (area.height - side) / 2f), Size(side, side)),
-                captionTopLeft = Offset(left + side + spacing.gap, (area.height - caption.height) / 2f),
+                graphic = Rect(Offset(left, (area.height - graphic.height) / 2f), graphic),
+                captionTopLeft = Offset(left + graphic.width + spacing.gap, (area.height - caption.height) / 2f),
             )
         }
         MaintenanceShape.Tabletop -> {
@@ -150,11 +184,11 @@ internal fun maintenancePlan(
             val hingeBottom = hinge?.bottom ?: hingeTop
             val above = Size(area.width, hingeTop)
             val margin = spacing.margin(above)
-            val side = max(0f, min(above.width - 2 * margin, above.height - 2 * margin))
+            val graphic = Size(above.width - 2 * margin, above.height - 2 * margin).fit(aspect)
             val below = (hingeBottom + area.height) / 2f
             MaintenancePlan(
                 shape = shape,
-                graphic = Rect(Offset((area.width - side) / 2f, (hingeTop - side) / 2f), Size(side, side)),
+                graphic = Rect(Offset((area.width - graphic.width) / 2f, (hingeTop - graphic.height) / 2f), graphic),
                 captionTopLeft = Offset((area.width - caption.width) / 2f, below - caption.height / 2f),
             )
         }
@@ -163,26 +197,35 @@ internal fun maintenancePlan(
             val hingeRight = hinge?.right ?: hingeLeft
             val left = Size(hingeLeft, area.height)
             val margin = spacing.margin(left)
-            val side = max(0f, min(left.width - 2 * margin, left.height - 2 * margin))
+            val graphic = Size(left.width - 2 * margin, left.height - 2 * margin).fit(aspect)
             val right = (hingeRight + area.width) / 2f
             MaintenancePlan(
                 shape = shape,
-                graphic = Rect(Offset((hingeLeft - side) / 2f, (area.height - side) / 2f), Size(side, side)),
+                graphic = Rect(Offset((hingeLeft - graphic.width) / 2f, (area.height - graphic.height) / 2f), graphic),
                 captionTopLeft = Offset(right - caption.width / 2f, (area.height - caption.height) / 2f),
             )
         }
     }
 }
 
+/** The largest size [aspect] times as wide as tall within this one; none if this one is empty. */
+private fun Size.fit(aspect: Float): Size {
+    val height = max(0f, min(width / aspect, height))
+    return Size(height * aspect, height)
+}
+
 private enum class MaintenanceSlot { Graphic, Caption }
 
 /**
- * A maintenance screen's layout: a square [graphic] and its [caption], one group centred in the available space.
+ * A maintenance screen's layout: a [graphic] and its [caption], one group centred in the available space.
  * Portrait or near square, the graphic sits above the caption; wide, beside it. Half folded, the hinge splits them:
  * the graphic above it (tabletop) or left of it (book), the caption on the other side. The caption's text style
- * scales with the graphic, from titleMedium up to 28 sp.
+ * scales with the graphic, from titleMedium up to 28 sp; a [MaintenanceCaption] adds a muted subline under it.
  *
- * @param graphicPadding space kept clear inside the graphic's square, around what it draws.
+ * @param graphicPadding space kept clear inside the graphic's slot, around what it draws.
+ * @param graphicPaddingFraction at least this share of the shorter side of the graphic's part of the window (the
+ *   pane above or left of the hinge, when folded) is kept clear instead, if that's more than [graphicPadding].
+ * @param graphicAspectRatio the graphic slot's width over its height: square by default.
  * @param hingeBounds the hinge to lay out around, in window coordinates; null for none.
  * @param graphic draws the graphic with the modifier it's given, which fills its slot, padded.
  */
@@ -190,6 +233,8 @@ private enum class MaintenanceSlot { Graphic, Caption }
 fun MaintenanceLayout(
     modifier: Modifier = Modifier,
     graphicPadding: Dp,
+    graphicPaddingFraction: Float = 0f,
+    graphicAspectRatio: Float = 1f,
     hingeBounds: Rect? = LocalFoldableState.current.layoutHinge,
     graphic: @Composable (Modifier) -> Unit,
     caption: @Composable () -> Unit,
@@ -197,6 +242,7 @@ fun MaintenanceLayout(
     // Where the layout sits in the window, to bring the hinge into its coordinates.
     var origin by remember { mutableStateOf(Offset.Zero) }
     val smallest = MaterialTheme.typography.titleMedium
+    val aspect = graphicAspectRatio.coerceAtLeast(MIN_ASPECT)
 
     SubcomposeLayout(modifier = modifier.onPlaced { origin = it.positionInWindow() }) { constraints ->
         val width = if (constraints.hasBoundedWidth) constraints.maxWidth else constraints.minWidth
@@ -209,7 +255,7 @@ fun MaintenanceLayout(
 
         // The caption's size follows the slot's, and the slot's the caption's: size the slot for a large caption first.
         val roughCaption = Size(maxCaptionWidth.toFloat(), MAX_CAPTION_SP.sp.toPx() * 1.5f)
-        val roughSlot = maintenancePlan(shape, area, hinge, roughCaption, spacing).graphic.width
+        val roughSlot = maintenancePlan(shape, area, hinge, roughCaption, spacing, aspect).graphic.minDimension
         val fontSize = captionFontSize(roughSlot.toDp().value, smallest.fontSize.value, MAX_CAPTION_SP).sp
         val style = smallest.copy(
             fontSize = fontSize,
@@ -220,15 +266,40 @@ fun MaintenanceLayout(
         }.first().measure(Constraints(maxWidth = maxCaptionWidth))
 
         val captionSize = Size(captionPlaceable.width.toFloat(), captionPlaceable.height.toFloat())
-        val plan = maintenancePlan(shape, area, hinge, captionSize, spacing)
-        val side = plan.graphic.width.roundToInt()
+        val plan = maintenancePlan(shape, area, hinge, captionSize, spacing, aspect)
+        val padding = graphicPaddingPx(graphicPart(shape, area, hinge), graphicPadding.toPx(), graphicPaddingFraction)
         val graphicPlaceable = subcompose(MaintenanceSlot.Graphic) {
-            Box { graphic(Modifier.padding(graphicPadding).fillMaxSize()) }
-        }.first().measure(Constraints.fixed(side, side))
+            Box { graphic(Modifier.padding(padding.toDp()).fillMaxSize()) }
+        }.first().measure(Constraints.fixed(plan.graphic.width.roundToInt(), plan.graphic.height.roundToInt()))
 
         layout(width, height) {
             graphicPlaceable.place(plan.graphic.topLeft.round())
             captionPlaceable.place(plan.captionTopLeft.round())
         }
+    }
+}
+
+/**
+ * A two-line caption for [MaintenanceLayout]: a [title] in the layout's caption style and, under it, a smaller muted
+ * [subline].
+ */
+@Composable
+fun MaintenanceCaption(
+    title: String,
+    subline: String,
+    modifier: Modifier = Modifier,
+) {
+    val titleStyle = LocalTextStyle.current
+    val titleSp = if (titleStyle.fontSize.isSp) titleStyle.fontSize.value else MAX_CAPTION_SP
+    val sublineSize = sublineFontSize(titleSp, MaterialTheme.typography.bodySmall.fontSize.value).sp
+    val alignment = if (titleStyle.textAlign == TextAlign.Start) Alignment.Start else Alignment.CenterHorizontally
+    Column(modifier = modifier, horizontalAlignment = alignment) {
+        Text(text = title, color = MellowTheme.colors.foreground)
+        Spacer(Modifier.height((titleSp * SUBLINE_GAP_RATIO).dp))
+        Text(
+            text = subline,
+            color = MellowTheme.colors.muted,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = sublineSize, textAlign = titleStyle.textAlign),
+        )
     }
 }

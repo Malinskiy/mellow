@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -80,6 +81,7 @@ import dev.mellow.core.designsystem.component.GrainientBackground
 import dev.mellow.core.designsystem.component.IridescenceBackground
 import dev.mellow.core.designsystem.component.PixelBlastPlaceholder
 import dev.mellow.core.designsystem.component.Shimmer
+import dev.mellow.core.designsystem.component.maintenance.DatabaseMaintenanceRepressing
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -1623,11 +1625,13 @@ private const val SIMULATED_MIGRATION_MILLIS = 2_000L
 
 /**
  * Replays the startup maintenance screen, with its real timing and exit, over a simulated migration (a delay, no
- * database), full screen; back on this page once it has faded away, or on Back.
+ * database), full screen; back on this page once it has faded away, or on Back. Beside it, the re-pressing animation,
+ * a possible alternative, full screen until the back arrow or Back.
  */
 @Composable
 private fun MaintenanceReplayDemo() {
     var replaying by remember { mutableStateOf(false) }
+    var repressing by remember { mutableStateOf(false) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1641,18 +1645,9 @@ private fun MaintenanceReplayDemo() {
             color = MellowTheme.colors.muted,
         )
         Spacer(Modifier.height(MellowSpacing.Sp4))
-        Box(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(MellowTheme.colors.surface)
-                .clickable { replaying = true }
-                .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
-        ) {
-            Text(
-                "Replay startup screen",
-                style = MaterialTheme.typography.labelSmall,
-                color = MellowTheme.colors.foreground,
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MaintenancePill("Replay startup screen", onClick = { replaying = true })
+            MaintenancePill("Re-pressing", onClick = { repressing = true })
         }
     }
 
@@ -1670,5 +1665,40 @@ private fun MaintenanceReplayDemo() {
                 onFinished = { replaying = false },
             )
         }
+    }
+
+    if (repressing) {
+        Dialog(
+            onDismissRequest = { repressing = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            // Over the whole window, mini player included: nothing to pad for.
+            val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+            SideEffect { window?.setDimAmount(0f) }
+            Box(Modifier.fillMaxSize()) {
+                DatabaseMaintenanceRepressing()
+                IconButton(
+                    onClick = { repressing = false },
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(MellowSpacing.Sp2),
+                ) {
+                    Icon(PhosphorIcons.ArrowLeft, contentDescription = "Back", tint = MellowTheme.colors.foreground)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaintenancePill(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(MellowTheme.colors.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = MellowSpacing.Sp4, vertical = MellowSpacing.Sp2),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.foreground)
     }
 }
