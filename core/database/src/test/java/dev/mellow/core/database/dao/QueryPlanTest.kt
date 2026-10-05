@@ -103,6 +103,93 @@ class QueryPlanTest {
     }
 
     @Test
+    fun `each order of the Albums tab reads its index without sorting`() = runTest {
+        val indexes = mapOf(
+            LibraryOrder.RECENTLY_ADDED to "index_albums_serverId_dateAdded_sortName_id",
+            LibraryOrder.NAME_ASC to "index_albums_serverId_name_sortName_id",
+            LibraryOrder.NAME_DESC to "index_albums_serverId_name_sortName_id",
+            LibraryOrder.YEAR to "index_albums_serverId_year_sortName_id",
+        )
+        for ((order, index) in indexes) {
+            val pagePlans = plans {
+                AlbumKeysetQueryFactory(db).libraryPagingSource(server, order, null, false).loadAt(100)
+            }
+            pagePlans.forEach { plan ->
+                if ("ORDER BY" in plan.sql) plan.assertUses(index)
+                plan.assertNoSort()
+                plan.assertNoTableScan("albums")
+            }
+        }
+    }
+
+    @Test
+    fun `genre albums keep index order and downloaded albums start from downloads`() = runTest {
+        val genrePlans = plans {
+            AlbumKeysetQueryFactory(db)
+                .libraryPagingSource(server, LibraryOrder.RECENTLY_ADDED, "Jazz", false)
+                .loadAt(0)
+        }
+        genrePlans.forEach { plan ->
+            if ("ORDER BY" in plan.sql) plan.assertUses("index_albums_serverId_dateAdded_sortName_id")
+            plan.assertNoSort()
+        }
+
+        val downloadedPages = plans {
+            AlbumKeysetQueryFactory(db)
+                .libraryPagingSource(server, LibraryOrder.NAME_ASC, null, true)
+                .loadAt(0)
+        }.filter { it.sql.startsWith("SELECT a.*") }
+        assertTrue(downloadedPages.isNotEmpty())
+        downloadedPages.forEach { page ->
+            val firstTable = page.details.first { it.startsWith("SEARCH") || it.startsWith("SCAN") }
+            assertTrue(
+                "Expected to start from the downloads:\n$page",
+                "index_downloads_status_serverId_trackId" in firstTable,
+            )
+        }
+    }
+
+    @Test
+    fun `each order of the Artists tab reads its index without grouping or sorting`() = runTest {
+        val indexes = mapOf(
+            LibraryOrder.RECENTLY_ADDED to "index_artists_serverId_sortName_id",
+            LibraryOrder.NAME_ASC to "index_artists_serverId_name_sortName_id",
+            LibraryOrder.NAME_DESC to "index_artists_serverId_name_sortName_id",
+            LibraryOrder.YEAR to "index_artists_serverId_sortName_id",
+        )
+        for ((order, index) in indexes) {
+            val pagePlans = plans {
+                ArtistKeysetQueryFactory(db).libraryPagingSource(server, order, false).loadAt(20)
+            }
+            pagePlans.forEach { plan ->
+                assertFalse("The canonical query must not group aliases:\n$plan", "GROUP BY" in plan.sql)
+                if ("ORDER BY" in plan.sql) plan.assertUses(index)
+                plan.assertNoSort()
+                plan.assertNoTableScan("artists")
+                plan.assertNoTableScan("albums")
+            }
+        }
+    }
+
+    @Test
+    fun `Android Auto album and artist slices use their sort indexes`() = runTest {
+        plans { db.albumDao().getAlbumsByServerSlice(server, false, limit = 20, offset = 100) }
+            .single { "FROM albums" in it.sql }
+            .apply {
+                assertUses("index_albums_serverId_sortName_id")
+                assertNoSort()
+                assertNoTableScan("albums")
+            }
+        plans { db.artistDao().getCanonicalArtistsSlice(server, false, limit = 20, offset = 10) }
+            .single { "FROM artists" in it.sql }
+            .apply {
+                assertUses("index_artists_serverId_sortName_id")
+                assertNoSort()
+                assertNoTableScan("artists")
+            }
+    }
+
+    @Test
     fun `album and artist screens read their tracks by index`() = runTest {
         plans { db.trackDao().getTracksByAlbumSync(library.sampleAlbumId) }.single().apply {
             assertUses("index_tracks_albumId_discNumber_trackNumber_id")
@@ -129,6 +216,16 @@ class QueryPlanTest {
         plans { db.trackDao().getFavoriteTracksPaged(server, false).loadOffset(0) }
             .single { "LIMIT" in it.sql }.apply {
             assertUses("index_tracks_serverId_isFavorite")
+            assertNoSort()
+        }
+        plans { db.albumDao().getFavoriteAlbumsPaged(server, false).loadOffset(0) }
+            .single { "LIMIT" in it.sql }.apply {
+            assertUses("index_albums_serverId_isFavorite")
+            assertNoSort()
+        }
+        plans { db.artistDao().getFavoriteArtistsPaged(server, false).loadOffset(0) }
+            .single { "LIMIT" in it.sql }.apply {
+            assertUses("index_artists_serverId_isFavorite")
             assertNoSort()
         }
     }
@@ -165,6 +262,10 @@ class QueryPlanTest {
         fun assertNoTrackScan() = assertFalse(
             "Scans tracks instead of seeking an index:\n$this",
             details.any { it.startsWith("SCAN") && "tracks" in it },
+        )
+        fun assertNoTableScan(table: String) = assertFalse(
+            "Scans $table instead of seeking an index:\n$this",
+            details.any { it.startsWith("SCAN") && table in it },
         )
         override fun toString() = "$sql\n" + details.joinToString("\n") { "  $it" }
     }

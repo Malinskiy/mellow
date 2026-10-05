@@ -1,9 +1,7 @@
 package dev.mellow.core.database.dao
 
-import android.database.Cursor
 import androidx.paging.PagingSource
 import dev.mellow.core.database.MellowDatabase
-import dev.mellow.core.database.converter.Converters
 import dev.mellow.core.database.entity.DownloadEntity
 import dev.mellow.core.database.entity.TrackEntity
 import dev.mellow.core.database.paging.KeysetColumn
@@ -153,40 +151,3 @@ class TrackKeysetQueryFactory(private val database: MellowDatabase) {
         const val AUTO_INDEX = "index_tracks_serverId_sortName_id"
     }
 }
-
-private fun mapTrack(cursor: Cursor): TrackEntity = TrackEntity(
-    id = cursor.string("id"),
-    serverId = cursor.string("serverId"),
-    name = cursor.string("name"),
-    sortName = cursor.string("sortName"),
-    albumId = cursor.nullableString("albumId"),
-    albumName = cursor.nullableString("albumName"),
-    artistId = cursor.nullableString("artistId"),
-    artistName = cursor.nullableString("artistName"),
-    trackNumber = cursor.nullableInt("trackNumber"),
-    discNumber = cursor.nullableInt("discNumber"),
-    durationMs = cursor.long("durationMs"),
-    genres = Converters().toStringList(cursor.string("genres")),
-    imageTag = cursor.nullableString("imageTag"),
-    isFavorite = cursor.int("isFavorite") != 0,
-    playCount = cursor.int("playCount"),
-    lastPlayedAt = cursor.long("lastPlayedAt"),
-    normalizationGain = cursor.nullableFloat("normalizationGain"),
-    container = cursor.nullableString("container"),
-    codec = cursor.nullableString("codec"),
-    bitrate = cursor.nullableInt("bitrate"),
-    sampleRate = cursor.nullableInt("sampleRate"),
-    channels = cursor.nullableInt("channels"),
-    resolvedArtistId = cursor.nullableString("resolvedArtistId"),
-    dateAdded = cursor.long("dateAdded"),
-    lastSynced = cursor.long("lastSynced"),
-)
-
-private fun Cursor.index(column: String): Int = getColumnIndexOrThrow(column)
-private fun Cursor.string(column: String): String = getString(index(column))
-private fun Cursor.nullableString(column: String): String? =
-    index(column).let { if (isNull(it)) null else getString(it) }
-private fun Cursor.int(column: String): Int = getInt(index(column))
-private fun Cursor.nullableInt(column: String): Int? = index(column).let { if (isNull(it)) null else getInt(it) }
-private fun Cursor.long(column: String): Long = getLong(index(column))
-private fun Cursor.nullableFloat(column: String): Float? = index(column).let { if (isNull(it)) null else getFloat(it) }

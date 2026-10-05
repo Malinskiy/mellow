@@ -59,12 +59,16 @@ class MigrationTest {
     }
 
     @Test
-    fun `12 to 13 keeps tracks and playlists, and sorts names ignoring case`() {
+    fun `12 to 13 keeps rebuilt tables and their children, and sorts names ignoring case`() {
         helper.createDatabase(DB_NAME, 12).use { db -> addTracksAndPlaylist(db) }
 
         helper.runMigrationsAndValidate(DB_NAME, 13, true, Migrations.MIGRATION_12_13).use { db ->
             assertEquals(listOf("t2", "t1", "t3"), db.strings("SELECT id FROM tracks ORDER BY name"))
+            assertEquals(listOf("a2", "a1"), db.strings("SELECT id FROM albums ORDER BY name"))
+            assertEquals(listOf("ar2", "ar1"), db.strings("SELECT id FROM artists ORDER BY name"))
             assertEquals(listOf("t1", "t3"), db.playlist())
+            assertEquals(listOf("ar1", "ar2"), db.strings("SELECT artistId FROM track_artists ORDER BY artistId"))
+            assertEquals(listOf("ar1", "ar2"), db.strings("SELECT artistId FROM album_artists ORDER BY artistId"))
             db.query("SELECT playCount, lastPlayedAt, normalizationGain, resolvedArtistId FROM tracks WHERE id = 't1'")
                 .use { cursor ->
                     cursor.moveToFirst()
@@ -75,12 +79,16 @@ class MigrationTest {
                 }
             val createSql = db.strings("SELECT sql FROM sqlite_master WHERE name = 'tracks'").single()
             assertTrue(createSql, createSql.contains("`name` TEXT NOT NULL COLLATE NOCASE"))
+            for (table in listOf("albums", "artists")) {
+                val sql = db.strings("SELECT sql FROM sqlite_master WHERE name = '$table'").single()
+                assertTrue(sql, sql.contains("`name` TEXT NOT NULL COLLATE NOCASE"))
+            }
             assertEquals(emptyList<String>(), db.strings("SELECT name FROM sqlite_master WHERE name LIKE '%_kept'"))
         }
     }
 
     @Test
-    fun `12 to 13 keeps the playlists even with foreign keys on`() {
+    fun `12 to 13 keeps every cascading child even with foreign keys on`() {
         helper.createDatabase(DB_NAME, 12).use { db ->
             addTracksAndPlaylist(db)
             // Dropping the old tracks table cascades to playlist_tracks while foreign keys are on.
@@ -89,11 +97,29 @@ class MigrationTest {
             Migrations.MIGRATION_12_13.migrate(db)
 
             assertEquals(listOf("t1", "t3"), db.playlist())
+            assertEquals(listOf("ar1", "ar2"), db.strings("SELECT artistId FROM track_artists ORDER BY artistId"))
+            assertEquals(listOf("ar1", "ar2"), db.strings("SELECT artistId FROM album_artists ORDER BY artistId"))
             assertEquals(3, db.strings("SELECT id FROM tracks").size)
+            assertEquals(2, db.strings("SELECT id FROM albums").size)
+            assertEquals(2, db.strings("SELECT id FROM artists").size)
         }
     }
 
     private fun addTracksAndPlaylist(db: SupportSQLiteDatabase) {
+        for ((id, name, artistId) in listOf(Triple("a1", "beta", "ar1"), Triple("a2", "Alpha", "ar2"))) {
+            db.execSQL(
+                "INSERT INTO albums (id, serverId, name, sortName, artistId, artistName, year, trackCount, genres, " +
+                    "imageTag, isFavorite, resolvedArtistId, dateAdded, lastSynced) VALUES ('$id', 's1', '$name', " +
+                    "'$name', '$artistId', 'Artist', 2001, 1, '', NULL, 0, '$artistId', 0, 0)",
+            )
+        }
+        for ((id, name) in listOf("ar1" to "beta", "ar2" to "Alpha")) {
+            db.execSQL(
+                "INSERT INTO artists (id, serverId, name, sortName, albumCount, imageTag, isFavorite, overview, " +
+                    "genres, cleanName, musicBrainzId, lastSynced) VALUES ('$id', 's1', '$name', '$name', 1, " +
+                    "NULL, 0, NULL, '', '$name', NULL, 0)",
+            )
+        }
         db.execSQL(
             "INSERT INTO playlists (id, serverId, name, sortName, trackCount, durationMs, imageTag, isFavorite, " +
                 "isLocal, lastSynced) VALUES ('p1', 's1', 'Mix', 'mix', 2, 0, NULL, 0, 0, 0)",
@@ -109,6 +135,14 @@ class MigrationTest {
         }
         db.execSQL("INSERT INTO playlist_tracks (playlistId, trackId, position, addedAt) VALUES ('p1', 't1', 0, 0)")
         db.execSQL("INSERT INTO playlist_tracks (playlistId, trackId, position, addedAt) VALUES ('p1', 't3', 1, 0)")
+        db.execSQL(
+            "INSERT INTO track_artists (trackId, artistId, artistName, displayOrder) VALUES " +
+                "('t1', 'ar1', 'Artist 1', 0), ('t3', 'ar2', 'Artist 2', 0)",
+        )
+        db.execSQL(
+            "INSERT INTO album_artists (albumId, artistId, artistName, displayOrder) VALUES " +
+                "('a1', 'ar1', 'Artist 1', 0), ('a2', 'ar2', 'Artist 2', 0)",
+        )
     }
 
     private fun SupportSQLiteDatabase.playlist(): List<String> =

@@ -30,47 +30,42 @@ private const val SEP = Converters.SEPARATOR
 @Dao
 interface AlbumDao {
 
-    /**
-     * The library's albums tab in [LibraryOrder] `:sort` order, only those of [genre] if it's set. Ties keep the
-     * sort-name order, and the ID makes the order total, so pages never overlap or skip an album.
-     */
-    @Query(
-        """
-        SELECT * FROM albums
-        WHERE serverId = :serverId
-            AND (:genre IS NULL OR instr('$SEP' || genres || '$SEP', '$SEP' || :genre || '$SEP') > 0)
-            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
-        ORDER BY
-            CASE WHEN :sort = ${LibraryOrder.RECENTLY_ADDED} THEN dateAdded END DESC,
-            CASE WHEN :sort = ${LibraryOrder.NAME_ASC} THEN name END COLLATE NOCASE ASC,
-            CASE WHEN :sort = ${LibraryOrder.NAME_DESC} THEN name END COLLATE NOCASE DESC,
-            CASE WHEN :sort = ${LibraryOrder.YEAR} THEN COALESCE(year, 0) END DESC,
-            sortName ASC,
-            id ASC
-        """,
-    )
-    fun getLibraryAlbums(
-        serverId: String,
-        sort: Int,
-        genre: String?,
-        downloadedOnly: Boolean,
-    ): PagingSource<Int, AlbumEntity>
-
-    @Query(
-        """
-        SELECT * FROM albums
-        WHERE serverId = :serverId
-            AND (:downloadedOnly = 0 OR id IN ($DOWNLOADED_ALBUM_IDS))
-        ORDER BY sortName ASC, id ASC
-        LIMIT :limit OFFSET :offset
-        """,
-    )
+    /** Android Auto's Albums list; the common online path follows the sort-name index. */
+    @Transaction
     suspend fun getAlbumsByServerSlice(
         serverId: String,
         downloadedOnly: Boolean,
         limit: Int,
         offset: Int,
+    ): List<AlbumEntity> = if (downloadedOnly) {
+        getDownloadedAlbumsByServerSlice(serverId, limit, offset)
+    } else {
+        getAllAlbumsByServerSlice(serverId, limit, offset)
+    }
+
+    @Query(
+        """
+        SELECT * FROM albums
+        WHERE serverId = :serverId
+        ORDER BY sortName ASC, id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getAllAlbumsByServerSlice(
+        serverId: String,
+        limit: Int,
+        offset: Int,
     ): List<AlbumEntity>
+
+    @Query(
+        """
+        SELECT * FROM albums
+        WHERE serverId = :serverId AND id IN ($DOWNLOADED_ALBUM_IDS)
+        ORDER BY sortName ASC, id ASC
+        LIMIT :limit OFFSET :offset
+        """,
+    )
+    suspend fun getDownloadedAlbumsByServerSlice(serverId: String, limit: Int, offset: Int): List<AlbumEntity>
 
     @Query("SELECT * FROM albums WHERE id = :id")
     suspend fun getAlbumById(id: String): AlbumEntity?
@@ -221,7 +216,7 @@ interface AlbumDao {
     )
     fun observeGenreAlbumCounts(serverId: String): Flow<List<GenreAlbumCount>>
 
-    /** The albums tagged [genre], whole genres only as in [getLibraryAlbums]: "Rap" isn't "Pop Rap". */
+    /** The albums tagged [genre], whole genres only as in the Library tab: "Rap" isn't "Pop Rap". */
     @Query(
         """
         SELECT * FROM albums

@@ -19,8 +19,10 @@ import dev.mellow.core.common.getCleanValue
 import dev.mellow.core.database.DatabaseTransactionRunner
 import dev.mellow.core.database.converter.Converters
 import dev.mellow.core.database.dao.AlbumDao
+import dev.mellow.core.database.dao.AlbumKeysetQueryFactory
 import dev.mellow.core.database.dao.ArtistAliasDao
 import dev.mellow.core.database.dao.ArtistDao
+import dev.mellow.core.database.dao.ArtistKeysetQueryFactory
 import dev.mellow.core.database.dao.SearchQueryDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.SyncPassDao
@@ -63,6 +65,8 @@ class LibraryRepositoryImpl @Inject constructor(
     private val artistDao: ArtistDao,
     private val artistAliasDao: ArtistAliasDao,
     private val trackDao: TrackDao,
+    private val albumKeysetQueries: AlbumKeysetQueryFactory,
+    private val artistKeysetQueries: ArtistKeysetQueryFactory,
     private val trackKeysetQueries: TrackKeysetQueryFactory,
     private val serverDao: ServerDao,
     private val searchQueryDao: SearchQueryDao,
@@ -104,7 +108,9 @@ class LibraryRepositoryImpl @Inject constructor(
         genre: String?,
         downloadedOnly: Boolean,
     ): Flow<PagingData<Album>> =
-        Pager(LIBRARY_PAGING_CONFIG) { albumDao.getLibraryAlbums(serverId, sort.toOrder(), genre, downloadedOnly) }
+        Pager(LIBRARY_PAGING_CONFIG) {
+            albumKeysetQueries.libraryPagingSource(serverId, sort.toOrder(), genre, downloadedOnly)
+        }
             .flow
             .map { page -> page.map { it.toModel() } }
 
@@ -113,7 +119,9 @@ class LibraryRepositoryImpl @Inject constructor(
         sort: LibrarySort,
         downloadedOnly: Boolean,
     ): Flow<PagingData<Artist>> =
-        Pager(LIBRARY_PAGING_CONFIG) { artistDao.getLibraryArtists(serverId, sort.toOrder(), downloadedOnly) }
+        Pager(LIBRARY_PAGING_CONFIG) {
+            artistKeysetQueries.libraryPagingSource(serverId, sort.toOrder(), downloadedOnly)
+        }
             .flow
             .map { page -> page.map { it.artist.toModel().copy(albumCount = it.localAlbumCount) } }
 

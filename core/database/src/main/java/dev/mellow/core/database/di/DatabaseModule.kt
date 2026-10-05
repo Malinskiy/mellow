@@ -10,6 +10,8 @@ import dagger.hilt.components.SingletonComponent
 import dev.mellow.core.database.DatabaseTransactionRunner
 import dev.mellow.core.database.MellowDatabase
 import dev.mellow.core.database.RoomTransactionRunner
+import dev.mellow.core.database.dao.AlbumKeysetQueryFactory
+import dev.mellow.core.database.dao.ArtistKeysetQueryFactory
 import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.migration.Migrations
 import javax.inject.Singleton
@@ -58,6 +60,14 @@ object DatabaseModule {
 
     @Provides
     fun provideTrackDao(db: MellowDatabase) = db.trackDao()
+
+    @Provides
+    @Singleton
+    fun provideAlbumKeysetQueryFactory(db: MellowDatabase) = AlbumKeysetQueryFactory(db)
+
+    @Provides
+    @Singleton
+    fun provideArtistKeysetQueryFactory(db: MellowDatabase) = ArtistKeysetQueryFactory(db)
 
     @Provides
     @Singleton

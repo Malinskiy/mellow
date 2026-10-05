@@ -3,6 +3,8 @@ package dev.mellow.core.database.perf
 import androidx.paging.PagingSource
 import androidx.room.Room
 import dev.mellow.core.database.MellowDatabase
+import dev.mellow.core.database.dao.AlbumKeysetQueryFactory
+import dev.mellow.core.database.dao.ArtistKeysetQueryFactory
 import dev.mellow.core.database.dao.LibraryOrder
 import dev.mellow.core.database.dao.TrackKeysetQueryFactory
 import dev.mellow.core.database.dao.getTracksById
@@ -63,6 +65,8 @@ class QueryBenchmark {
         val server = FakeLibrary.SERVER
         val trackCount = tracks.countTracks(server, downloadedOnly = false)
         val middle = trackCount / 2
+        val albumQueries = AlbumKeysetQueryFactory(db)
+        val artistQueries = ArtistKeysetQueryFactory(db)
         val trackQueries = TrackKeysetQueryFactory(db)
 
         // The Library's Tracks tab, in each order: opening it, reopening it scrolled halfway, scrolling on from there.
@@ -101,17 +105,25 @@ class QueryBenchmark {
 
         val albumCount = library.albums
         for ((name, order) in ALBUM_ORDERS) {
-            measure("albums.$name.open") { albums.getLibraryAlbums(server, order, null, false).refresh(0) }
-            measure("albums.$name.scroll@50%") {
-                albums.getLibraryAlbums(server, order, null, false).append(albumCount / 2)
+            measure("albums.$name.open") {
+                albumQueries.libraryPagingSource(server, order, null, false).refreshKeyset(null)
             }
+            val source = albumQueries.libraryPagingSource(server, order, null, false)
+            val middlePage = source.refreshKeyset(KeysetPagingKey.Position(albumCount / 2))
+            val nextKey = requireNotNull(middlePage.nextKey)
+            measure("albums.$name.scroll@50%") { source.appendKeyset(nextKey) }
         }
         measure("albums.genre.open") {
-            albums.getLibraryAlbums(server, LibraryOrder.RECENTLY_ADDED, "Jazz", false).refresh(0)
+            albumQueries.libraryPagingSource(server, LibraryOrder.RECENTLY_ADDED, "Jazz", false).refreshKeyset(null)
         }
-        measure("artists.open") { artists.getLibraryArtists(server, LibraryOrder.NAME_ASC, false).refresh(0) }
+        measure("artists.open") {
+            artistQueries.libraryPagingSource(server, LibraryOrder.NAME_ASC, false).refreshKeyset(null)
+        }
+        val artistSource = artistQueries.libraryPagingSource(server, LibraryOrder.NAME_ASC, false)
+        val artistMiddlePage = artistSource.refreshKeyset(KeysetPagingKey.Position(library.artists / 2))
+        val artistNextKey = requireNotNull(artistMiddlePage.nextKey)
         measure("artists.scroll@50%") {
-            artists.getLibraryArtists(server, LibraryOrder.NAME_ASC, false).append(library.artists / 2)
+            artistSource.appendKeyset(artistNextKey)
         }
 
         measure("album.tracks") { tracks.getTracksByAlbumSync(library.sampleAlbumId) }
@@ -192,11 +204,6 @@ class QueryBenchmark {
     private suspend fun <V : Any> PagingSource<Int, V>.refresh(position: Int) {
         val result = load(PagingSource.LoadParams.Refresh(position, PAGE * 3, placeholdersEnabled = true))
         check(result is PagingSource.LoadResult.Page) { "Refresh at $position failed: $result" }
-    }
-
-    private suspend fun <V : Any> PagingSource<Int, V>.append(position: Int) {
-        val result = load(PagingSource.LoadParams.Append(position, PAGE, placeholdersEnabled = true))
-        check(result is PagingSource.LoadResult.Page) { "Append at $position failed: $result" }
     }
 
     private suspend fun <V : Any> PagingSource<KeysetPagingKey, V>.refreshKeyset(key: KeysetPagingKey?):

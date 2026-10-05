@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 13,
-    "identityHash": "403a554c04575d57f3589ebdeb6991c3",
+    "identityHash": "6c99929d44baf3488680429ea6fb8362",
     "entities": [
       {
         "tableName": "servers",
@@ -60,7 +60,7 @@
       },
       {
         "tableName": "albums",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `name` TEXT NOT NULL, `sortName` TEXT NOT NULL, `artistId` TEXT, `artistName` TEXT, `year` INTEGER, `trackCount` INTEGER NOT NULL, `genres` TEXT NOT NULL, `imageTag` TEXT, `isFavorite` INTEGER NOT NULL, `resolvedArtistId` TEXT, `dateAdded` INTEGER NOT NULL, `lastSynced` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `name` TEXT NOT NULL COLLATE NOCASE, `sortName` TEXT NOT NULL, `artistId` TEXT, `artistName` TEXT, `year` INTEGER, `trackCount` INTEGER NOT NULL, `genres` TEXT NOT NULL, `imageTag` TEXT, `isFavorite` INTEGER NOT NULL, `resolvedArtistId` TEXT, `dateAdded` INTEGER NOT NULL, `lastSynced` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -157,12 +157,100 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_artistName` ON `${TABLE_NAME}` (`artistName`)"
+          },
+          {
+            "name": "index_albums_serverId_dateAdded_sortName_id",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "dateAdded",
+              "sortName",
+              "id"
+            ],
+            "orders": [
+              "ASC",
+              "DESC",
+              "ASC",
+              "ASC"
+            ],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_serverId_dateAdded_sortName_id` ON `${TABLE_NAME}` (`serverId` ASC, `dateAdded` DESC, `sortName` ASC, `id` ASC)"
+          },
+          {
+            "name": "index_albums_serverId_name_sortName_id",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "name",
+              "sortName",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_serverId_name_sortName_id` ON `${TABLE_NAME}` (`serverId`, `name`, `sortName`, `id`)"
+          },
+          {
+            "name": "index_albums_serverId_year_sortName_id",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "year",
+              "sortName",
+              "id"
+            ],
+            "orders": [
+              "ASC",
+              "DESC",
+              "ASC",
+              "ASC"
+            ],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_serverId_year_sortName_id` ON `${TABLE_NAME}` (`serverId` ASC, `year` DESC, `sortName` ASC, `id` ASC)"
+          },
+          {
+            "name": "index_albums_serverId_sortName_id",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "sortName",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_serverId_sortName_id` ON `${TABLE_NAME}` (`serverId`, `sortName`, `id`)"
+          },
+          {
+            "name": "index_albums_serverId_isFavorite",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "isFavorite"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_serverId_isFavorite` ON `${TABLE_NAME}` (`serverId`, `isFavorite`)"
+          },
+          {
+            "name": "index_albums_resolvedArtistId_serverId",
+            "unique": false,
+            "columnNames": [
+              "resolvedArtistId",
+              "serverId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_resolvedArtistId_serverId` ON `${TABLE_NAME}` (`resolvedArtistId`, `serverId`)"
+          },
+          {
+            "name": "index_albums_artistId_serverId_resolvedArtistId",
+            "unique": false,
+            "columnNames": [
+              "artistId",
+              "serverId",
+              "resolvedArtistId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_artistId_serverId_resolvedArtistId` ON `${TABLE_NAME}` (`artistId`, `serverId`, `resolvedArtistId`)"
           }
         ]
       },
       {
         "tableName": "artists",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `name` TEXT NOT NULL, `sortName` TEXT NOT NULL, `albumCount` INTEGER NOT NULL, `imageTag` TEXT, `isFavorite` INTEGER NOT NULL, `overview` TEXT, `genres` TEXT NOT NULL, `cleanName` TEXT NOT NULL, `musicBrainzId` TEXT, `lastSynced` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `name` TEXT NOT NULL COLLATE NOCASE, `sortName` TEXT NOT NULL, `albumCount` INTEGER NOT NULL, `imageTag` TEXT, `isFavorite` INTEGER NOT NULL, `overview` TEXT, `genres` TEXT NOT NULL, `cleanName` TEXT NOT NULL, `musicBrainzId` TEXT, `lastSynced` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -239,7 +327,42 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_artists_serverId_name_sortName_id",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "name",
+              "sortName",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_artists_serverId_name_sortName_id` ON `${TABLE_NAME}` (`serverId`, `name`, `sortName`, `id`)"
+          },
+          {
+            "name": "index_artists_serverId_sortName_id",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "sortName",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_artists_serverId_sortName_id` ON `${TABLE_NAME}` (`serverId`, `sortName`, `id`)"
+          },
+          {
+            "name": "index_artists_serverId_isFavorite",
+            "unique": false,
+            "columnNames": [
+              "serverId",
+              "isFavorite"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_artists_serverId_isFavorite` ON `${TABLE_NAME}` (`serverId`, `isFavorite`)"
+          }
+        ]
       },
       {
         "tableName": "artist_aliases",
@@ -1078,7 +1201,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '403a554c04575d57f3589ebdeb6991c3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6c99929d44baf3488680429ea6fb8362')"
     ]
   }
 }

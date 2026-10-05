@@ -241,7 +241,8 @@ class LibraryPagingQueriesTest {
             ),
         )
 
-        val rock = db.albumDao().getLibraryAlbums(SERVER, LibraryOrder.NAME_ASC, genre = "Rock", downloadedOnly = false)
+        val rock = AlbumKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.NAME_ASC, genre = "Rock", downloadedOnly = false)
             .loadAll()
             .map { it.id }
 
@@ -270,7 +271,8 @@ class LibraryPagingQueriesTest {
         db.trackDao().upsertTracks(listOf(track("t1", albumId = "kept"), track("t2", albumId = "dropped")))
         db.downloadDao().upsertAll(listOf(download("t1", DownloadEntity.STATUS_COMPLETED)))
 
-        val ids = db.albumDao().getLibraryAlbums(SERVER, LibraryOrder.NAME_ASC, genre = null, downloadedOnly = true)
+        val ids = AlbumKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.NAME_ASC, genre = null, downloadedOnly = true)
             .loadAll()
             .map { it.id }
 
@@ -309,7 +311,9 @@ class LibraryPagingQueriesTest {
             ),
         )
 
-        val artists = db.artistDao().getLibraryArtists(SERVER, LibraryOrder.NAME_ASC, downloadedOnly = false).loadAll()
+        val artists = ArtistKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.NAME_ASC, downloadedOnly = false)
+            .loadAll()
 
         assertEquals(listOf("solo", "canonical"), artists.map { it.artist.id })
         assertEquals(listOf(1, 2), artists.map { it.localAlbumCount })
@@ -387,7 +391,9 @@ class LibraryPagingQueriesTest {
         TrackKeysetQueryFactory(db).libraryPagingSource(SERVER, sort, downloadedOnly = false).loadAll().map { it.id }
 
     private suspend fun libraryAlbumIds(sort: Int): List<String> =
-        db.albumDao().getLibraryAlbums(SERVER, sort, genre = null, downloadedOnly = false).loadAll().map { it.id }
+        AlbumKeysetQueryFactory(db).libraryPagingSource(SERVER, sort, genre = null, downloadedOnly = false)
+            .loadAll()
+            .map { it.id }
 
     /** Loads every page the way Paging does: a refresh, then appends until there's no next page. */
     private suspend fun <K : Any, T : Any> PagingSource<K, T>.loadAll(pageSize: Int = 50): List<T> {

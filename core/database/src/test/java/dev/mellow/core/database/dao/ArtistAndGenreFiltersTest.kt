@@ -58,7 +58,9 @@ class ArtistAndGenreFiltersTest {
     fun `downloaded only shows an artist whose downloaded track names it differently`() = runTest {
         downloadTheBeatles()
 
-        val artists = db.artistDao().getLibraryArtists(SERVER, LibraryOrder.NAME_ASC, downloadedOnly = true).loadAll()
+        val artists = ArtistKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.NAME_ASC, downloadedOnly = true)
+            .loadAll()
 
         assertEquals(listOf("beatles"), artists.map { it.artist.id })
     }
@@ -73,7 +75,9 @@ class ArtistAndGenreFiltersTest {
         )
         db.downloadDao().upsertAll(listOf(download("duet")))
 
-        val artists = db.artistDao().getLibraryArtists(SERVER, LibraryOrder.NAME_ASC, downloadedOnly = true).loadAll()
+        val artists = ArtistKeysetQueryFactory(db)
+            .libraryPagingSource(SERVER, LibraryOrder.NAME_ASC, downloadedOnly = true)
+            .loadAll()
 
         assertEquals(listOf("x", "y"), artists.map { it.artist.id })
     }
@@ -123,7 +127,7 @@ class ArtistAndGenreFiltersTest {
         assertEquals(listOf("hip-hop-rap", "rap"), albums.map { it.id })
     }
 
-    private suspend fun <T : Any> PagingSource<Int, T>.loadAll(): List<T> {
+    private suspend fun <K : Any, T : Any> PagingSource<K, T>.loadAll(): List<T> {
         val page = load(PagingSource.LoadParams.Refresh(key = null, loadSize = 100, placeholdersEnabled = false))
         return (page as PagingSource.LoadResult.Page).data
     }
