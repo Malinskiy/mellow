@@ -6,7 +6,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.preferences.DisplayPreferences
+import dev.mellow.core.data.preferences.DownloadPreferences
 import dev.mellow.core.data.preferences.SyncPreferences
+import dev.mellow.core.data.repository.DownloadRepository
 import dev.mellow.core.data.repository.LibraryRepository
 import dev.mellow.core.data.repository.PlaylistRepository
 import dev.mellow.core.data.repository.UserRepositoryImpl
@@ -16,6 +18,7 @@ import dev.mellow.core.database.dao.AlbumDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.ArtistEntity
 import dev.mellow.core.database.entity.LyricsEntity
+import dev.mellow.core.designsystem.component.TrackMenuDownload
 import dev.mellow.core.model.Track
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkStateObserver
@@ -23,8 +26,10 @@ import dev.mellow.core.network.datasource.JellyfinDataSource
 import dev.mellow.core.player.MellowPlayer
 import dev.mellow.sync.SyncScheduler
 import java.util.UUID
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +55,8 @@ class MainViewModel @Inject constructor(
     private val albumDao: AlbumDao,
     private val lyricsDao: LyricsDao,
     private val playlistRepository: PlaylistRepository,
+    private val downloadRepository: DownloadRepository,
+    private val downloadPreferences: DownloadPreferences,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow(AuthState.CHECKING)
@@ -266,6 +273,32 @@ class MainViewModel @Inject constructor(
 
     fun isTrackDownloaded(trackId: String): kotlinx.coroutines.flow.Flow<Boolean> {
         return downloadDao.isDownloaded(trackId)
+    }
+
+    /** The track menu's download entry for [trackId], live while the menu is open. */
+    fun observeTrackMenuDownload(trackId: String): Flow<TrackMenuDownload> = combine(
+        downloadRepository.observeDownload(trackId).map { (it as? MellowResult.Success)?.data },
+        networkStateObserver.connectionState,
+        downloadPreferences.storageCap,
+        downloadRepository.getTotalDownloadedBytes().map { (it as? MellowResult.Success)?.data ?: 0L },
+    ) { download, connection, cap, used ->
+        trackMenuDownload(download, connection, storageFull = isStorageFull(used, cap))
+    }
+
+    fun downloadTrack(track: Track) {
+        viewModelScope.launch {
+            val server = userRepository.getActiveServer() ?: return@launch
+            val quality = downloadPreferences.downloadQuality.first()
+            downloadRepository.downloadTrack(track, server.id, quality)
+        }
+    }
+
+    fun cancelTrackDownload(trackId: String) {
+        viewModelScope.launch { downloadRepository.cancelDownload(trackId) }
+    }
+
+    fun removeTrackDownload(trackId: String) {
+        viewModelScope.launch { downloadRepository.removeDownload(trackId) }
     }
 
     fun observeTrackFavorite(trackId: String): kotlinx.coroutines.flow.Flow<Boolean> {

@@ -177,6 +177,7 @@ import dev.mellow.feature.settings.LoginViewModel
 import dev.mellow.feature.settings.SettingsScreen
 import dev.mellow.feature.settings.SettingsViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -302,23 +303,27 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     }
 
     fun openContextMenu(track: Track, sUrl: String?) {
-        contextMenuState = ContextMenuState(
-            menuData = TrackMenuData(
-                id = track.id,
-                title = track.name,
-                artist = track.artistName ?: "",
-                album = track.albumName ?: "",
-                albumId = track.albumId,
-                artistId = track.resolvedArtistId ?: track.artistId,
-                            imageUrl = if (serverUrl != null) {
-                                val imgId = track.imageId ?: track.albumId
-                                if (imgId != null) artworkUri(imgId) else null
-                            } else null,
-                isFavorite = track.isFavorite,
-                isDownloaded = false,
-            ),
-            track = track,
-        )
+        scope.launch {
+            // The download entry opens in its current state (a Room read) rather than flashing a default one.
+            val download = mainViewModel.observeTrackMenuDownload(track.id).first()
+            contextMenuState = ContextMenuState(
+                menuData = TrackMenuData(
+                    id = track.id,
+                    title = track.name,
+                    artist = track.artistName ?: "",
+                    album = track.albumName ?: "",
+                    albumId = track.albumId,
+                    artistId = track.resolvedArtistId ?: track.artistId,
+                    imageUrl = if (serverUrl != null) {
+                        val imgId = track.imageId ?: track.albumId
+                        if (imgId != null) artworkUri(imgId) else null
+                    } else null,
+                    isFavorite = track.isFavorite,
+                    download = download,
+                ),
+                track = track,
+            )
+        }
     }
 
     // Tapping the Search tab while Search is showing focuses its field; opening Search doesn't, so the keyboard
@@ -1700,8 +1705,11 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     }
 
     if (contextMenuState != null) {
+        val menuTrackId = contextMenuState!!.menuData.id
+        val menuDownload by remember(menuTrackId) { mainViewModel.observeTrackMenuDownload(menuTrackId) }
+            .collectAsStateWithLifecycle(initialValue = contextMenuState!!.menuData.download)
         TrackContextMenu(
-            track = contextMenuState!!.menuData,
+            track = contextMenuState!!.menuData.copy(download = menuDownload),
             onDismiss = { contextMenuState = null },
             onPlayNext = {
                 mainViewModel.player.playNext(contextMenuState!!.track)
@@ -1746,6 +1754,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                 val t = contextMenuState!!.menuData
                 mainViewModel.toggleFavorite(t.id, t.isFavorite)
             },
+            onDownload = { contextMenuState?.track?.let(mainViewModel::downloadTrack) },
+            onCancelDownload = { contextMenuState?.track?.id?.let(mainViewModel::cancelTrackDownload) },
+            onRemoveDownload = { contextMenuState?.track?.id?.let(mainViewModel::removeTrackDownload) },
             onTrackInfo = {
                 trackInfoTrack = contextMenuState?.track
                 contextMenuState = null
