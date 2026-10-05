@@ -27,6 +27,10 @@ interface DownloadDao {
     @Query("SELECT COUNT(*) FROM downloads WHERE albumId = :albumId AND status = 2")
     fun getCompletedCountForAlbum(albumId: String): Flow<Int>
 
+    /** The library's tracks of album [albumId], the count an album download is measured against. */
+    @Query("SELECT COUNT(*) FROM tracks WHERE albumId = :albumId")
+    fun observeAlbumTrackCount(albumId: String): Flow<Int>
+
     @Query("SELECT COALESCE(SUM(bytesDownloaded), 0) FROM downloads WHERE status = 2")
     fun getTotalDownloadedBytes(): Flow<Long>
 

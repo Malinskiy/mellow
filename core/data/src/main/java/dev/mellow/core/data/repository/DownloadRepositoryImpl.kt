@@ -11,6 +11,7 @@ import dev.mellow.core.model.Track
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,32 +31,11 @@ class DownloadRepositoryImpl @Inject constructor(
             .catch { emit(MellowResult.Error(it)) }
 
     override fun observeAlbumDownloads(albumId: String): Flow<MellowResult<AlbumDownloadState>> =
-        downloadDao.observeAlbumDownloads(albumId).map { entities ->
-            val completed = entities.count { it.status == DownloadEntity.STATUS_COMPLETED }
-            val downloading = entities.any {
-                it.status == DownloadEntity.STATUS_DOWNLOADING || it.status == DownloadEntity.STATUS_QUEUED
-            }
-            val totalBytes = entities.sumOf { it.totalBytes }
-            val downloadedBytes = entities.sumOf { it.bytesDownloaded }
-
-            val overallStatus = when {
-                entities.isEmpty() -> AlbumDownloadState.Status.NONE
-                downloading -> AlbumDownloadState.Status.DOWNLOADING
-                completed == entities.size -> AlbumDownloadState.Status.COMPLETED
-                completed > 0 -> AlbumDownloadState.Status.PARTIAL
-                else -> AlbumDownloadState.Status.NONE
-            }
-
-            MellowResult.Success(
-                AlbumDownloadState(
-                    albumId = albumId,
-                    totalTracks = entities.size,
-                    downloadedTracks = completed,
-                    totalBytes = totalBytes,
-                    downloadedBytes = downloadedBytes,
-                    overallStatus = overallStatus,
-                ),
-            ) as MellowResult<AlbumDownloadState>
+        combine(
+            downloadDao.observeAlbumTrackCount(albumId),
+            downloadDao.observeAlbumDownloads(albumId),
+        ) { trackCount, entities ->
+            MellowResult.Success(albumDownloadState(albumId, trackCount, entities)) as MellowResult<AlbumDownloadState>
         }.catch { emit(MellowResult.Error(it)) }
 
     override fun observeActiveDownloads(): Flow<MellowResult<List<DownloadState>>> =
@@ -113,7 +93,12 @@ class DownloadRepositoryImpl @Inject constructor(
             val server = serverDao.getActiveServer()
                 ?: return MellowResult.Error(IllegalStateException("No active server"))
             val now = System.currentTimeMillis()
-            val entities = tracks.map { track ->
+            // Tracks already on the device (e.g. downloaded one by one) stay as they are; only the rest is queued.
+            val completedIds = downloadDao.getDownloadsByAlbum(albumId)
+                .filter { it.status == DownloadEntity.STATUS_COMPLETED }
+                .mapTo(HashSet()) { it.trackId }
+            val missing = tracks.filter { it.id !in completedIds }
+            val entities = missing.map { track ->
                 DownloadEntity(
                     trackId = track.id,
                     albumId = albumId,
@@ -131,7 +116,7 @@ class DownloadRepositoryImpl @Inject constructor(
                 )
             }
             downloadDao.upsertAll(entities)
-            tracks.forEach { track ->
+            missing.forEach { track ->
                 downloadExecutor.startDownload(track.id, server.url, server.accessToken, quality)
             }
             MellowResult.Success(Unit)
