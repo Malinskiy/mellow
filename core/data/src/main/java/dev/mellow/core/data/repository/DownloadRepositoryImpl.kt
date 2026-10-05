@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,7 +35,7 @@ class DownloadRepositoryImpl @Inject constructor(
     override fun observeAlbumDownloads(albumId: String): Flow<MellowResult<AlbumDownloadState>> =
         combine(
             downloadDao.observeAlbumTrackCount(albumId),
-            downloadDao.observeAlbumDownloads(albumId),
+            downloadDao.observeAlbumTrackDownloads(albumId),
         ) { trackCount, entities ->
             MellowResult.Success(albumDownloadState(albumId, trackCount, entities)) as MellowResult<AlbumDownloadState>
         }.catch { emit(MellowResult.Error(it)) }
@@ -53,69 +55,52 @@ class DownloadRepositoryImpl @Inject constructor(
             .map { MellowResult.Success(it) as MellowResult<Boolean> }
             .catch { emit(MellowResult.Error(it)) }
 
+    /**
+     * Serializes the operations that claim, cancel and remove downloads, so reading a track's row, deciding and
+     * writing it (and starting or removing its download) is one step: two taps can't both claim a track and start it
+     * twice, and a cancel can't land between a claim's row and its start. A Room transaction would make only the row
+     * writes atomic, not the executor calls that follow them; the repository is a singleton, so one lock covers every
+     * caller.
+     */
+    private val queueLock = Mutex()
+
     override suspend fun downloadTrack(
         track: Track,
         serverId: String,
         quality: String,
-    ): MellowResult<Unit> =
+    ): MellowResult<Unit> = queueLock.withLock {
         try {
             val server = serverDao.getActiveServer()
                 ?: return MellowResult.Error(IllegalStateException("No active server"))
-            val entity = DownloadEntity(
-                trackId = track.id,
-                albumId = track.albumId,
-                serverId = serverId,
-                status = DownloadEntity.STATUS_QUEUED,
-                progress = 0f,
-                bytesDownloaded = 0L,
-                totalBytes = 0L,
-                quality = quality,
-                filePath = null,
-                requestedAt = System.currentTimeMillis(),
-                completedAt = 0L,
-                errorMessage = null,
-                lastSynced = System.currentTimeMillis(),
-            )
-            downloadDao.upsert(entity)
+            // Already queued, downloading or on the device: nothing to do.
+            if (downloadDao.getDownload(track.id)?.isClaimed() == true) return MellowResult.Success(Unit)
+            val now = System.currentTimeMillis()
+            downloadDao.upsert(queuedEntity(track.id, track.albumId, serverId, quality, now))
             downloadExecutor.startDownload(track.id, server.url, server.accessToken, quality)
             MellowResult.Success(Unit)
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
+    }
 
     override suspend fun downloadAlbum(
         albumId: String,
         tracks: List<Track>,
         serverId: String,
         quality: String,
-    ): MellowResult<Unit> =
+    ): MellowResult<Unit> = queueLock.withLock {
         try {
             val server = serverDao.getActiveServer()
                 ?: return MellowResult.Error(IllegalStateException("No active server"))
             val now = System.currentTimeMillis()
-            // Tracks already on the device (e.g. downloaded one by one) stay as they are; only the rest is queued.
-            val completedIds = downloadDao.getDownloadsByAlbum(albumId)
-                .filter { it.status == DownloadEntity.STATUS_COMPLETED }
+            // Tracks already queued, downloading or on the device (e.g. downloaded one by one) stay as they are; only
+            // the rest (no row, failed or cancelled) is queued.
+            val claimedIds = tracks.map { it.id }.chunked(MAX_IDS_PER_QUERY)
+                .flatMap { ids -> downloadDao.getDownloads(ids) }
+                .filter { it.isClaimed() }
                 .mapTo(HashSet()) { it.trackId }
-            val missing = tracks.filter { it.id !in completedIds }
-            val entities = missing.map { track ->
-                DownloadEntity(
-                    trackId = track.id,
-                    albumId = albumId,
-                    serverId = serverId,
-                    status = DownloadEntity.STATUS_QUEUED,
-                    progress = 0f,
-                    bytesDownloaded = 0L,
-                    totalBytes = 0L,
-                    quality = quality,
-                    filePath = null,
-                    requestedAt = now,
-                    completedAt = 0L,
-                    errorMessage = null,
-                    lastSynced = now,
-                )
-            }
-            downloadDao.upsertAll(entities)
+            val missing = tracks.filter { it.id !in claimedIds }
+            downloadDao.upsertAll(missing.map { queuedEntity(it.id, albumId, serverId, quality, now) })
             missing.forEach { track ->
                 downloadExecutor.startDownload(track.id, server.url, server.accessToken, quality)
             }
@@ -123,8 +108,9 @@ class DownloadRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
+    }
 
-    override suspend fun cancelDownload(trackId: String): MellowResult<Unit> =
+    override suspend fun cancelDownload(trackId: String): MellowResult<Unit> = queueLock.withLock {
         try {
             downloadExecutor.removeDownload(trackId)
             downloadDao.getDownload(trackId)?.let { entity ->
@@ -139,8 +125,9 @@ class DownloadRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
+    }
 
-    override suspend fun removeDownload(trackId: String): MellowResult<Unit> =
+    override suspend fun removeDownload(trackId: String): MellowResult<Unit> = queueLock.withLock {
         try {
             downloadExecutor.removeDownload(trackId)
             downloadDao.delete(trackId)
@@ -148,9 +135,11 @@ class DownloadRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
+    }
 
-    override suspend fun removeAlbumDownloads(albumId: String): MellowResult<Unit> =
+    override suspend fun removeAlbumDownloads(albumId: String): MellowResult<Unit> = queueLock.withLock {
         try {
+            // By the album's id, so downloads of tracks the library no longer lists under it go too.
             val downloads = downloadDao.getDownloadsByAlbum(albumId)
             downloads.forEach { downloadExecutor.removeDownload(it.trackId) }
             downloadDao.deleteByAlbum(albumId)
@@ -158,8 +147,9 @@ class DownloadRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
+    }
 
-    override suspend fun clearAllDownloads(): MellowResult<Unit> =
+    override suspend fun clearAllDownloads(): MellowResult<Unit> = queueLock.withLock {
         try {
             val downloads = downloadDao.getAllDownloads()
             downloads.forEach { downloadExecutor.removeDownload(it.trackId) }
@@ -168,6 +158,28 @@ class DownloadRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
+    }
+
+    private fun DownloadEntity.isClaimed(): Boolean = status == DownloadEntity.STATUS_QUEUED ||
+        status == DownloadEntity.STATUS_DOWNLOADING ||
+        status == DownloadEntity.STATUS_COMPLETED
+
+    private fun queuedEntity(trackId: String, albumId: String?, serverId: String, quality: String, now: Long) =
+        DownloadEntity(
+            trackId = trackId,
+            albumId = albumId,
+            serverId = serverId,
+            status = DownloadEntity.STATUS_QUEUED,
+            progress = 0f,
+            bytesDownloaded = 0L,
+            totalBytes = 0L,
+            quality = quality,
+            filePath = null,
+            requestedAt = now,
+            completedAt = 0L,
+            errorMessage = null,
+            lastSynced = now,
+        )
 
     private fun DownloadEntity.toDomainModel(): DownloadState = when (status) {
         DownloadEntity.STATUS_QUEUED -> DownloadState.Queued(trackId)
@@ -210,4 +222,9 @@ class DownloadRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             MellowResult.Error(e)
         }
+
+    private companion object {
+        /** Under SQLite's 999 bound arguments on Android 8. */
+        const val MAX_IDS_PER_QUERY = 500
+    }
 }
