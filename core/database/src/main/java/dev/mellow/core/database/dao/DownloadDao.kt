@@ -12,9 +12,6 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads WHERE trackId = :trackId")
     fun observeDownload(trackId: String): Flow<DownloadEntity?>
 
-    @Query("SELECT * FROM downloads WHERE albumId = :albumId")
-    fun observeAlbumDownloads(albumId: String): Flow<List<DownloadEntity>>
-
     @Query("SELECT * FROM downloads WHERE status = 2")
     fun observeCompletedDownloads(): Flow<List<DownloadEntity>>
 
