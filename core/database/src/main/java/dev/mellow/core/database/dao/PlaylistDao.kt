@@ -16,7 +16,7 @@ private const val PLAYLIST_TRACKS_QUERY = """
     SELECT t.* FROM tracks t INNER JOIN playlist_tracks pt ON t.id = pt.trackId
     WHERE pt.playlistId = :playlistId
         AND (:downloadedOnly = 0 OR t.id IN ($DOWNLOADED_TRACK_IDS))
-    ORDER BY pt.position ASC, t.id ASC
+    ORDER BY pt.position ASC, pt.trackId ASC
 """
 
 @Dao
@@ -81,7 +81,7 @@ interface PlaylistDao {
         SELECT COUNT(*) FROM tracks t INNER JOIN playlist_tracks pt ON t.id = pt.trackId
         INNER JOIN playlist_tracks target ON target.playlistId = pt.playlistId AND target.trackId = :trackId
         WHERE pt.playlistId = :playlistId
-            AND (pt.position < target.position OR (pt.position = target.position AND t.id < :trackId))
+            AND (pt.position < target.position OR (pt.position = target.position AND pt.trackId < :trackId))
             AND (:downloadedOnly = 0 OR t.id IN ($DOWNLOADED_TRACK_IDS))
         """,
     )

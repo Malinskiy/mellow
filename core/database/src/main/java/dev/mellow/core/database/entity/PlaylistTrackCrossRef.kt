@@ -21,7 +21,8 @@ import androidx.room.Index
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("trackId")],
+    // playlistId, position, trackId: a playlist's tracks in order (position, then track ID), without sorting.
+    indices = [Index("trackId"), Index("playlistId", "position", "trackId")],
 )
 data class PlaylistTrackCrossRef(
     val playlistId: String,

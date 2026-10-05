@@ -33,7 +33,8 @@ object Migrations {
      * - Track, album and artist names compare ignoring case (COLLATE NOCASE), as the name orders always sorted them,
      *   so indexes can do that sorting. SQLite can't change a column's collation, so the tables are rebuilt.
      * - Indexes for the Library tabs' orders, Android Auto, album and artist screens, Home and favorites, and the
-     *   downloads (see TrackEntity, AlbumEntity, ArtistEntity and DownloadEntity).
+     *   downloads and playlist order (see TrackEntity, AlbumEntity, ArtistEntity, DownloadEntity and
+ *   PlaylistTrackCrossRef).
      *
      * Every child with an ON DELETE CASCADE foreign key to a rebuilt table is set aside first. Otherwise dropping the
      * old parent while foreign keys are on silently empties that child table.
@@ -155,6 +156,10 @@ object Migrations {
             db.execSQL(
                 "CREATE INDEX `index_downloads_status_serverId_trackId` " +
                     "ON `downloads` (`status`, `serverId`, `trackId`)",
+            )
+            db.execSQL(
+                "CREATE INDEX `index_playlist_tracks_playlistId_position_trackId` " +
+                    "ON `playlist_tracks` (`playlistId`, `position`, `trackId`)",
             )
             db.execSQL("CREATE INDEX `index_albums_artistName` ON `albums` (`artistName`)")
             db.execSQL(

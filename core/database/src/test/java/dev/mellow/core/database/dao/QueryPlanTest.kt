@@ -238,6 +238,14 @@ class QueryPlanTest {
     }
 
     @Test
+    fun `a playlist reads its tracks in order without sorting`() = runTest {
+        plans { db.playlistDao().getPlaylistTracksSlice(library.samplePlaylistId, false, 60, 1_000) }.single().apply {
+            assertUses("index_playlist_tracks_playlistId_position_trackId")
+            assertNoSort()
+        }
+    }
+
+    @Test
     fun `Android Auto's songs read their index`() = runTest {
         val queries = TrackKeysetQueryFactory(db)
         val anchor = requireNotNull(queries.autoTrackIdAtPosition(server, false, 1_000))
