@@ -47,7 +47,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.SpanStyle
@@ -60,7 +59,9 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
-import dev.mellow.core.designsystem.component.MellowImage
+import androidx.compose.runtime.Immutable
+import dev.mellow.core.designsystem.component.PageTurnCover
+import dev.mellow.core.designsystem.component.PageTurnPose
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -76,6 +77,23 @@ enum class PlayerLayout {
     ExpandedWithQueue,
     Tabletop,
 }
+
+/**
+ * What swiping the cover does: left turns it like a record album page onto [nextImageUrl] and calls [onNext]; right
+ * brings back the page of [previousImageUrl] and calls [onPrevious]. [trackKey] identifies the current track.
+ * [pose] holds the page still mid-turn, for previews and screenshots.
+ */
+@Immutable
+data class CoverSwipe(
+    val trackKey: Any? = null,
+    val nextImageUrl: String? = null,
+    val previousImageUrl: String? = null,
+    val canGoNext: Boolean = false,
+    val canGoPrevious: Boolean = false,
+    val onNext: () -> Unit = {},
+    val onPrevious: () -> Unit = {},
+    val pose: PageTurnPose? = null,
+)
 
 @Composable
 fun PlayerScreen(
@@ -111,6 +129,7 @@ fun PlayerScreen(
     onRetryClick: () -> Unit = {},
     onPlayDownloadedClick: () -> Unit = {},
     codec: String? = null,
+    coverSwipe: CoverSwipe = CoverSwipe(),
     sidePanelContent: @Composable (() -> Unit)? = null,
 ) {
     Box(
@@ -140,6 +159,7 @@ fun PlayerScreen(
                 albumName = albumName,
                 albumImageUrl = albumImageUrl,
                 artModifier = artModifier,
+                coverSwipe = coverSwipe,
                 isPlaying = isPlaying,
                 progress = progress,
                 positionMs = positionMs,
@@ -183,15 +203,12 @@ fun PlayerScreen(
                                 .weight(3f, fill = false)
                                 .padding(horizontal = MellowSpacing.Sp8),
                         ) {
-                            MellowImage(
-                                model = albumImageUrl,
-                                contentDescription = "Album art",
-                                contentScale = ContentScale.Crop,
+                            PlayerCover(
+                                albumImageUrl = albumImageUrl,
+                                coverSwipe = coverSwipe,
                                 modifier = artModifier
                                     .fillMaxHeight()
-                                    .aspectRatio(1f)
-                                    .clip(MellowShapes.Large)
-                                    .background(MellowTheme.colors.surface),
+                                    .aspectRatio(1f),
                                 fallbackIconSize = 64.dp,
                             )
                         }
@@ -232,15 +249,12 @@ fun PlayerScreen(
                                 ),
                         ) {
                             NowPlayingCollapseButton(onCollapse)
-                            MellowImage(
-                                model = albumImageUrl,
-                                contentDescription = "Album art",
-                                contentScale = ContentScale.Crop,
+                            PlayerCover(
+                                albumImageUrl = albumImageUrl,
+                                coverSwipe = coverSwipe,
                                 modifier = artModifier
                                     .fillMaxHeight(0.75f)
-                                    .aspectRatio(1f)
-                                    .clip(MellowShapes.Large)
-                                    .background(MellowTheme.colors.surface),
+                                    .aspectRatio(1f),
                                 fallbackIconSize = 48.dp,
                             )
                         }
@@ -299,7 +313,7 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     NowPlayingTopBar(albumName, onCollapse, onQueueClick)
-                    AlbumArt(albumImageUrl, artModifier = artModifier, modifier = Modifier.weight(1f))
+                    AlbumArt(albumImageUrl, coverSwipe, artModifier = artModifier, modifier = Modifier.weight(1f))
                     PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
                     PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
                     PlayerPlaybackControls(
@@ -452,25 +466,53 @@ private fun NowPlayingCollapseButton(onCollapse: () -> Unit, onQueueClick: (() -
 }
 
 @Composable
-private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, artModifier: Modifier = Modifier, modifier: Modifier = Modifier) {
+private fun AlbumArt(
+    albumImageUrl: String?,
+    coverSwipe: CoverSwipe,
+    artSize: Dp = 320.dp,
+    artModifier: Modifier = Modifier,
+    modifier: Modifier = Modifier,
+) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp8),
     ) {
-        MellowImage(
-            model = albumImageUrl,
-            contentDescription = "Album art",
-            contentScale = ContentScale.Crop,
+        PlayerCover(
+            albumImageUrl = albumImageUrl,
+            coverSwipe = coverSwipe,
             modifier = artModifier
                 .sizeIn(maxWidth = artSize, maxHeight = artSize)
-                .aspectRatio(1f, matchHeightConstraintsFirst = true)
-                .clip(MellowShapes.Large)
-                .background(MellowTheme.colors.surface),
+                .aspectRatio(1f, matchHeightConstraintsFirst = true),
             fallbackIconSize = 64.dp,
         )
     }
+}
+
+/** The expanded player's cover: swipe it to turn to the next or previous track (see [CoverSwipe]). */
+@Composable
+private fun PlayerCover(
+    albumImageUrl: String?,
+    coverSwipe: CoverSwipe,
+    fallbackIconSize: Dp,
+    modifier: Modifier = Modifier,
+) {
+    PageTurnCover(
+        current = albumImageUrl,
+        modifier = modifier,
+        trackKey = coverSwipe.trackKey ?: albumImageUrl,
+        next = coverSwipe.nextImageUrl,
+        previous = coverSwipe.previousImageUrl,
+        canGoNext = coverSwipe.canGoNext,
+        canGoPrevious = coverSwipe.canGoPrevious,
+        onNext = coverSwipe.onNext,
+        onPrevious = coverSwipe.onPrevious,
+        contentDescription = "Album art",
+        shape = MellowShapes.Large,
+        fallbackIconSize = fallbackIconSize,
+        pose = coverSwipe.pose,
+    )
 }
 
 @Composable
@@ -778,6 +820,7 @@ private fun TabletopPlayerLayout(
     albumName: String,
     albumImageUrl: String?,
     artModifier: Modifier,
+    coverSwipe: CoverSwipe,
     isPlaying: Boolean,
     progress: Float,
     positionMs: Long,
@@ -815,15 +858,12 @@ private fun TabletopPlayerLayout(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                MellowImage(
-                    model = albumImageUrl,
-                    contentDescription = "Album art",
-                    contentScale = ContentScale.Crop,
+                PlayerCover(
+                    albumImageUrl = albumImageUrl,
+                    coverSwipe = coverSwipe,
                     modifier = artModifier
                         .fillMaxHeight(0.7f)
-                        .aspectRatio(1f)
-                        .clip(MellowShapes.Large)
-                        .background(MellowTheme.colors.surface),
+                        .aspectRatio(1f),
                     fallbackIconSize = 48.dp,
                 )
                 Spacer(Modifier.width(MellowSpacing.Sp8))

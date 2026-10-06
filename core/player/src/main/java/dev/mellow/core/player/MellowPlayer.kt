@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
@@ -51,7 +52,14 @@ data class PlaybackState(
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = 0,
     val playbackCodec: String? = null,
-)
+    /** Where Next goes in [queue], in the player's order (shuffle and repeat included); [C.INDEX_UNSET] at the end. */
+    val nextIndex: Int = C.INDEX_UNSET,
+    /** Where the previous track is in [queue], in the player's order; [C.INDEX_UNSET] at the start. */
+    val previousIndex: Int = C.INDEX_UNSET,
+) {
+    val hasNext: Boolean get() = nextIndex != C.INDEX_UNSET
+    val hasPrevious: Boolean get() = previousIndex != C.INDEX_UNSET
+}
 
 data class PositionState(
     val positionMs: Long = 0L,
@@ -178,6 +186,9 @@ class MellowPlayer @Inject constructor(
 
     fun skipNext() { controller?.seekToNextMediaItem() }
     fun skipPrevious() { controller?.skipToPrevious() }
+
+    /** Swiping the cover back: always the previous track, however far into this one it is. */
+    fun swipeToPrevious() { controller?.swipeToPrevious() }
     fun seekTo(positionMs: Long) { controller?.seekTo(positionMs) }
 
     fun playFromQueue(index: Int) {
@@ -331,6 +342,8 @@ class MellowPlayer @Inject constructor(
             durationMs = playerDurationMs,
             shuffleEnabled = ctrl.shuffleModeEnabled,
             repeatMode = ctrl.repeatMode,
+            nextIndex = ctrl.nextMediaItemIndex,
+            previousIndex = ctrl.previousMediaItemIndex,
             error = null,
         )
         _positionState.value = PositionState(positionMs = positionMs, durationMs = playerDurationMs)
@@ -391,6 +404,15 @@ class MellowPlayer @Inject constructor(
     }
 
     private val playerListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAny(*NEIGHBOUR_EVENTS)) {
+                _state.value = _state.value.copy(
+                    nextIndex = player.nextMediaItemIndex,
+                    previousIndex = player.previousMediaItemIndex,
+                )
+            }
+        }
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _state.value = _state.value.copy(isPlaying = isPlaying)
             val unreported = unreportedTrackId
@@ -544,6 +566,14 @@ class MellowPlayer @Inject constructor(
         private const val TAG = "MellowPlayer"
         private const val POSITION_UPDATE_INTERVAL_MS = 250L
         private const val PROGRESS_REPORT_INTERVAL = 40 // ~10s at 250ms intervals
+
+        /** Events after which the next and previous queue positions may differ. */
+        private val NEIGHBOUR_EVENTS = intArrayOf(
+            Player.EVENT_TIMELINE_CHANGED,
+            Player.EVENT_MEDIA_ITEM_TRANSITION,
+            Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED,
+            Player.EVENT_REPEAT_MODE_CHANGED,
+        )
     }
 }
 
@@ -552,3 +582,9 @@ class MellowPlayer @Inject constructor(
  * once it has played a few seconds, otherwise goes to the previous track.
  */
 internal fun Player.skipToPrevious() = seekToPrevious()
+
+/**
+ * Swiping the cover back: the previous track even when this one has played for a while, unlike [skipToPrevious],
+ * which restarts it then. Shuffle and repeat decide which track that is.
+ */
+internal fun Player.swipeToPrevious() = seekToPreviousMediaItem()

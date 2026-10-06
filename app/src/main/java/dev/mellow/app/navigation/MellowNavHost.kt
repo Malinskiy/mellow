@@ -165,6 +165,7 @@ import dev.mellow.feature.library.LibraryScreen
 import dev.mellow.feature.library.LibraryViewModel
 import dev.mellow.feature.library.TrackDownloadIndicator
 import dev.mellow.feature.library.librarySortFor
+import dev.mellow.feature.player.CoverSwipe
 import dev.mellow.feature.player.LyricsLine
 import dev.mellow.feature.player.LyricsScreen
 import dev.mellow.feature.player.PlayerLayout
@@ -1404,6 +1405,17 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         navController.navigate(MellowNavDestination.Library.route)
                     },
                     codec = playbackState.playbackCodec ?: track.codec,
+                    coverSwipe = CoverSwipe(
+                        trackKey = track.id,
+                        nextImageUrl = playbackState.queue.getOrNull(playbackState.nextIndex)
+                            ?.let { if (serverUrl != null) trackArtworkUri(it) else null },
+                        previousImageUrl = playbackState.queue.getOrNull(playbackState.previousIndex)
+                            ?.let { if (serverUrl != null) trackArtworkUri(it) else null },
+                        canGoNext = playbackState.hasNext,
+                        canGoPrevious = playbackState.hasPrevious,
+                        onNext = { mainViewModel.player.skipNext() },
+                        onPrevious = { mainViewModel.player.swipeToPrevious() },
+                    ),
                     sidePanelContent = {
                         val pState = playbackState
                         val currentIdx = pState.currentIndex
@@ -2020,3 +2032,6 @@ private fun handleAppUpdateEvent(context: Context, event: AppUpdateEvent) {
         // Otherwise nothing can handle it on this device; the dialog stays open with its other options.
     }
 }
+
+/** A track's cover for in-app UI: its own image, or its album's (most tracks only have the album's). */
+private fun trackArtworkUri(track: Track): String? = (track.imageId ?: track.albumId)?.let { artworkUri(it) }

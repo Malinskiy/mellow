@@ -61,3 +61,11 @@ class TrackMenu_Pixel10Portrait : TrackMenuScreenshotTests() {
     override val deviceFolder = "pixel10-portrait"
     override val windowWidthClass = WindowWidthClass.Compact
 }
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w412dp-h915dp-xxhdpi")
+class PageTurn_Pixel10Portrait : PageTurnScreenshotTests() {
+    override val deviceFolder = "pixel10-portrait"
+    override val windowWidthClass = WindowWidthClass.Compact
+}
