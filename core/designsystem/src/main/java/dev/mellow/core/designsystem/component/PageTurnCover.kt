@@ -494,8 +494,9 @@ private suspend fun AwaitPointerEventScope.turnPage(
             tracker.addPointerInputChange(change)
             drag += change.positionChange().x
             change.consume()
-            if (!change.pressed) break
+            // The lift can come with a last move: the page is let go where the finger left it.
             turn.dragTo(drag)
+            if (!change.pressed) break
         }
         released = true
     } finally {

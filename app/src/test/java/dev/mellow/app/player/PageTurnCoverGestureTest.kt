@@ -63,6 +63,23 @@ class PageTurnCoverGestureTest {
     }
 
     @Test
+    fun `the finger's last move, reported with the lift, counts`() {
+        show()
+
+        cover {
+            down(Offset(width * 0.8f, centerY))
+            // Slowly to just short of the spine (under halfway), then a pause: no fling.
+            repeat(10) { moveTo(Offset(width * (0.8f - 0.07f * (it + 1)), centerY), delayMillis = 30) }
+            advanceEventTime(300)
+            // The lift comes with the finger already past the spine (one event: the move isn't sent on its own).
+            updatePointerTo(0, Offset(-width * 0.1f, centerY))
+            up()
+        }
+
+        assertEquals(listOf("next"), calls)
+    }
+
+    @Test
     fun `a short drag let go slowly falls back without skipping`() {
         show()
 
