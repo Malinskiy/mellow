@@ -206,6 +206,35 @@ abstract class PlayerScreenshotTests : ScreenshotCapture() {
     }
 
     @Test
+    fun playerTabletopShortTitle() = tabletopWithTitle("player-tabletop-short-title", "Help!")
+
+    @Test
+    fun playerTabletopLongTitle() =
+        tabletopWithTitle("player-tabletop-long-title", "The Continuing Story of Bungalow Bill")
+
+    /** Tabletop with [title]: the cover must sit in the same place whatever the title's length. */
+    private fun tabletopWithTitle(id: String, title: String) {
+        if (foldableState.posture == DevicePosture.Flat) return
+        capture(id) {
+            ExpandedSheet {
+                PlayerScreen(
+                    embedded = true,
+                    layout = PlayerLayout.Tabletop,
+                    tabletopTopHeight = 395.dp,
+                    trackName = title,
+                    artistName = "The Beatles",
+                    albumName = "The Beatles (disc 1)",
+                    isPlaying = true,
+                    progress = 0.4f,
+                    positionMs = 120000L,
+                    durationMs = 300000L,
+                    codec = "flac",
+                )
+            }
+        }
+    }
+
+    @Test
     fun queuePage() = capture("queue-page") {
         QueueScreen(onBack = {})
     }

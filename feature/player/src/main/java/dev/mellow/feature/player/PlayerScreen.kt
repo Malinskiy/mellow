@@ -6,6 +6,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -890,46 +891,51 @@ private fun TabletopPlayerLayout(
         ) {
             NowPlayingTopBar(albumName, onCollapse, onQueueClick)
             Spacer(Modifier.weight(1f))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                PlayerCover(
-                    albumImageUrl = albumImageUrl,
-                    coverSwipe = coverSwipe,
-                    pageTurns = pageTurns,
-                    modifier = artModifier
-                        .fillMaxHeight(0.7f)
-                        .aspectRatio(1f),
-                    fallbackIconSize = 48.dp,
-                )
-                Spacer(Modifier.width(MellowSpacing.Sp8))
-                Column {
-                    Text(
-                        trackName,
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = MellowTheme.colors.foreground,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+            // The cover, the gap and a fixed-width text slot stay centred as one unit: the cover never moves
+            // when the title (and so the text's width) changes, e.g. mid page turn.
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val cover = maxHeight * TABLETOP_COVER_HEIGHT_FRACTION
+                val gap = MellowSpacing.Sp8
+                val textSlot = tabletopTextSlotWidth(rowWidth = maxWidth, cover = cover, gap = gap)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    PlayerCover(
+                        albumImageUrl = albumImageUrl,
+                        coverSwipe = coverSwipe,
+                        pageTurns = pageTurns,
+                        modifier = artModifier.size(cover),
+                        fallbackIconSize = 48.dp,
                     )
-                    Spacer(Modifier.height(MellowSpacing.Sp1))
-                    Text(
-                        artistName,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MellowTheme.colors.accentStrong,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (albumName.isNotEmpty()) {
+                    Spacer(Modifier.width(gap))
+                    Column(modifier = Modifier.width(textSlot)) {
+                        Text(
+                            trackName,
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MellowTheme.colors.foreground,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Spacer(Modifier.height(MellowSpacing.Sp1))
                         Text(
-                            albumName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MellowTheme.colors.muted,
+                            artistName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MellowTheme.colors.accentStrong,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (albumName.isNotEmpty()) {
+                            Spacer(Modifier.height(MellowSpacing.Sp1))
+                            Text(
+                                albumName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MellowTheme.colors.muted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
@@ -958,4 +964,25 @@ private fun TabletopPlayerLayout(
             PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick)
         }
     }
+}
+
+/** Tabletop: the cover's side as a fraction of the height above the hinge (below the top bar). */
+private const val TABLETOP_COVER_HEIGHT_FRACTION = 0.7f
+
+/** Tabletop: the text slot beside the cover is this fraction of the row's width… */
+private const val TABLETOP_TEXT_SLOT_FRACTION = 0.4f
+
+/** …kept between these widths, and squeezed down to the minimum before the cover is. */
+private val TABLETOP_TEXT_SLOT_MIN = 240.dp
+private val TABLETOP_TEXT_SLOT_MAX = 400.dp
+private val TABLETOP_TEXT_SLOT_SQUEEZED = 160.dp
+
+/**
+ * The width of the text slot beside the tabletop cover: 40 % of the row, 240–400 dp, independent of the text. On a
+ * row too narrow for that next to the [cover] and [gap], it gives way first, down to 160 dp.
+ */
+internal fun tabletopTextSlotWidth(rowWidth: Dp, cover: Dp, gap: Dp): Dp {
+    val preferred = (rowWidth * TABLETOP_TEXT_SLOT_FRACTION).coerceIn(TABLETOP_TEXT_SLOT_MIN, TABLETOP_TEXT_SLOT_MAX)
+    val room = rowWidth - cover - gap
+    return minOf(preferred, room).coerceAtLeast(TABLETOP_TEXT_SLOT_SQUEEZED)
 }
