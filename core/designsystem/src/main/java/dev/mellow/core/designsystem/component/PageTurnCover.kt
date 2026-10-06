@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.provider.Settings
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -12,6 +13,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -48,6 +50,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
@@ -58,6 +61,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import dev.mellow.core.designsystem.theme.LocalBatterySaverActive
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowTheme
 
@@ -107,6 +111,7 @@ fun PageTurnCover(
     onSheetDrag: ((Float) -> Unit)? = null,
     onSheetDragEnd: (Float) -> Unit = {},
     onGestureLog: ((String) -> Unit)? = null,
+    buttons: PageTurnButtons? = null,
 ) {
     val state = remember { PageTurnState(pose) }
     val scope = rememberCoroutineScope()
@@ -124,7 +129,7 @@ fun PageTurnCover(
 
     LaunchedEffect(trackKey) {
         // The track the turn went to has arrived (or something else changed it): show what the player has.
-        if (state.pending?.fromKey != trackKey) state.pending = null
+        if (state.pending?.appliesTo(trackKey) == false) state.pending = null
     }
     LaunchedEffect(state.pending) {
         if (state.pending != null) {
@@ -133,8 +138,23 @@ fun PageTurnCover(
         }
     }
 
-    val pending = state.pending?.takeIf { it.fromKey == trackKey }
+    val pending = state.pending?.takeIf { it.appliesTo(trackKey) }
     val faces = state.frozen ?: if (pending != null) live.copy(current = pending.target) else live
+    if (buttons != null) {
+        val context = LocalContext.current
+        val batterySaver = rememberUpdatedState(LocalBatterySaverActive.current)
+        DisposableEffect(buttons, state) {
+            buttons.handler = { direction, skip ->
+                val animationsOff = batterySaver.value || Settings.Global.getFloat(
+                    context.contentResolver,
+                    Settings.Global.ANIMATOR_DURATION_SCALE,
+                    1f,
+                ) == 0f
+                state.turnByButton(direction, targets.value.faces, scope, animate = !animationsOff, skip)
+            }
+            onDispose { buttons.handler = null }
+        }
+    }
     val surface = MellowTheme.colors.surface
 
     Box(
@@ -194,10 +214,32 @@ internal data class PageFaces(
     val canGoPrevious: Boolean,
 )
 
-/** After a committed turn: keep showing [target] while the player still reports the track it left, [fromKey]. */
-internal class PendingTurn(val fromKey: Any?, val target: Any?)
+/**
+ * After a committed turn: keep showing [target] until the player reports the track it went to. That is [toKey] when
+ * known (a button: the player says where it went); otherwise any track but the one it left, [fromKey] (a swipe).
+ */
+internal class PendingTurn(val fromKey: Any?, val target: Any?, val toKey: Any? = null) {
+    fun appliesTo(trackKey: Any?): Boolean = if (toKey != null) trackKey != toKey else trackKey == fromKey
+}
 
 internal enum class FaceRole { Hidden, Flat, Page, Under }
+
+/**
+ * Lets the page fall from [start] at [velocity] (°/s) onto [goal] under gravity, landing with a small bounce. The
+ * first frame already shows [lead] seconds of the fall (a button turn starts moving at once).
+ */
+internal suspend fun PageTurnState.fall(start: Float, velocity: Float, goal: Float, lead: Float = 0f) {
+    val fall = GravityFall(start, velocity, goal)
+    val startNanos = withFrameNanos { frame ->
+        angle = fall.valueAt(lead)
+        frame
+    }
+    var elapsed = lead
+    while (elapsed < fall.settleTime) {
+        elapsed = withFrameNanos { (it - startNanos) / 1e9f } + lead
+        angle = fall.valueAt(elapsed)
+    }
+}
 
 @Stable
 internal class PageTurnState(pose: PageTurnPose?) {
@@ -211,6 +253,9 @@ internal class PageTurnState(pose: PageTurnPose?) {
     var pending by mutableStateOf<PendingTurn?>(null)
     var settling: Job? = null
     var pastHalfway = false
+
+    /** A finger is turning the page (a button then only skips: the drag's release sees the track changed). */
+    var dragging = false
 
     /** A previous turn with a page to bring back. A pose (previews, screenshots) has no frozen faces and always has. */
     private val previousTurns: Boolean
@@ -438,6 +483,7 @@ private suspend fun AwaitPointerEventScope.turnPage(
     onEnd: (released: Boolean) -> Unit,
 ) {
     turn.state.frozen = turn.faces
+    turn.state.dragging = true
     var drag = startDrag
     turn.dragTo(drag)
     var released = false
@@ -453,6 +499,7 @@ private suspend fun AwaitPointerEventScope.turnPage(
         }
         released = true
     } finally {
+        turn.state.dragging = false
         onEnd(released)
     }
 }
@@ -589,13 +636,7 @@ internal class PageTurnDrag(
             val target = if (direction == PageTurnDirection.Next) faces.next else faces.previous
             state.pending = PendingTurn(faces.key, target)
             if (direction == PageTurnDirection.Next) onNext() else onPrevious()
-            val fall = GravityFall(start, angularVelocity, goalAngle(direction))
-            val startNanos = withFrameNanos { it }
-            var elapsed = 0f
-            while (elapsed < fall.settleTime) {
-                elapsed = withFrameNanos { (it - startNanos) / 1e9f }
-                state.angle = fall.valueAt(elapsed)
-            }
+            state.fall(start, angularVelocity, goalAngle(direction))
         } else {
             val spec = spring<Float>(FALL_BACK_DAMPING, FALL_BACK_STIFFNESS)
             animate(start, restAngle(direction), angularVelocity, spec) { value, _ ->

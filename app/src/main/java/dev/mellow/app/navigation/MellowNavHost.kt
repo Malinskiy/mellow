@@ -167,6 +167,7 @@ import dev.mellow.feature.library.LibraryScreen
 import dev.mellow.feature.library.LibraryViewModel
 import dev.mellow.feature.library.TrackDownloadIndicator
 import dev.mellow.feature.library.librarySortFor
+import dev.mellow.core.designsystem.component.PageTurnTarget
 import dev.mellow.feature.player.CoverSwipe
 import dev.mellow.feature.player.LyricsLine
 import dev.mellow.feature.player.LyricsScreen
@@ -1420,6 +1421,8 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onSheetDrag = sheetState::dragBy,
                         onSheetDragEnd = sheetState::endDrag,
                         onGestureLog = if (BuildConfig.DEBUG) ::logCoverGesture else null,
+                        buttonNext = { mainViewModel.player.skipNext()?.toPageTurnTarget(serverUrl) },
+                        buttonPrevious = { mainViewModel.player.skipPrevious()?.toPageTurnTarget(serverUrl) },
                     ),
                     sidePanelContent = {
                         val pState = playbackState
@@ -2042,6 +2045,10 @@ private fun handleAppUpdateEvent(context: Context, event: AppUpdateEvent) {
 private fun logCoverGesture(line: String) {
     Log.d("SwipeArbiter", line)
 }
+
+/** Where a button skip went, for the expanded cover's page turn. */
+private fun Track.toPageTurnTarget(serverUrl: String?) =
+    PageTurnTarget(key = id, cover = if (serverUrl != null) trackArtworkUri(this) else null)
 
 /** A track's cover for in-app UI: its own image, or its album's (most tracks only have the album's). */
 private fun trackArtworkUri(track: Track): String? = (track.imageId ?: track.albumId)?.let { artworkUri(it) }

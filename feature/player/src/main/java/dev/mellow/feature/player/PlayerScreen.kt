@@ -61,7 +61,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.runtime.Immutable
 import dev.mellow.core.designsystem.component.PageTurnCover
+import dev.mellow.core.designsystem.component.PageTurnButtons
+import dev.mellow.core.designsystem.component.PageTurnDirection
 import dev.mellow.core.designsystem.component.PageTurnPose
+import dev.mellow.core.designsystem.component.PageTurnTarget
+import dev.mellow.core.designsystem.component.rememberPageTurnButtons
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -84,6 +88,8 @@ enum class PlayerLayout {
  * A drag down that starts on the cover goes to the sheet the player sits in through [onSheetDrag] (px, down positive)
  * and [onSheetDragEnd] (px/s); null when the player isn't in a sheet. [onGestureLog] gets one line per gesture on the
  * cover, for tuning (debug builds only). [pose] holds the page still mid-turn, for previews and screenshots.
+ * [buttonNext] and [buttonPrevious], when set, are what the player's Next and Previous buttons do: skip, and return
+ * where the player went (null if it stayed, e.g. Previous restarting the track), so the page turns there.
  */
 @Immutable
 data class CoverSwipe(
@@ -98,6 +104,8 @@ data class CoverSwipe(
     val onSheetDrag: ((Float) -> Unit)? = null,
     val onSheetDragEnd: (Float) -> Unit = {},
     val onGestureLog: ((String) -> Unit)? = null,
+    val buttonNext: (() -> PageTurnTarget?)? = null,
+    val buttonPrevious: (() -> PageTurnTarget?)? = null,
 )
 
 @Composable
@@ -137,6 +145,13 @@ fun PlayerScreen(
     coverSwipe: CoverSwipe = CoverSwipe(),
     sidePanelContent: @Composable (() -> Unit)? = null,
 ) {
+    val pageTurns = rememberPageTurnButtons()
+    val skipNext: () -> Unit = coverSwipe.buttonNext
+        ?.let { skip -> { pageTurns.turn(PageTurnDirection.Next, skip) } }
+        ?: onSkipNextClick
+    val skipPrevious: () -> Unit = coverSwipe.buttonPrevious
+        ?.let { skip -> { pageTurns.turn(PageTurnDirection.Previous, skip) } }
+        ?: onSkipPreviousClick
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -165,6 +180,7 @@ fun PlayerScreen(
                 albumImageUrl = albumImageUrl,
                 artModifier = artModifier,
                 coverSwipe = coverSwipe,
+                pageTurns = pageTurns,
                 isPlaying = isPlaying,
                 progress = progress,
                 positionMs = positionMs,
@@ -175,8 +191,8 @@ fun PlayerScreen(
                 onQueueClick = onQueueClick,
                 onLyricsClick = onLyricsClick,
                 onPlayPauseClick = onPlayPauseClick,
-                onSkipNextClick = onSkipNextClick,
-                onSkipPreviousClick = onSkipPreviousClick,
+                onSkipNextClick = skipNext,
+                onSkipPreviousClick = skipPrevious,
                 onSeekTo = onSeekTo,
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
@@ -211,6 +227,7 @@ fun PlayerScreen(
                             PlayerCover(
                                 albumImageUrl = albumImageUrl,
                                 coverSwipe = coverSwipe,
+                                pageTurns = pageTurns,
                                 modifier = artModifier
                                     .fillMaxHeight()
                                     .aspectRatio(1f),
@@ -223,8 +240,8 @@ fun PlayerScreen(
                         PlayerPlaybackControls(
                             isPlaying = isPlaying,
                             onPlayPauseClick = onPlayPauseClick,
-                            onSkipPreviousClick = onSkipPreviousClick,
-                            onSkipNextClick = onSkipNextClick,
+                            onSkipPreviousClick = skipPrevious,
+                            onSkipNextClick = skipNext,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
                             onShuffleClick = onShuffleClick,
@@ -257,6 +274,7 @@ fun PlayerScreen(
                             PlayerCover(
                                 albumImageUrl = albumImageUrl,
                                 coverSwipe = coverSwipe,
+                                pageTurns = pageTurns,
                                 modifier = artModifier
                                     .fillMaxHeight(0.75f)
                                     .aspectRatio(1f),
@@ -292,8 +310,8 @@ fun PlayerScreen(
                             PlayerPlaybackControls(
                                 isPlaying = isPlaying,
                                 onPlayPauseClick = onPlayPauseClick,
-                                onSkipPreviousClick = onSkipPreviousClick,
-                                onSkipNextClick = onSkipNextClick,
+                                onSkipPreviousClick = skipPrevious,
+                                onSkipNextClick = skipNext,
                                 shuffleEnabled = shuffleEnabled,
                                 repeatMode = repeatMode,
                                 onShuffleClick = onShuffleClick,
@@ -318,14 +336,20 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     NowPlayingTopBar(albumName, onCollapse, onQueueClick)
-                    AlbumArt(albumImageUrl, coverSwipe, artModifier = artModifier, modifier = Modifier.weight(1f))
+                    AlbumArt(
+                        albumImageUrl = albumImageUrl,
+                        coverSwipe = coverSwipe,
+                        pageTurns = pageTurns,
+                        artModifier = artModifier,
+                        modifier = Modifier.weight(1f),
+                    )
                     PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
                     PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
                     PlayerPlaybackControls(
                         isPlaying = isPlaying,
                         onPlayPauseClick = onPlayPauseClick,
-                        onSkipPreviousClick = onSkipPreviousClick,
-                        onSkipNextClick = onSkipNextClick,
+                        onSkipPreviousClick = skipPrevious,
+                        onSkipNextClick = skipNext,
                         shuffleEnabled = shuffleEnabled,
                         repeatMode = repeatMode,
                         onShuffleClick = onShuffleClick,
@@ -474,6 +498,7 @@ private fun NowPlayingCollapseButton(onCollapse: () -> Unit, onQueueClick: (() -
 private fun AlbumArt(
     albumImageUrl: String?,
     coverSwipe: CoverSwipe,
+    pageTurns: PageTurnButtons,
     artSize: Dp = 320.dp,
     artModifier: Modifier = Modifier,
     modifier: Modifier = Modifier,
@@ -487,6 +512,7 @@ private fun AlbumArt(
         PlayerCover(
             albumImageUrl = albumImageUrl,
             coverSwipe = coverSwipe,
+            pageTurns = pageTurns,
             modifier = artModifier
                 .sizeIn(maxWidth = artSize, maxHeight = artSize)
                 .aspectRatio(1f, matchHeightConstraintsFirst = true),
@@ -500,6 +526,7 @@ private fun AlbumArt(
 private fun PlayerCover(
     albumImageUrl: String?,
     coverSwipe: CoverSwipe,
+    pageTurns: PageTurnButtons,
     fallbackIconSize: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -520,6 +547,7 @@ private fun PlayerCover(
         onSheetDrag = coverSwipe.onSheetDrag,
         onSheetDragEnd = coverSwipe.onSheetDragEnd,
         onGestureLog = coverSwipe.onGestureLog,
+        buttons = pageTurns,
     )
 }
 
@@ -829,6 +857,7 @@ private fun TabletopPlayerLayout(
     albumImageUrl: String?,
     artModifier: Modifier,
     coverSwipe: CoverSwipe,
+    pageTurns: PageTurnButtons,
     isPlaying: Boolean,
     progress: Float,
     positionMs: Long,
@@ -869,6 +898,7 @@ private fun TabletopPlayerLayout(
                 PlayerCover(
                     albumImageUrl = albumImageUrl,
                     coverSwipe = coverSwipe,
+                    pageTurns = pageTurns,
                     modifier = artModifier
                         .fillMaxHeight(0.7f)
                         .aspectRatio(1f),

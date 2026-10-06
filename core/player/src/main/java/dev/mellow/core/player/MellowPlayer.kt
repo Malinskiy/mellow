@@ -184,8 +184,11 @@ class MellowPlayer @Inject constructor(
         }
     }
 
-    fun skipNext() { controller?.seekToNextMediaItem() }
-    fun skipPrevious() { controller?.skipToPrevious() }
+    /** Next; returns the track it went to, null if it stayed (end of the queue). */
+    fun skipNext(): Track? = controller?.let { c -> c.skippedTo { c.seekToNextMediaItem() } }
+
+    /** Previous (see [skipToPrevious]); returns the track it went to, null if it restarted this one instead. */
+    fun skipPrevious(): Track? = controller?.let { c -> c.skippedTo { c.skipToPrevious() } }
 
     /** Swiping the cover back: always the previous track, however far into this one it is. */
     fun swipeToPrevious() { controller?.swipeToPrevious() }
@@ -272,6 +275,17 @@ class MellowPlayer @Inject constructor(
                 else -> Player.REPEAT_MODE_OFF
             }
         }
+    }
+
+    /**
+     * Runs [skip] and returns the track the player is on now, or null if it stayed on the same queue position. The
+     * controller masks a seek (its index changes as soon as the seek is asked for), so this is the player's own
+     * decision, e.g. Previous restarting a track that has played a few seconds, known before the call returns.
+     */
+    private fun MediaController.skippedTo(skip: () -> Unit): Track? {
+        val index = queueIndexAfter(skip) ?: return null
+        val item = currentMediaItem ?: return null
+        return currentQueue.getOrNull(index)?.takeIf { it.id == item.mediaId } ?: item.toPlaceholderTrack()
     }
 
     /** Plays, preparing first if needed: a restored queue isn't prepared, and play() alone doesn't start it. */
@@ -432,6 +446,9 @@ class MellowPlayer @Inject constructor(
                 _state.value = _state.value.copy(
                     currentTrack = track,
                     currentIndex = idx,
+                    // Now rather than in onEvents, so a skip's new neighbours show with its track.
+                    nextIndex = ctrl.nextMediaItemIndex,
+                    previousIndex = ctrl.previousMediaItemIndex,
                     error = null,
                 )
                 positionUpdateCount = 0
@@ -588,3 +605,10 @@ internal fun Player.skipToPrevious() = seekToPrevious()
  * which restarts it then. Shuffle and repeat decide which track that is.
  */
 internal fun Player.swipeToPrevious() = seekToPreviousMediaItem()
+
+/** Runs [skip] and returns the queue position it moved to, or null if the player stayed where it was. */
+internal fun Player.queueIndexAfter(skip: () -> Unit): Int? {
+    val before = currentMediaItemIndex
+    skip()
+    return currentMediaItemIndex.takeIf { it != before }
+}
