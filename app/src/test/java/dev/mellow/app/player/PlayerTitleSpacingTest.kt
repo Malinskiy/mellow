@@ -107,6 +107,30 @@ class PlayerTitleSpacingTest {
             splitPaneWidth = FOLD_HINGE,
         )
 
+    // A title too long for two lines stops at two, with an ellipsis
+
+    @Test
+    @Config(qualifiers = "w360dp-h640dp-xhdpi")
+    fun `small phone - a very long title stops at two lines and leaves the cover room`() =
+        assertCappedAtTwoLines(systemBars = false, minCover = COVER_MIN)
+
+    @Test
+    fun `short phone - a very long title stops at two lines`() = assertCappedAtTwoLines(systemBars = true)
+
+    private fun assertCappedAtTwoLines(systemBars: Boolean, minCover: Dp? = null) {
+        show(PlayerLayout.Compact, VERY_LONG_TITLE, downloaded = true, systemBars = systemBars)
+
+        val text = textLayout(titleNode())
+        assertEquals("title lines", 2, text.lineCount)
+        assertTrue("second line not ellipsized", text.isLineEllipsized(1))
+        assertTrue("no visual overflow", text.hasVisualOverflow)
+        assertHeartOnFirstLine(text)
+        if (minCover != null) {
+            val cover = bounds(composeTestRule.onNodeWithTag("cover", useUnmergedTree = true).fetchSemanticsNode())
+            assertTrue("cover ${cover.bottom - cover.top}", cover.bottom - cover.top > minCover)
+        }
+    }
+
     private fun assertCoverGaps(fontScale: Float = 1f) {
         show(PlayerLayout.Compact, LONG_TITLE, downloaded = true, fontScale = fontScale)
 
@@ -133,10 +157,13 @@ class PlayerTitleSpacingTest {
     ) {
         show(layout, title, downloaded, fontScale, sidePanel, splitPaneWidth)
 
-        val titleNode = titleNode()
-        val text = textLayout(titleNode)
+        val text = textLayout(titleNode())
         if (lines != null) assertEquals("title lines", lines, text.lineCount)
-        val titleBounds = bounds(titleNode)
+        assertHeartOnFirstLine(text)
+    }
+
+    private fun assertHeartOnFirstLine(text: TextLayoutResult) {
+        val titleBounds = bounds(titleNode())
         val firstLineCentre = with(composeTestRule.density) {
             titleBounds.top + ((text.getLineTop(0) + text.getLineBottom(0)) / 2f).toDp()
         }
@@ -191,6 +218,7 @@ class PlayerTitleSpacingTest {
         fontScale: Float = 1f,
         sidePanel: Boolean = false,
         splitPaneWidth: Dp = Dp.Unspecified,
+        systemBars: Boolean = true,
     ) {
         currentTitle = title
         composeTestRule.setContent {
@@ -198,7 +226,8 @@ class PlayerTitleSpacingTest {
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 MellowTheme(darkTheme = true) {
                     // The sheet the player sits in keeps clear of the status and navigation bars.
-                    Box(Modifier.fillMaxSize().padding(top = STATUS_BAR, bottom = NAVIGATION_BAR)) {
+                    val bars = if (systemBars) Modifier.padding(top = STATUS_BAR, bottom = NAVIGATION_BAR) else Modifier
+                    Box(Modifier.fillMaxSize().then(bars)) {
                         PlayerScreen(
                             embedded = true,
                             layout = layout,
@@ -225,10 +254,15 @@ class PlayerTitleSpacingTest {
     private companion object {
         const val SHORT_TITLE = "Help!"
         const val LONG_TITLE = "Let the Water Wash Away Your Sins (Reinterpretation)"
+        const val VERY_LONG_TITLE =
+            "Let the Water Wash Away Your Sins (Reinterpretation) [Live at the Royal Albert Hall, 2019 Remaster]"
         const val ALBUM = "Far Cry 5 Presents: We Will Rise Again (Original Game Soundtrack)"
         val MIN_GAP = 24.dp
         val TOLERANCE = 0.5.dp
         val HEART_BOX = 43.2.dp
+
+        /** Compact: the size below which the gaps around the cover give way. */
+        val COVER_MIN = 120.dp
         val STATUS_BAR = 32.dp
         val NAVIGATION_BAR = 48.dp
 

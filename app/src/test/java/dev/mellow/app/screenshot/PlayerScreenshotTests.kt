@@ -240,6 +240,16 @@ abstract class PlayerScreenshotTests : ScreenshotCapture() {
     @Test
     fun playerLongTitle() = capture("player-long-title") { LongTitlePlayer(playerLayout) }
 
+    /** A title too long for two lines: it stops at two, with an ellipsis. */
+    @Test
+    fun playerVeryLongTitle() = capture("player-very-long-title") {
+        LongTitlePlayer(
+            playerLayout,
+            title = "Let the Water Wash Away Your Sins (Reinterpretation) " +
+                "[Live at the Royal Albert Hall, 2019 Remaster]",
+        )
+    }
+
     @Test
     fun playerLandscapeLongTitle() {
         if (windowWidthClass == WindowWidthClass.Compact) return
@@ -247,7 +257,10 @@ abstract class PlayerScreenshotTests : ScreenshotCapture() {
     }
 
     @Composable
-    private fun LongTitlePlayer(layout: PlayerLayout) {
+    private fun LongTitlePlayer(
+        layout: PlayerLayout,
+        title: String = "Let the Water Wash Away Your Sins (Reinterpretation)",
+    ) {
         val density = LocalDensity.current
         ExpandedSheet {
             PlayerScreen(
@@ -259,7 +272,7 @@ abstract class PlayerScreenshotTests : ScreenshotCapture() {
                 } else {
                     Dp.Unspecified
                 },
-                trackName = "Let the Water Wash Away Your Sins (Reinterpretation)",
+                trackName = title,
                 artistName = "Hammock",
                 albumName = "Far Cry 5 Presents: We Will Rise Again (Original Game Soundtrack)",
                 albumImageUrl = "https://example.com/art.jpg",

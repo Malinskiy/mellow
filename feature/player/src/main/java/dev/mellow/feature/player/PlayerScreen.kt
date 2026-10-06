@@ -592,7 +592,7 @@ fun PlayerTrackInfo(
     onArtistClick: (String) -> Unit = {},
     onMoreArtistsClick: () -> Unit = {},
 ) {
-    // The heart and the Downloaded check are centred on the title's first line, however many lines it wraps to.
+    // The title wraps to at most two lines; the heart and the Downloaded check are centred on its first.
     val titleLayout = remember { TextLayoutHolder() }
     Row(
         modifier = Modifier
@@ -609,6 +609,8 @@ fun PlayerTrackInfo(
                     trackName.ifEmpty { "No track" },
                     style = MaterialTheme.typography.headlineLarge,
                     color = MellowTheme.colors.foreground,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     onTextLayout = { titleLayout.result = it },
                     modifier = Modifier
                         .weight(1f, fill = false)
