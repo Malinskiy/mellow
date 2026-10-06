@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -99,6 +101,8 @@ fun <T> AdaptiveTrackGrid(
  * Paging's `LazyPagingItems`. Items always flow left-to-right across each row: reading down a column would need
  * items from far apart in the list at once.
  *
+ * [state] lets a screen keep the grid's scroll position while the grid is away, as on a page swiped off screen.
+ *
  * [itemCount] is read by the grid itself, from the same version of the list as [key]: the grid looks keys up as soon
  * as the list changes, so a count taken earlier would make it ask a list that just shrank for items it no longer has.
  */
@@ -109,12 +113,14 @@ fun AdaptiveTrackGrid(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
     minColumnWidth: Dp = MIN_COLUMN_WIDTH,
+    state: LazyGridState = rememberLazyGridState(),
     itemContent: @Composable (index: Int, columns: Int) -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier) {
         val columns = (maxWidth / minColumnWidth).toInt().coerceIn(1, MAX_COLUMNS)
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
+            state = state,
             contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize(),
         ) {
