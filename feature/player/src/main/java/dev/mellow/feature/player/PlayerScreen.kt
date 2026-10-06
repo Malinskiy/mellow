@@ -6,6 +6,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,7 +48,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.SpanStyle
@@ -60,7 +60,13 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
-import dev.mellow.core.designsystem.component.MellowImage
+import androidx.compose.runtime.Immutable
+import dev.mellow.core.designsystem.component.PageTurnCover
+import dev.mellow.core.designsystem.component.PageTurnButtons
+import dev.mellow.core.designsystem.component.PageTurnDirection
+import dev.mellow.core.designsystem.component.PageTurnPose
+import dev.mellow.core.designsystem.component.PageTurnTarget
+import dev.mellow.core.designsystem.component.rememberPageTurnButtons
 import dev.mellow.core.designsystem.component.ArtworkBackground
 import dev.mellow.core.designsystem.component.AnimatedHeartIcon
 import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
@@ -76,6 +82,32 @@ enum class PlayerLayout {
     ExpandedWithQueue,
     Tabletop,
 }
+
+/**
+ * What swiping the cover does: left turns it like a record album page onto [nextImageUrl] and calls [onNext]; right
+ * brings back the page of [previousImageUrl] and calls [onPrevious]. [trackKey] identifies the current track.
+ * A drag down that starts on the cover goes to the sheet the player sits in through [onSheetDrag] (px, down positive)
+ * and [onSheetDragEnd] (px/s); null when the player isn't in a sheet. [onGestureLog] gets one line per gesture on the
+ * cover, for tuning (debug builds only). [pose] holds the page still mid-turn, for previews and screenshots.
+ * [buttonNext] and [buttonPrevious], when set, are what the player's Next and Previous buttons do: skip, and return
+ * where the player went (null if it stayed, e.g. Previous restarting the track), so the page turns there.
+ */
+@Immutable
+data class CoverSwipe(
+    val trackKey: Any? = null,
+    val nextImageUrl: String? = null,
+    val previousImageUrl: String? = null,
+    val canGoNext: Boolean = false,
+    val canGoPrevious: Boolean = false,
+    val onNext: () -> Unit = {},
+    val onPrevious: () -> Unit = {},
+    val pose: PageTurnPose? = null,
+    val onSheetDrag: ((Float) -> Unit)? = null,
+    val onSheetDragEnd: (Float) -> Unit = {},
+    val onGestureLog: ((String) -> Unit)? = null,
+    val buttonNext: (() -> PageTurnTarget?)? = null,
+    val buttonPrevious: (() -> PageTurnTarget?)? = null,
+)
 
 @Composable
 fun PlayerScreen(
@@ -111,8 +143,16 @@ fun PlayerScreen(
     onRetryClick: () -> Unit = {},
     onPlayDownloadedClick: () -> Unit = {},
     codec: String? = null,
+    coverSwipe: CoverSwipe = CoverSwipe(),
     sidePanelContent: @Composable (() -> Unit)? = null,
 ) {
+    val pageTurns = rememberPageTurnButtons()
+    val skipNext: () -> Unit = coverSwipe.buttonNext
+        ?.let { skip -> { pageTurns.turn(PageTurnDirection.Next, skip) } }
+        ?: onSkipNextClick
+    val skipPrevious: () -> Unit = coverSwipe.buttonPrevious
+        ?.let { skip -> { pageTurns.turn(PageTurnDirection.Previous, skip) } }
+        ?: onSkipPreviousClick
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -140,6 +180,8 @@ fun PlayerScreen(
                 albumName = albumName,
                 albumImageUrl = albumImageUrl,
                 artModifier = artModifier,
+                coverSwipe = coverSwipe,
+                pageTurns = pageTurns,
                 isPlaying = isPlaying,
                 progress = progress,
                 positionMs = positionMs,
@@ -150,8 +192,8 @@ fun PlayerScreen(
                 onQueueClick = onQueueClick,
                 onLyricsClick = onLyricsClick,
                 onPlayPauseClick = onPlayPauseClick,
-                onSkipNextClick = onSkipNextClick,
-                onSkipPreviousClick = onSkipPreviousClick,
+                onSkipNextClick = skipNext,
+                onSkipPreviousClick = skipPrevious,
                 onSeekTo = onSeekTo,
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
@@ -183,15 +225,13 @@ fun PlayerScreen(
                                 .weight(3f, fill = false)
                                 .padding(horizontal = MellowSpacing.Sp8),
                         ) {
-                            MellowImage(
-                                model = albumImageUrl,
-                                contentDescription = "Album art",
-                                contentScale = ContentScale.Crop,
+                            PlayerCover(
+                                albumImageUrl = albumImageUrl,
+                                coverSwipe = coverSwipe,
+                                pageTurns = pageTurns,
                                 modifier = artModifier
                                     .fillMaxHeight()
-                                    .aspectRatio(1f)
-                                    .clip(MellowShapes.Large)
-                                    .background(MellowTheme.colors.surface),
+                                    .aspectRatio(1f),
                                 fallbackIconSize = 64.dp,
                             )
                         }
@@ -201,8 +241,8 @@ fun PlayerScreen(
                         PlayerPlaybackControls(
                             isPlaying = isPlaying,
                             onPlayPauseClick = onPlayPauseClick,
-                            onSkipPreviousClick = onSkipPreviousClick,
-                            onSkipNextClick = onSkipNextClick,
+                            onSkipPreviousClick = skipPrevious,
+                            onSkipNextClick = skipNext,
                             shuffleEnabled = shuffleEnabled,
                             repeatMode = repeatMode,
                             onShuffleClick = onShuffleClick,
@@ -232,15 +272,13 @@ fun PlayerScreen(
                                 ),
                         ) {
                             NowPlayingCollapseButton(onCollapse)
-                            MellowImage(
-                                model = albumImageUrl,
-                                contentDescription = "Album art",
-                                contentScale = ContentScale.Crop,
+                            PlayerCover(
+                                albumImageUrl = albumImageUrl,
+                                coverSwipe = coverSwipe,
+                                pageTurns = pageTurns,
                                 modifier = artModifier
                                     .fillMaxHeight(0.75f)
-                                    .aspectRatio(1f)
-                                    .clip(MellowShapes.Large)
-                                    .background(MellowTheme.colors.surface),
+                                    .aspectRatio(1f),
                                 fallbackIconSize = 48.dp,
                             )
                         }
@@ -273,8 +311,8 @@ fun PlayerScreen(
                             PlayerPlaybackControls(
                                 isPlaying = isPlaying,
                                 onPlayPauseClick = onPlayPauseClick,
-                                onSkipPreviousClick = onSkipPreviousClick,
-                                onSkipNextClick = onSkipNextClick,
+                                onSkipPreviousClick = skipPrevious,
+                                onSkipNextClick = skipNext,
                                 shuffleEnabled = shuffleEnabled,
                                 repeatMode = repeatMode,
                                 onShuffleClick = onShuffleClick,
@@ -299,14 +337,20 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     NowPlayingTopBar(albumName, onCollapse, onQueueClick)
-                    AlbumArt(albumImageUrl, artModifier = artModifier, modifier = Modifier.weight(1f))
+                    AlbumArt(
+                        albumImageUrl = albumImageUrl,
+                        coverSwipe = coverSwipe,
+                        pageTurns = pageTurns,
+                        artModifier = artModifier,
+                        modifier = Modifier.weight(1f),
+                    )
                     PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
                     PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
                     PlayerPlaybackControls(
                         isPlaying = isPlaying,
                         onPlayPauseClick = onPlayPauseClick,
-                        onSkipPreviousClick = onSkipPreviousClick,
-                        onSkipNextClick = onSkipNextClick,
+                        onSkipPreviousClick = skipPrevious,
+                        onSkipNextClick = skipNext,
                         shuffleEnabled = shuffleEnabled,
                         repeatMode = repeatMode,
                         onShuffleClick = onShuffleClick,
@@ -452,25 +496,60 @@ private fun NowPlayingCollapseButton(onCollapse: () -> Unit, onQueueClick: (() -
 }
 
 @Composable
-private fun AlbumArt(albumImageUrl: String?, artSize: Dp = 320.dp, artModifier: Modifier = Modifier, modifier: Modifier = Modifier) {
+private fun AlbumArt(
+    albumImageUrl: String?,
+    coverSwipe: CoverSwipe,
+    pageTurns: PageTurnButtons,
+    artSize: Dp = 320.dp,
+    artModifier: Modifier = Modifier,
+    modifier: Modifier = Modifier,
+) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp8),
     ) {
-        MellowImage(
-            model = albumImageUrl,
-            contentDescription = "Album art",
-            contentScale = ContentScale.Crop,
+        PlayerCover(
+            albumImageUrl = albumImageUrl,
+            coverSwipe = coverSwipe,
+            pageTurns = pageTurns,
             modifier = artModifier
                 .sizeIn(maxWidth = artSize, maxHeight = artSize)
-                .aspectRatio(1f, matchHeightConstraintsFirst = true)
-                .clip(MellowShapes.Large)
-                .background(MellowTheme.colors.surface),
+                .aspectRatio(1f, matchHeightConstraintsFirst = true),
             fallbackIconSize = 64.dp,
         )
     }
+}
+
+/** The expanded player's cover: swipe it to turn to the next or previous track (see [CoverSwipe]). */
+@Composable
+private fun PlayerCover(
+    albumImageUrl: String?,
+    coverSwipe: CoverSwipe,
+    pageTurns: PageTurnButtons,
+    fallbackIconSize: Dp,
+    modifier: Modifier = Modifier,
+) {
+    PageTurnCover(
+        current = albumImageUrl,
+        modifier = modifier,
+        trackKey = coverSwipe.trackKey ?: albumImageUrl,
+        next = coverSwipe.nextImageUrl,
+        previous = coverSwipe.previousImageUrl,
+        canGoNext = coverSwipe.canGoNext,
+        canGoPrevious = coverSwipe.canGoPrevious,
+        onNext = coverSwipe.onNext,
+        onPrevious = coverSwipe.onPrevious,
+        contentDescription = "Album art",
+        shape = MellowShapes.Large,
+        fallbackIconSize = fallbackIconSize,
+        pose = coverSwipe.pose,
+        onSheetDrag = coverSwipe.onSheetDrag,
+        onSheetDragEnd = coverSwipe.onSheetDragEnd,
+        onGestureLog = coverSwipe.onGestureLog,
+        buttons = pageTurns,
+    )
 }
 
 @Composable
@@ -778,6 +857,8 @@ private fun TabletopPlayerLayout(
     albumName: String,
     albumImageUrl: String?,
     artModifier: Modifier,
+    coverSwipe: CoverSwipe,
+    pageTurns: PageTurnButtons,
     isPlaying: Boolean,
     progress: Float,
     positionMs: Long,
@@ -810,48 +891,51 @@ private fun TabletopPlayerLayout(
         ) {
             NowPlayingTopBar(albumName, onCollapse, onQueueClick)
             Spacer(Modifier.weight(1f))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                MellowImage(
-                    model = albumImageUrl,
-                    contentDescription = "Album art",
-                    contentScale = ContentScale.Crop,
-                    modifier = artModifier
-                        .fillMaxHeight(0.7f)
-                        .aspectRatio(1f)
-                        .clip(MellowShapes.Large)
-                        .background(MellowTheme.colors.surface),
-                    fallbackIconSize = 48.dp,
-                )
-                Spacer(Modifier.width(MellowSpacing.Sp8))
-                Column {
-                    Text(
-                        trackName,
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = MellowTheme.colors.foreground,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+            // The cover, the gap and a fixed-width text slot stay centred as one unit: the cover never moves
+            // when the title (and so the text's width) changes, e.g. mid page turn.
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val cover = maxHeight * TABLETOP_COVER_HEIGHT_FRACTION
+                val gap = MellowSpacing.Sp8
+                val textSlot = tabletopTextSlotWidth(rowWidth = maxWidth, cover = cover, gap = gap)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    PlayerCover(
+                        albumImageUrl = albumImageUrl,
+                        coverSwipe = coverSwipe,
+                        pageTurns = pageTurns,
+                        modifier = artModifier.size(cover),
+                        fallbackIconSize = 48.dp,
                     )
-                    Spacer(Modifier.height(MellowSpacing.Sp1))
-                    Text(
-                        artistName,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MellowTheme.colors.accentStrong,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (albumName.isNotEmpty()) {
+                    Spacer(Modifier.width(gap))
+                    Column(modifier = Modifier.width(textSlot)) {
+                        Text(
+                            trackName,
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MellowTheme.colors.foreground,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Spacer(Modifier.height(MellowSpacing.Sp1))
                         Text(
-                            albumName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MellowTheme.colors.muted,
+                            artistName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MellowTheme.colors.accentStrong,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (albumName.isNotEmpty()) {
+                            Spacer(Modifier.height(MellowSpacing.Sp1))
+                            Text(
+                                albumName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MellowTheme.colors.muted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
@@ -880,4 +964,25 @@ private fun TabletopPlayerLayout(
             PlayerBottomActions(codec = codec, onLyricsClick = onLyricsClick)
         }
     }
+}
+
+/** Tabletop: the cover's side as a fraction of the height above the hinge (below the top bar). */
+private const val TABLETOP_COVER_HEIGHT_FRACTION = 0.7f
+
+/** Tabletop: the text slot beside the cover is this fraction of the row's width… */
+private const val TABLETOP_TEXT_SLOT_FRACTION = 0.4f
+
+/** …kept between these widths, and squeezed down to the minimum before the cover is. */
+private val TABLETOP_TEXT_SLOT_MIN = 240.dp
+private val TABLETOP_TEXT_SLOT_MAX = 400.dp
+private val TABLETOP_TEXT_SLOT_SQUEEZED = 160.dp
+
+/**
+ * The width of the text slot beside the tabletop cover: 40 % of the row, 240–400 dp, independent of the text. On a
+ * row too narrow for that next to the [cover] and [gap], it gives way first, down to 160 dp.
+ */
+internal fun tabletopTextSlotWidth(rowWidth: Dp, cover: Dp, gap: Dp): Dp {
+    val preferred = (rowWidth * TABLETOP_TEXT_SLOT_FRACTION).coerceIn(TABLETOP_TEXT_SLOT_MIN, TABLETOP_TEXT_SLOT_MAX)
+    val room = rowWidth - cover - gap
+    return minOf(preferred, room).coerceAtLeast(TABLETOP_TEXT_SLOT_SQUEEZED)
 }

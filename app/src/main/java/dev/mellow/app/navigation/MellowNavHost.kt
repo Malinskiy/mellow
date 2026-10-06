@@ -74,6 +74,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.util.Log
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -105,6 +106,7 @@ import androidx.navigation.navArgument
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.map
 import dev.mellow.app.AuthState
+import dev.mellow.app.BuildConfig
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
@@ -165,6 +167,8 @@ import dev.mellow.feature.library.LibraryScreen
 import dev.mellow.feature.library.LibraryViewModel
 import dev.mellow.feature.library.TrackDownloadIndicator
 import dev.mellow.feature.library.librarySortFor
+import dev.mellow.core.designsystem.component.PageTurnTarget
+import dev.mellow.feature.player.CoverSwipe
 import dev.mellow.feature.player.LyricsLine
 import dev.mellow.feature.player.LyricsScreen
 import dev.mellow.feature.player.PlayerLayout
@@ -1404,6 +1408,22 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         navController.navigate(MellowNavDestination.Library.route)
                     },
                     codec = playbackState.playbackCodec ?: track.codec,
+                    coverSwipe = CoverSwipe(
+                        trackKey = track.id,
+                        nextImageUrl = playbackState.queue.getOrNull(playbackState.nextIndex)
+                            ?.let { if (serverUrl != null) trackArtworkUri(it) else null },
+                        previousImageUrl = playbackState.queue.getOrNull(playbackState.previousIndex)
+                            ?.let { if (serverUrl != null) trackArtworkUri(it) else null },
+                        canGoNext = playbackState.hasNext,
+                        canGoPrevious = playbackState.hasPrevious,
+                        onNext = { mainViewModel.player.skipNext() },
+                        onPrevious = { mainViewModel.player.swipeToPrevious() },
+                        onSheetDrag = sheetState::dragBy,
+                        onSheetDragEnd = sheetState::endDrag,
+                        onGestureLog = if (BuildConfig.DEBUG) ::logCoverGesture else null,
+                        buttonNext = { mainViewModel.player.skipNext()?.toPageTurnTarget(serverUrl) },
+                        buttonPrevious = { mainViewModel.player.skipPrevious()?.toPageTurnTarget(serverUrl) },
+                    ),
                     sidePanelContent = {
                         val pState = playbackState
                         val currentIdx = pState.currentIndex
@@ -2020,3 +2040,15 @@ private fun handleAppUpdateEvent(context: Context, event: AppUpdateEvent) {
         // Otherwise nothing can handle it on this device; the dialog stays open with its other options.
     }
 }
+
+/** Debug builds: a gesture on the expanded cover, for tuning the swipe classifier (`adb logcat -s SwipeArbiter`). */
+private fun logCoverGesture(line: String) {
+    Log.d("SwipeArbiter", line)
+}
+
+/** Where a button skip went, for the expanded cover's page turn. */
+private fun Track.toPageTurnTarget(serverUrl: String?) =
+    PageTurnTarget(key = id, cover = if (serverUrl != null) trackArtworkUri(this) else null)
+
+/** A track's cover for in-app UI: its own image, or its album's (most tracks only have the album's). */
+private fun trackArtworkUri(track: Track): String? = (track.imageId ?: track.albumId)?.let { artworkUri(it) }

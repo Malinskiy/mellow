@@ -1,5 +1,6 @@
 package dev.mellow.app.screenshot
 
+import dev.mellow.feature.player.PlayerLayout
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -52,4 +53,14 @@ class Settings_Pixel10Landscape : SettingsScreenshotTests() {
 class UpdateDialog_Pixel10Landscape : UpdateDialogScreenshotTests() {
     override val deviceFolder = "pixel10-landscape"
     override val windowWidthClass = WindowWidthClass.Expanded
+}
+
+/** A phone turned sideways gets the Landscape player (Medium width class on the device). */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w915dp-h412dp-xxhdpi")
+class PageTurn_Pixel10Landscape : PageTurnScreenshotTests() {
+    override val deviceFolder = "pixel10-landscape"
+    override val windowWidthClass = WindowWidthClass.Medium
+    override val playerLayout = PlayerLayout.Landscape
 }

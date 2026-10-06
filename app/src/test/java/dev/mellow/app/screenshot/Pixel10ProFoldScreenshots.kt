@@ -1,6 +1,8 @@
 package dev.mellow.app.screenshot
 
 import androidx.compose.ui.geometry.Rect
+import dev.mellow.feature.player.PlayerLayout
+import androidx.compose.ui.unit.dp
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -118,4 +120,28 @@ class UpdateDialog_Pixel10ProFoldPortrait : UpdateDialogScreenshotTests() {
     override val deviceFolder = "pixel10profold-portrait"
     override val windowWidthClass = WindowWidthClass.Expanded
     override val foldableState = FOLD_PORTRAIT_FLAT
+}
+
+/** Unfolded flat (book): the queue beside the player, split at the hinge. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w876dp-h1023dp-420dpi")
+class PageTurn_Pixel10ProFoldPortrait : PageTurnScreenshotTests() {
+    override val deviceFolder = "pixel10profold-portrait"
+    override val windowWidthClass = WindowWidthClass.Expanded
+    override val foldableState = FOLD_PORTRAIT_FLAT
+    override val playerLayout = PlayerLayout.ExpandedWithQueue
+    override val splitPaneWidth = (1038 / 2.625).dp
+}
+
+/** Half-folded (tabletop): the cover above the hinge, the controls below. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w1023dp-h876dp-420dpi")
+class PageTurn_Pixel10ProFoldTabletop : PageTurnScreenshotTests() {
+    override val deviceFolder = "pixel10profold-landscape"
+    override val windowWidthClass = WindowWidthClass.Expanded
+    override val foldableState = FOLD_LANDSCAPE_TABLETOP
+    override val playerLayout = PlayerLayout.Tabletop
+    override val tabletopTopHeight = (1038 / 2.625).dp
 }

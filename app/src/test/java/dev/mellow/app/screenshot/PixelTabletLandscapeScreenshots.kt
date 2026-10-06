@@ -1,5 +1,6 @@
 package dev.mellow.app.screenshot
 
+import dev.mellow.feature.player.PlayerLayout
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -52,4 +53,13 @@ class Settings_PixelTabletLandscape : SettingsScreenshotTests() {
 class UpdateDialog_PixelTabletLandscape : UpdateDialogScreenshotTests() {
     override val deviceFolder = "pixel-tablet-landscape"
     override val windowWidthClass = WindowWidthClass.Expanded
+}
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w1280dp-h800dp-xhdpi")
+class PageTurn_PixelTabletLandscape : PageTurnScreenshotTests() {
+    override val deviceFolder = "pixel-tablet-landscape"
+    override val windowWidthClass = WindowWidthClass.Expanded
+    override val playerLayout = PlayerLayout.ExpandedWithQueue
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.animateToWithDecay
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
@@ -67,6 +68,7 @@ enum class SheetPage { Player, Queue, Lyrics }
 class ExpandableSheetState(
     internal val anchoredState: AnchoredDraggableState<SheetAnchor>,
     private val scope: CoroutineScope,
+    private val velocityThresholdPx: Float,
 ) {
     val isExpanded: Boolean
         get() = anchoredState.currentValue == SheetAnchor.Expanded
@@ -87,6 +89,28 @@ class ExpandableSheetState(
         scope.launch { anchoredState.animateToAnchor(SheetAnchor.Collapsed) }
     }
 
+    /**
+     * Drags the sheet by [delta] px (down = toward collapsed) for a drag that a child claimed before handing it over
+     * (the expanded cover, once it knows the finger is going down).
+     */
+    fun dragBy(delta: Float) {
+        anchoredState.dispatchRawDelta(delta)
+    }
+
+    /** Lets go of a [dragBy] drag at [velocity] px/s, settling the way the sheet's own drag does. */
+    fun endDrag(velocity: Float) {
+        val offset = anchoredState.offset
+        if (offset.isNaN()) return
+        val target = settleTarget(
+            anchors = anchoredState.anchors,
+            offset = offset,
+            velocity = velocity,
+            positionalFraction = SHEET_POSITIONAL_THRESHOLD,
+            velocityThreshold = velocityThresholdPx,
+        )
+        scope.launch { anchoredState.animateToWithDecay(target, velocity) }
+    }
+
     internal fun updateAnchors(anchors: DraggableAnchors<SheetAnchor>) {
         anchoredState.updateAnchors(anchors)
     }
@@ -102,13 +126,53 @@ fun rememberExpandableSheetState(): ExpandableSheetState {
     ) {
         AnchoredDraggableState(
             initialValue = SheetAnchor.Collapsed,
-            positionalThreshold = { distance -> distance * 0.3f },
-            velocityThreshold = { with(density) { 125.dp.toPx() } },
+            positionalThreshold = { distance -> distance * SHEET_POSITIONAL_THRESHOLD },
+            velocityThreshold = { with(density) { SHEET_VELOCITY_THRESHOLD.toPx() } },
             snapAnimationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
             decayAnimationSpec = exponentialDecay(),
         )
     }
-    return remember(anchoredState, scope) { ExpandableSheetState(anchoredState, scope) }
+    val velocityThresholdPx = with(density) { SHEET_VELOCITY_THRESHOLD.toPx() }
+    return remember(anchoredState, scope, velocityThresholdPx) {
+        ExpandableSheetState(anchoredState, scope, velocityThresholdPx)
+    }
+}
+
+/** How far (of the way between anchors) a slow drag must go to leave the anchor it started at. */
+private const val SHEET_POSITIONAL_THRESHOLD = 0.3f
+
+/** A drag let go faster than this goes on to the next anchor in its direction. */
+private val SHEET_VELOCITY_THRESHOLD = 125.dp
+
+/**
+ * The anchor a drag let go at [offset] and [velocity] settles on, as the sheet's own drag picks it (Compose's
+ * `AnchoredDraggableState` with positional and velocity thresholds): at rest the closest anchor; faster than
+ * [velocityThreshold] the next one in its direction; otherwise the next one in its direction only past
+ * [positionalFraction] of the way there.
+ */
+internal fun <T> settleTarget(
+    anchors: DraggableAnchors<T>,
+    offset: Float,
+    velocity: Float,
+    positionalFraction: Float,
+    velocityThreshold: Float,
+): T {
+    if (velocity == 0f) return anchors.closestAnchor(offset)!!
+    val forward = velocity > 0f
+    if (kotlin.math.abs(velocity) >= velocityThreshold) {
+        return anchors.closestAnchor(offset, searchUpwards = forward)!!
+    }
+    val below = anchors.closestAnchor(offset, searchUpwards = false)!!
+    val above = anchors.closestAnchor(offset, searchUpwards = true)!!
+    val belowPosition = anchors.positionOf(below)
+    val abovePosition = anchors.positionOf(above)
+    val threshold = kotlin.math.abs(abovePosition - belowPosition) * positionalFraction
+    val travelled = kotlin.math.abs(offset - if (forward) belowPosition else abovePosition)
+    return if (travelled >= threshold) {
+        if (forward) above else below
+    } else {
+        if (forward) below else above
+    }
 }
 
 @Composable
