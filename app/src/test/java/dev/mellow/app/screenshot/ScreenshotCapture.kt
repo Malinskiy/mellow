@@ -36,6 +36,13 @@ abstract class ScreenshotCapture {
     }
 
     protected fun capture(targetId: String, content: @Composable () -> Unit) {
+        show(content)
+        composeTestRule.waitForIdle()
+        snapshot(targetId)
+    }
+
+    /** Shows [content] the way [capture] does, for a test that interacts with it before taking a [snapshot]. */
+    protected fun show(content: @Composable () -> Unit) {
         composeTestRule.setContent {
             CompositionLocalProvider(
                 LocalWindowWidthClass provides windowWidthClass,
@@ -46,9 +53,10 @@ abstract class ScreenshotCapture {
                 }
             }
         }
+    }
 
-        composeTestRule.waitForIdle()
-
+    /** Saves what is on screen now as [targetId]. */
+    protected fun snapshot(targetId: String) {
         val rootView = composeTestRule.activity.window.decorView.rootView
         val bitmap = Bitmap.createBitmap(rootView.width, rootView.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)

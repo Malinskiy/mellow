@@ -20,8 +20,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.mellow.core.designsystem.icon.PhosphorIcons
 import androidx.compose.material3.DropdownMenu
@@ -63,6 +67,8 @@ import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.rememberCollapsibleToolbarState
 import dev.mellow.core.designsystem.component.MellowTabBar
+import dev.mellow.core.designsystem.component.MellowTabPager
+import dev.mellow.core.designsystem.component.rememberMellowTabPagerState
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.component.ShuffleAllButton
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
@@ -125,6 +131,14 @@ fun LibraryScreen(
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(initialTab) }
     var isGridView by rememberSaveable { mutableStateOf(true) }
+    val tabs = rememberMellowTabPagerState(TABS.size, selectedTab, onSelectedTabChange = { selectedTab = it })
+    // Each tab keeps its place while it's swiped away.
+    val albumGridState = rememberLazyGridState()
+    val albumListState = rememberLazyListState()
+    val artistsState = rememberLazyGridState()
+    val tracksState = rememberLazyGridState()
+    val genresState = rememberLazyListState()
+    val playlistsState = rememberLazyListState()
 
     LaunchedEffect(selectedGenre) {
         if (selectedGenre != null) selectedTab = 0
@@ -153,8 +167,7 @@ fun LibraryScreen(
                     )
                     MellowTabBar(
                         tabs = TABS,
-                        selectedIndex = selectedTab,
-                        onTabSelected = { selectedTab = it },
+                        state = tabs,
                         modifier = Modifier.padding(bottom = MellowSpacing.Sp4),
                     )
                     if (selectedGenre != null) {
@@ -168,31 +181,38 @@ fun LibraryScreen(
         ) { contentPadding ->
             val topPadding = contentPadding.calculateTopPadding()
             val showLoading = isLoading || isSyncing
-            when (selectedTab) {
-                0 -> PagedTab(albumItems, showLoading, "Syncing albums…", "No albums yet", "Couldn't load albums") {
-                    if (isGridView && albumGridFits) AlbumsPanel(albumItems, serverUrl, onAlbumClick, topPadding)
-                    else AlbumsListPanel(albumItems, serverUrl, onAlbumClick, topPadding)
-                }
-                1 -> PagedTab(artists, showLoading, "Syncing artists…", "No artists yet", "Couldn't load artists") {
-                    ArtistsPanel(artists, serverUrl, onArtistClick, topPadding)
-                }
-                2 -> PagedTab(tracks, showLoading, "Syncing tracks…", "No tracks yet", "Couldn't load tracks") {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, topPadding)
-                        ShuffleAllButton(
-                            onClick = onShuffleAll,
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(MellowSpacing.Sp4),
-                        )
+            MellowTabPager(state = tabs, modifier = Modifier.fillMaxSize()) { tab ->
+                when (tab) {
+                    0 -> PagedTab(albumItems, showLoading, "Syncing albums…", "No albums yet", "Couldn't load albums") {
+                        if (isGridView && albumGridFits) {
+                            AlbumsPanel(albumItems, serverUrl, onAlbumClick, albumGridState, topPadding)
+                        } else {
+                            AlbumsListPanel(albumItems, serverUrl, onAlbumClick, albumListState, topPadding)
+                        }
                     }
+                    1 -> PagedTab(artists, showLoading, "Syncing artists…", "No artists yet", "Couldn't load artists") {
+                        ArtistsPanel(artists, serverUrl, onArtistClick, artistsState, topPadding)
+                    }
+                    2 -> PagedTab(tracks, showLoading, "Syncing tracks…", "No tracks yet", "Couldn't load tracks") {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            TracksPanel(tracks, serverUrl, onTrackClick, onTrackMenuClick, tracksState, topPadding)
+                            ShuffleAllButton(
+                                onClick = onShuffleAll,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(MellowSpacing.Sp4),
+                            )
+                        }
+                    }
+                    3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
+                         else if (genres.isEmpty()) EmptyContent("No genres yet")
+                         else GenresPanel(genres, onGenreClick, genresState, topPadding)
+                    4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
+                         else if (playlists.isEmpty()) EmptyContent("No playlists yet")
+                         else PlaylistsPanel(
+                             playlists, serverUrl, onPlaylistClick, onCreatePlaylist, playlistsState, topPadding,
+                         )
                 }
-                3 -> if (showLoading && genres.isEmpty()) LoadingContent(message = "Syncing genres…")
-                     else if (genres.isEmpty()) EmptyContent("No genres yet")
-                     else GenresPanel(genres, onGenreClick, topPadding)
-                4 -> if (showLoading && playlists.isEmpty()) LoadingContent(message = "Syncing playlists\u2026")
-                     else if (playlists.isEmpty()) EmptyContent("No playlists yet")
-                     else PlaylistsPanel(playlists, serverUrl, onPlaylistClick, onCreatePlaylist, topPadding)
             }
         }
     }
@@ -398,9 +418,16 @@ private val ALBUM_GRID_PADDING = MellowSpacing.Sp4
 private val ALBUM_GRID_SPACING = MellowSpacing.Sp3
 
 @Composable
-private fun AlbumsPanel(albums: LazyPagingItems<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+private fun AlbumsPanel(
+    albums: LazyPagingItems<AlbumItem>,
+    serverUrl: String?,
+    onAlbumClick: (String) -> Unit,
+    state: LazyGridState,
+    topPadding: Dp = 0.dp,
+) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = albumGridMinSize()),
+        state = state,
         contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp3, bottom = MellowSpacing.Sp3, start = ALBUM_GRID_PADDING, end = ALBUM_GRID_PADDING),
         horizontalArrangement = Arrangement.spacedBy(ALBUM_GRID_SPACING),
         verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
@@ -422,8 +449,15 @@ private fun AlbumsPanel(albums: LazyPagingItems<AlbumItem>, serverUrl: String?, 
 }
 
 @Composable
-private fun AlbumsListPanel(albums: LazyPagingItems<AlbumItem>, serverUrl: String?, onAlbumClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+private fun AlbumsListPanel(
+    albums: LazyPagingItems<AlbumItem>,
+    serverUrl: String?,
+    onAlbumClick: (String) -> Unit,
+    state: LazyListState,
+    topPadding: Dp = 0.dp,
+) {
     LazyColumn(
+        state = state,
         contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
     ) {
         items(albums.itemCount, key = albums.itemKey { it.id.ifEmpty { it.name } }) { index ->
@@ -473,8 +507,15 @@ private fun AlbumsListPanel(albums: LazyPagingItems<AlbumItem>, serverUrl: Strin
 }
 
 @Composable
-private fun ArtistsPanel(artists: LazyPagingItems<ArtistItem>, serverUrl: String?, onArtistClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+private fun ArtistsPanel(
+    artists: LazyPagingItems<ArtistItem>,
+    serverUrl: String?,
+    onArtistClick: (String) -> Unit,
+    state: LazyGridState,
+    topPadding: Dp = 0.dp,
+) {
     AdaptiveTrackGrid(
+        state = state,
         itemCount = { artists.itemCount },
         key = artists.itemKey { it.id.ifEmpty { it.name } },
         contentPadding = PaddingValues(top = topPadding),
@@ -499,9 +540,11 @@ private fun TracksPanel(
     serverUrl: String?,
     onTrackClick: (index: Int, trackId: String) -> Unit,
     onTrackMenuClick: (String) -> Unit,
+    state: LazyGridState,
     topPadding: Dp = 0.dp,
 ) {
     AdaptiveTrackGrid(
+        state = state,
         itemCount = { tracks.itemCount },
         key = tracks.itemKey { it.id },
         // Room below the last row, so the shuffle button never covers its menu.
@@ -525,8 +568,14 @@ private fun TracksPanel(
 }
 
 @Composable
-private fun GenresPanel(genres: List<String>, onGenreClick: (String) -> Unit, topPadding: Dp = 0.dp) {
+private fun GenresPanel(
+    genres: List<String>,
+    onGenreClick: (String) -> Unit,
+    state: LazyListState,
+    topPadding: Dp = 0.dp,
+) {
     LazyColumn(
+        state = state,
         contentPadding = PaddingValues(top = topPadding + MellowSpacing.Sp2, bottom = MellowSpacing.Sp2, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
     ) {
         items(genres, key = { it }) { genre ->
@@ -549,9 +598,11 @@ private fun PlaylistsPanel(
     serverUrl: String?,
     onPlaylistClick: (String) -> Unit,
     @Suppress("UNUSED_PARAMETER") onCreatePlaylist: (String) -> Unit,
+    state: LazyListState,
     topPadding: Dp = 0.dp,
 ) {
     LazyColumn(
+        state = state,
         contentPadding = PaddingValues(top = topPadding, start = MellowSpacing.Sp4, end = MellowSpacing.Sp4),
     ) {
         items(playlists, key = { it.id }) { playlist ->
