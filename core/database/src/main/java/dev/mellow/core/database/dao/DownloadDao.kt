@@ -12,9 +12,6 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads WHERE trackId = :trackId")
     fun observeDownload(trackId: String): Flow<DownloadEntity?>
 
-    @Query("SELECT * FROM downloads WHERE albumId = :albumId")
-    fun observeAlbumDownloads(albumId: String): Flow<List<DownloadEntity>>
-
     @Query("SELECT * FROM downloads WHERE status = 2")
     fun observeCompletedDownloads(): Flow<List<DownloadEntity>>
 
@@ -26,6 +23,20 @@ interface DownloadDao {
 
     @Query("SELECT COUNT(*) FROM downloads WHERE albumId = :albumId AND status = 2")
     fun getCompletedCountForAlbum(albumId: String): Flow<Int>
+
+    /** The library's tracks of album [albumId], the count an album download is measured against. */
+    @Query("SELECT COUNT(*) FROM tracks WHERE albumId = :albumId")
+    fun observeAlbumTrackCount(albumId: String): Flow<Int>
+
+    /**
+     * The downloads of album [albumId]'s current tracks: a download whose track the library no longer lists under the
+     * album (or lists for another server) isn't one of them.
+     */
+    @Query(
+        "SELECT d.* FROM tracks t INNER JOIN downloads d ON d.trackId = t.id " +
+            "WHERE t.albumId = :albumId AND d.serverId = t.serverId",
+    )
+    fun observeAlbumTrackDownloads(albumId: String): Flow<List<DownloadEntity>>
 
     @Query("SELECT COALESCE(SUM(bytesDownloaded), 0) FROM downloads WHERE status = 2")
     fun getTotalDownloadedBytes(): Flow<Long>
@@ -50,6 +61,10 @@ interface DownloadDao {
 
     @Query("SELECT * FROM downloads WHERE trackId = :trackId")
     suspend fun getDownload(trackId: String): DownloadEntity?
+
+    /** The downloads of [trackIds]; keep a call under SQLite's 999 bound arguments (Android 8). */
+    @Query("SELECT * FROM downloads WHERE trackId IN (:trackIds)")
+    suspend fun getDownloads(trackIds: List<String>): List<DownloadEntity>
 
     @Query("SELECT EXISTS(SELECT 1 FROM downloads WHERE trackId = :trackId AND status = 2)")
     fun isDownloaded(trackId: String): Flow<Boolean>

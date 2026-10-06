@@ -86,6 +86,7 @@ import dev.mellow.feature.settings.update.AppUpdateUiState
 import dev.mellow.feature.settings.update.AppUpdateViewModel
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -121,6 +122,7 @@ import dev.mellow.core.designsystem.component.ArtistPickerSheet
 import dev.mellow.core.designsystem.component.PickerArtist
 import dev.mellow.core.designsystem.component.TrackContextMenu
 import dev.mellow.core.designsystem.component.TrackMenuData
+import dev.mellow.core.designsystem.component.TrackMenuDownload
 import dev.mellow.core.designsystem.theme.LocalBatterySaverActive
 import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
 import dev.mellow.core.designsystem.theme.LocalWindowWidthClass
@@ -251,7 +253,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val sharedArtPositions = remember { SharedArtPositions() }
     val density = androidx.compose.ui.platform.LocalDensity.current
 
-    var contextMenuState by remember { mutableStateOf<ContextMenuState?>(null) }
+    var contextMenuTrack by remember { mutableStateOf<Track?>(null) }
     var trackInfoTrack by remember { mutableStateOf<Track?>(null) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var addToPlaylistTrackId by remember { mutableStateOf<String?>(null) }
@@ -301,24 +303,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         if (serverId.isNotEmpty()) playlistsVm.loadPlaylists(serverId)
     }
 
-    fun openContextMenu(track: Track, sUrl: String?) {
-        contextMenuState = ContextMenuState(
-            menuData = TrackMenuData(
-                id = track.id,
-                title = track.name,
-                artist = track.artistName ?: "",
-                album = track.albumName ?: "",
-                albumId = track.albumId,
-                artistId = track.resolvedArtistId ?: track.artistId,
-                            imageUrl = if (serverUrl != null) {
-                                val imgId = track.imageId ?: track.albumId
-                                if (imgId != null) artworkUri(imgId) else null
-                            } else null,
-                isFavorite = track.isFavorite,
-                isDownloaded = false,
-            ),
-            track = track,
-        )
+    // The sheet shows once the track's download state has arrived (see below); the last track picked wins.
+    fun openContextMenu(track: Track) {
+        contextMenuTrack = track
     }
 
     // Tapping the Search tab while Search is showing focuses its field; opening Search doesn't, so the keyboard
@@ -518,7 +505,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onTrackMenuClick = { trackId ->
                             val track = homeVm.favTrackModels.value.find { it.id == trackId }
                             if (track != null) {
-                                openContextMenu(track, mainViewModel.serverUrl.value)
+                                openContextMenu(track)
                             }
                         },
                         onSettingsClick = { navController.navigate("settings") },
@@ -594,7 +581,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             scope.launch {
                                 val track = mainViewModel.getTrack(trackId)
                                 if (track != null) {
-                                    openContextMenu(track, mainViewModel.serverUrl.value)
+                                    openContextMenu(track)
                                 }
                             }
                         },
@@ -643,7 +630,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onTrackMenuClick = { trackId ->
                             val track = searchState.tracks.find { it.id == trackId }
                             if (track != null) {
-                                openContextMenu(track, mainViewModel.serverUrl.value)
+                                openContextMenu(track)
                             }
                         },
                         onSettingsClick = { navController.navigate("settings") },
@@ -681,7 +668,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             scope.launch {
                                 val track = mainViewModel.getTrack(trackId)
                                 if (track != null) {
-                                    openContextMenu(track, mainViewModel.serverUrl.value)
+                                    openContextMenu(track)
                                 }
                             }
                         },
@@ -964,7 +951,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onTrackMenuClick = { trackId ->
                             val track = albumState.tracks.find { it.id == trackId }
                             if (track != null) {
-                                openContextMenu(track, mainViewModel.serverUrl.value)
+                                openContextMenu(track)
                             }
                         },
                         onShare = {
@@ -1090,7 +1077,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         onTrackMenuClick = { trackId ->
                             val track = artistState.topTracks.find { it.id == trackId }
                             if (track != null) {
-                                openContextMenu(track, mainViewModel.serverUrl.value)
+                                openContextMenu(track)
                             }
                         },
                         serverUrl = serverUrl,
@@ -1187,7 +1174,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             scope.launch {
                                 val track = mainViewModel.getTrack(trackId)
                                 if (track != null) {
-                                    openContextMenu(track, mainViewModel.serverUrl.value)
+                                    openContextMenu(track)
                                 }
                             }
                         },
@@ -1699,58 +1686,82 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     }
     }
 
-    if (contextMenuState != null) {
-        TrackContextMenu(
-            track = contextMenuState!!.menuData,
-            onDismiss = { contextMenuState = null },
-            onPlayNext = {
-                mainViewModel.player.playNext(contextMenuState!!.track)
-            },
-            onAddToQueue = {
-                mainViewModel.player.addToQueue(contextMenuState!!.track)
-            },
-            onAddToPlaylist = {
-                addToPlaylistTrackId = contextMenuState?.track?.id
-                showAddToPlaylistSheet = true
-            },
-            onGoToAlbum = {
-                contextMenuState!!.menuData.albumId?.let { navController.navigate("album/$it") }
-                contextMenuState = null
-            },
-            onGoToArtist = {
-                val trackId = contextMenuState!!.menuData.id
-                val fallbackArtistId = contextMenuState!!.menuData.artistId
-                contextMenuState = null
-                scope.launch {
-                    val artists = mainViewModel.getArtistsForTrack(trackId)
-                    if (artists.size <= 1) {
-                        val artistId = artists.firstOrNull()?.id ?: fallbackArtistId
-                        if (artistId != null) navController.navigate("artist/$artistId")
-                    } else {
-                        pickerArtists = artists.map { a ->
-                            PickerArtist(
-                                id = a.id,
-                                name = a.name,
-                                imageUrl = if (serverUrl != null && a.imageTag != null) artworkUri(a.id) else null,
-                                albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
-                            )
+    contextMenuTrack?.let { menuTrack ->
+        // One collector per opened track; the sheet waits for its first value, so it never shows another track's or a
+        // stale download state, and closing the sheet (or picking another track) ends the collection.
+        key(menuTrack.id) {
+            val download by remember { mainViewModel.observeTrackMenuDownload(menuTrack.id) }
+                .collectAsStateWithLifecycle<TrackMenuDownload?>(initialValue = null)
+            download?.let { menuDownload ->
+                val menuData = TrackMenuData(
+                    id = menuTrack.id,
+                    title = menuTrack.name,
+                    artist = menuTrack.artistName ?: "",
+                    album = menuTrack.albumName ?: "",
+                    albumId = menuTrack.albumId,
+                    artistId = menuTrack.resolvedArtistId ?: menuTrack.artistId,
+                    imageUrl = if (serverUrl != null) {
+                        val imgId = menuTrack.imageId ?: menuTrack.albumId
+                        if (imgId != null) artworkUri(imgId) else null
+                    } else null,
+                    isFavorite = menuTrack.isFavorite,
+                    download = menuDownload,
+                )
+                TrackContextMenu(
+                    track = menuData,
+                    onDismiss = { contextMenuTrack = null },
+                    onPlayNext = {
+                        mainViewModel.player.playNext(menuTrack)
+                    },
+                    onAddToQueue = {
+                        mainViewModel.player.addToQueue(menuTrack)
+                    },
+                    onAddToPlaylist = {
+                        addToPlaylistTrackId = menuTrack.id
+                        showAddToPlaylistSheet = true
+                    },
+                    onGoToAlbum = {
+                        menuData.albumId?.let { navController.navigate("album/$it") }
+                        contextMenuTrack = null
+                    },
+                    onGoToArtist = {
+                        val trackId = menuData.id
+                        val fallbackArtistId = menuData.artistId
+                        contextMenuTrack = null
+                        scope.launch {
+                            val artists = mainViewModel.getArtistsForTrack(trackId)
+                            if (artists.size <= 1) {
+                                val artistId = artists.firstOrNull()?.id ?: fallbackArtistId
+                                if (artistId != null) navController.navigate("artist/$artistId")
+                            } else {
+                                pickerArtists = artists.map { a ->
+                                    PickerArtist(
+                                        id = a.id,
+                                        name = a.name,
+                                        imageUrl = if (serverUrl != null && a.imageTag != null) artworkUri(a.id) else null,
+                                        albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
+                                    )
+                                }
+                                showArtistPicker = true
+                            }
                         }
-                        showArtistPicker = true
-                    }
-                }
-            },
-            onStartMix = {
-                mainViewModel.startMix(contextMenuState!!.menuData.id)
-            },
-            onToggleFavorite = {
-                val t = contextMenuState!!.menuData
-                mainViewModel.toggleFavorite(t.id, t.isFavorite)
-            },
-            onTrackInfo = {
-                trackInfoTrack = contextMenuState?.track
-                contextMenuState = null
-            },
-        )
+                    },
+                    onStartMix = {
+                        mainViewModel.startMix(menuData.id)
+                    },
+                    onToggleFavorite = {
+                        mainViewModel.toggleFavorite(menuData.id, menuData.isFavorite)
+                    },
+                    onDownload = { mainViewModel.downloadTrack(menuTrack) },
+                    onCancelDownload = { mainViewModel.cancelTrackDownload(menuTrack.id) },
+                    onRemoveDownload = { mainViewModel.removeTrackDownload(menuTrack.id) },
+                    onTrackInfo = {
+                        trackInfoTrack = menuTrack
+                        contextMenuTrack = null
+                    },
+                )
+            }
+        }
     }
 
     if (showArtistPicker) {
@@ -1819,11 +1830,6 @@ private fun InfoRow(label: String, value: String) {
         Text(value, color = MellowTheme.colors.foreground)
     }
 }
-
-private data class ContextMenuState(
-    val menuData: TrackMenuData,
-    val track: Track,
-)
 
 @Composable
 private fun TabScreenTopBar(

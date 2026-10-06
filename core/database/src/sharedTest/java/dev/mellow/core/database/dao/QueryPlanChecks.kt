@@ -186,6 +186,21 @@ class QueryPlanChecks(private val report: (String) -> Unit = {}) {
             .assertUses("index_tracks_resolvedArtistId_playCount")
     }
 
+    suspend fun anAlbumsDownloadStateReadsItsTracksAndTheirDownloadsByIndex() {
+        val album = library.sampleAlbumId
+        plans { db.downloadDao().observeAlbumTrackCount(album).first() }.single { "FROM tracks" in it.sql }.apply {
+            assertUses("index_tracks_albumId_discNumber_trackNumber_id")
+            assertNoTrackScan()
+        }
+        plans { db.downloadDao().observeAlbumTrackDownloads(album).first() }.single { "FROM tracks" in it.sql }.apply {
+            // From the album's tracks, then each one's download by its primary key.
+            assertUses("index_tracks_albumId_discNumber_trackNumber_id")
+            assertUses("sqlite_autoindex_downloads_1")
+            assertNoTrackScan()
+            assertNoTableScan("downloads")
+        }
+    }
+
     suspend fun homeAndFavoritesReadTheirTracksByIndex() {
         plans { db.trackDao().getRecentlyPlayedTracks(server) }.single().apply {
             assertUses("index_tracks_serverId_lastPlayedAt_albumId")

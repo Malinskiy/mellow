@@ -57,6 +57,10 @@ class QueryPlanDeviceTest {
         runTest { checks.albumAndArtistScreensReadTheirTracksByIndex() }
 
     @Test
+    fun anAlbumsDownloadStateReadsItsTracksAndTheirDownloadsByIndex() =
+        runTest { checks.anAlbumsDownloadStateReadsItsTracksAndTheirDownloadsByIndex() }
+
+    @Test
     fun homeAndFavoritesReadTheirTracksByIndex() = runTest { checks.homeAndFavoritesReadTheirTracksByIndex() }
 
     @Test

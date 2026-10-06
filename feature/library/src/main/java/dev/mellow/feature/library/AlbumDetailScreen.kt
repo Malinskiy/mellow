@@ -894,7 +894,8 @@ private fun AlbumDownloadButton(
         AlbumDownloadState.Status.NONE -> DownloadIconState.Idle
         AlbumDownloadState.Status.DOWNLOADING -> DownloadIconState.Downloading
         AlbumDownloadState.Status.COMPLETED -> DownloadIconState.Done
-        AlbumDownloadState.Status.PARTIAL -> DownloadIconState.Downloading
+        // Some tracks are on the device and nothing is in progress: tapping downloads the rest.
+        AlbumDownloadState.Status.PARTIAL -> DownloadIconState.Idle
     }
 
     Box(
