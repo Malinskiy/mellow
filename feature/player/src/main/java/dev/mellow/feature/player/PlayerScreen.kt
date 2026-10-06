@@ -52,9 +52,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.HorizontalAlignmentLine
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -627,6 +630,7 @@ fun PlayerTrackInfo(
 /**
  * The track [title] (at most two lines, then an ellipsis) with [below] under it, and to its right the favourite heart
  * and, when [isDownloaded], the Downloaded check, both centred on the title's first line however many lines it takes.
+ * The block always takes the height of a two-line title, so nothing around it moves when the title changes.
  */
 @Composable
 private fun TitleWithHeart(
@@ -639,11 +643,13 @@ private fun TitleWithHeart(
     below: @Composable ColumnScope.() -> Unit,
 ) {
     val titleLayout = remember { TextLayoutHolder() }
+    val textMeasurer = rememberTextMeasurer()
     Row(modifier = modifier) {
         Column(
             modifier = Modifier
                 .weight(1f)
-                .alignBy(TitleFirstLineCentre),
+                .alignBy(TitleFirstLineCentre)
+                .reserveTwoTitleLines(titleLayout, textMeasurer, titleStyle),
         ) {
             Row {
                 Text(
@@ -678,6 +684,33 @@ private fun TitleWithHeart(
             modifier = Modifier.alignBy { it.measuredHeight / 2 },
             iconSize = 24.dp,
         )
+    }
+}
+
+/** Two lines of text, to measure how tall a two-line title in a given style is. */
+private const val TWO_LINES = "H\nH"
+
+/**
+ * Keeps the block this modifies (the title and what's under it) as tall as it is with a two-line title: what a
+ * one-line title leaves free goes below the block, so skipping between short and long titles moves nothing around it.
+ * [holder] has the title's layout; [measurer] measures two lines of [titleStyle] the way the title is measured.
+ */
+private fun Modifier.reserveTwoTitleLines(
+    holder: TextLayoutHolder,
+    measurer: TextMeasurer,
+    titleStyle: TextStyle,
+): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val title = holder.result
+    val twoLines = measurer.measure(
+        text = TWO_LINES,
+        style = titleStyle,
+        layoutDirection = layoutDirection,
+        density = this,
+    ).size.height
+    val free = if (title == null) 0 else (twoLines - title.size.height).coerceAtLeast(0)
+    layout(placeable.width, constraints.constrainHeight(placeable.height + free)) {
+        placeable.place(0, 0)
     }
 }
 

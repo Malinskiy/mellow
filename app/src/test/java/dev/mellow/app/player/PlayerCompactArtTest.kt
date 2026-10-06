@@ -19,11 +19,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.feature.player.PlayerLayout
 import dev.mellow.feature.player.PlayerScreen
 
+// Real text metrics: Robolectric's legacy graphics measure text with made-up sizes, far off what a phone shows.
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w800dp-h915dp")
 class PlayerCompactArtTest {
 

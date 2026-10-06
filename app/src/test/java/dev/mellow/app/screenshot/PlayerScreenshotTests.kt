@@ -240,6 +240,10 @@ abstract class PlayerScreenshotTests : ScreenshotCapture() {
     @Test
     fun playerLongTitle() = capture("player-long-title") { LongTitlePlayer(playerLayout) }
 
+    /** Next to [playerLongTitle]: the same track info with a one-line title; the cover and controls don't move. */
+    @Test
+    fun playerOneLineTitle() = capture("player-one-line-title") { LongTitlePlayer(playerLayout, title = "Help!") }
+
     /** A title too long for two lines: it stops at two, with an ellipsis. */
     @Test
     fun playerVeryLongTitle() = capture("player-very-long-title") {
