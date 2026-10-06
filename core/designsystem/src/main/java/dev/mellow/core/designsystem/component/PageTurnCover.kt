@@ -1,6 +1,5 @@
 package dev.mellow.core.designsystem.component
 
-import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -40,6 +39,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -54,6 +56,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowTheme
@@ -71,8 +74,12 @@ data class PageTurnPose(val direction: PageTurnDirection, val angle: Float)
  *
  * The point you hold stays under your finger, perspective included. Let go past halfway, or with a flick, and the
  * page falls the rest of the way; otherwise it falls back. A swipe toward a track that isn't there ([canGoNext] or
- * [canGoPrevious] false) meets strong resistance and never turns. Only a clearly horizontal drag is claimed: anything
- * else is left to the parent, untouched.
+ * [canGoPrevious] false) meets strong resistance and never turns.
+ *
+ * The cover holds every gesture that starts on it until it knows what the finger means (see [classifySwipe]): a thumb
+ * arc counts as a swipe, and only a clear drag down goes to the sheet the cover sits in, through [onSheetDrag] (px,
+ * down positive) and [onSheetDragEnd] (px/s). Without [onSheetDrag] (no sheet) a vertical drag is let go.
+ * [onGestureLog], for tuning in debug builds, gets one line per gesture: its samples and the decision.
  *
  * [current], [next] and [previous] are image models (see [MellowImage]); all three stay loaded so a turn never waits
  * for one. [trackKey] identifies the current track: a turn calls [onNext] or [onPrevious] when it is let go, and the
@@ -97,14 +104,23 @@ fun PageTurnCover(
     shape: Shape = MellowShapes.Large,
     fallbackIconSize: Dp? = 64.dp,
     pose: PageTurnPose? = null,
+    onSheetDrag: ((Float) -> Unit)? = null,
+    onSheetDragEnd: (Float) -> Unit = {},
+    onGestureLog: ((String) -> Unit)? = null,
 ) {
     val state = remember { PageTurnState(pose) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val live = PageFaces(trackKey, current, next, previous, canGoNext, canGoPrevious)
-    val latestLive = rememberUpdatedState(live)
-    val latestOnNext = rememberUpdatedState(onNext)
-    val latestOnPrevious = rememberUpdatedState(onPrevious)
+    val targets = rememberUpdatedState(
+        CoverGestureTargets(
+            faces = live,
+            onNext = onNext,
+            onPrevious = onPrevious,
+            sheet = onSheetDrag?.let { SheetHandoff(it, onSheetDragEnd) },
+            log = onGestureLog,
+        ),
+    )
 
     LaunchedEffect(trackKey) {
         // The track the turn went to has arrived (or something else changed it): show what the player has.
@@ -132,7 +148,7 @@ fun PageTurnCover(
                 }
             }
             .pointerInput(state) {
-                detectPageTurn(state, scope, haptics, latestLive, latestOnNext, latestOnPrevious)
+                detectCoverGestures(state, scope, haptics, targets)
             },
     ) {
         // Drawn bottom to top: a next turn lifts the current page off the next cover, a previous turn lays the
@@ -321,71 +337,171 @@ private fun DrawScope.drawPageBack() {
     )
 }
 
+/** Where a drag down on the cover goes: the sheet the cover sits in, dragged by px and let go at px/s. */
+internal class SheetHandoff(val onDrag: (Float) -> Unit, val onDragEnd: (Float) -> Unit)
+
+/** What the cover's gestures act on, read when a gesture starts. */
+internal class CoverGestureTargets(
+    val faces: PageFaces,
+    val onNext: () -> Unit,
+    val onPrevious: () -> Unit,
+    val sheet: SheetHandoff?,
+    val log: ((String) -> Unit)?,
+)
+
 /**
- * Claims a drag only once it is clearly horizontal (at least twice as far sideways as up or down when it passes the
- * touch slop); anything else is left unconsumed for the parent (the sheet's vertical drag). A claimed drag turns the
- * page 1:1 and, when let go, commits or falls back.
+ * The one arbiter for gestures that start on the cover. From the down it holds the gesture (consumes every move), so
+ * the sheet's own vertical drag never starts on it, and [classifySwipe] decides what the finger means: a page turn,
+ * a drag down that it hands to the sheet (catching up with the finger at once, then 1:1, let go with the finger's
+ * velocity), or nothing (it lets go). Once decided, the decision holds for the rest of the gesture.
  */
-private suspend fun PointerInputScope.detectPageTurn(
+private suspend fun PointerInputScope.detectCoverGestures(
     state: PageTurnState,
     scope: CoroutineScope,
     haptics: HapticFeedback,
-    live: State<PageFaces>,
-    onNext: State<() -> Unit>,
-    onPrevious: State<() -> Unit>,
+    targets: State<CoverGestureTargets>,
 ) {
     val flingThreshold = FLING_DP_PER_SECOND.dp.toPx()
     val catchUp = PageTurnCatchUp(NEXT_CATCH_UP_DP.dp.toPx(), PREVIOUS_CATCH_UP_DP.dp.toPx())
+    // Read once: the node may be gone by the time a gesture ends (a drag that collapses the sheet removes the cover).
+    val pxPerDp = density
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         if (state.settling?.isActive == true) return@awaitEachGesture
-        val slop = viewConfiguration.touchSlop
-        var total = Offset.Zero
-        while (true) {
-            val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
-            if (!change.pressed || change.isConsumed) return@awaitEachGesture
-            total += change.positionChange()
-            if (total.getDistance() > slop) {
-                if (abs(total.x) < HORIZONTAL_DOMINANCE * abs(total.y)) return@awaitEachGesture
-                change.consume()
-                break
-            }
-        }
-
-        val faces = live.value
-        val turn = PageTurnDrag(
-            state = state,
-            faces = faces,
-            touchX = down.position.x,
-            pageWidth = size.width.toFloat(),
-            catchUp = catchUp,
-            haptics = haptics,
-        )
-        state.frozen = faces
+        val gesture = targets.value
+        val samples = mutableListOf(SwipeSample(down.uptimeMillis, down.position.x, down.position.y))
         val tracker = VelocityTracker()
         tracker.addPointerInputChange(down)
-        var drag = total.x
-        turn.dragTo(drag)
-        var released = false
+        var classification: SwipeClassification? = null
         try {
-            while (true) {
-                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+            while (classification == null) {
+                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+                if (!change.pressed || change.isConsumed) return@awaitEachGesture
+                samples.record(change)
                 tracker.addPointerInputChange(change)
-                drag += change.positionChange().x
-                change.consume()
-                if (!change.pressed) break
-                turn.dragTo(drag)
+                val classified = classifySwipe(samples, pxPerDp, hasSheet = gesture.sheet != null)
+                if (classified.decision != SwipeDecision.Undecided) classification = classified
+                if (classified.decision != SwipeDecision.Cancel) change.consume()
             }
-            released = true
+            val last = samples.last()
+            when (classification?.decision) {
+                SwipeDecision.Horizontal -> {
+                    val turn = PageTurnDrag(
+                        state = state,
+                        faces = gesture.faces,
+                        touchX = down.position.x,
+                        pageWidth = size.width.toFloat(),
+                        catchUp = catchUp,
+                        haptics = haptics,
+                    )
+                    turnPage(down.id, turn, last.x - down.position.x, samples, tracker) { released ->
+                        val velocity = if (released) tracker.calculateVelocity() else Velocity.Zero
+                        val end = samples.last()
+                        val flingSpeed = turnFlingSpeed(
+                            direction = state.direction ?: PageTurnDirection.Next,
+                            velocity = Offset(velocity.x, velocity.y),
+                            chord = Offset(end.x - down.position.x, end.y - down.position.y),
+                        )
+                        // A turn only goes through if the track it started from is still the current one.
+                        val stillCurrent = released && targets.value.faces.key == gesture.faces.key
+                        state.settling = scope.launch {
+                            turn.release(
+                                velocityX = velocity.x,
+                                flingSpeed = flingSpeed,
+                                flingThreshold = flingThreshold,
+                                allowCommit = stillCurrent,
+                                onNext = gesture.onNext,
+                                onPrevious = gesture.onPrevious,
+                            )
+                        }
+                    }
+                }
+                SwipeDecision.Vertical -> gesture.sheet?.let { sheet ->
+                    dragSheet(down.id, sheet, last.y - down.position.y, samples, tracker)
+                }
+                SwipeDecision.Cancel -> if (gesture.log != null) observeUntilUp(down.id, samples)
+                else -> Unit
+            }
         } finally {
-            val velocity = if (released) tracker.calculateVelocity().x else 0f
-            // A turn only goes through if the track it started from is still the current one.
-            val stillCurrent = released && live.value.key == faces.key
-            state.settling = scope.launch {
-                turn.release(velocity, flingThreshold, allowCommit = stillCurrent, onNext.value, onPrevious.value)
-            }
+            if (samples.size > 1) gesture.log?.invoke(swipeLogLine(samples, pxPerDp, classification))
         }
     }
+}
+
+/** Turns the page from [startDrag] px (the whole horizontal way the finger has come) until the finger lifts. */
+private suspend fun AwaitPointerEventScope.turnPage(
+    pointer: PointerId,
+    turn: PageTurnDrag,
+    startDrag: Float,
+    samples: MutableList<SwipeSample>,
+    tracker: VelocityTracker,
+    onEnd: (released: Boolean) -> Unit,
+) {
+    turn.state.frozen = turn.faces
+    var drag = startDrag
+    turn.dragTo(drag)
+    var released = false
+    try {
+        while (true) {
+            val change = awaitPointerEvent().changes.firstOrNull { it.id == pointer } ?: break
+            samples.record(change)
+            tracker.addPointerInputChange(change)
+            drag += change.positionChange().x
+            change.consume()
+            if (!change.pressed) break
+            turn.dragTo(drag)
+        }
+        released = true
+    } finally {
+        onEnd(released)
+    }
+}
+
+/** Drags the sheet: first the whole [startDrag] px the finger has come down, then 1:1, and lets it go. */
+private suspend fun AwaitPointerEventScope.dragSheet(
+    pointer: PointerId,
+    sheet: SheetHandoff,
+    startDrag: Float,
+    samples: MutableList<SwipeSample>,
+    tracker: VelocityTracker,
+) {
+    sheet.onDrag(startDrag)
+    try {
+        while (true) {
+            val change = awaitPointerEvent().changes.firstOrNull { it.id == pointer } ?: break
+            samples.record(change)
+            tracker.addPointerInputChange(change)
+            val delta = change.positionChange().y
+            change.consume()
+            if (delta != 0f) sheet.onDrag(delta)
+            if (!change.pressed) break
+        }
+    } finally {
+        // Cancelled (the expanded player leaves when the sheet is nearly down): let go at the finger's last speed.
+        sheet.onDragEnd(tracker.calculateVelocity().y)
+    }
+}
+
+/** Only for the gesture log: follows a released gesture to its end without touching it. */
+private suspend fun AwaitPointerEventScope.observeUntilUp(pointer: PointerId, samples: MutableList<SwipeSample>) {
+    while (true) {
+        val change = awaitPointerEvent().changes.firstOrNull { it.id == pointer } ?: return
+        samples.record(change)
+        if (!change.pressed) return
+    }
+}
+
+/**
+ * Adds [change]'s positions, the batched historical ones first, to the samples. Positions are local to the cover,
+ * which moves with the sheet once a drag goes to it, so they are shifted to continue from the last sample: the
+ * samples stay in the frame of the down point.
+ */
+private fun MutableList<SwipeSample>.record(change: PointerInputChange) {
+    val last = last()
+    val shiftX = last.x - change.previousPosition.x
+    val shiftY = last.y - change.previousPosition.y
+    change.historical.forEach { add(SwipeSample(it.uptimeMillis, it.position.x + shiftX, it.position.y + shiftY)) }
+    add(SwipeSample(change.uptimeMillis, change.position.x + shiftX, change.position.y + shiftY))
 }
 
 /** The drags (px) over which the next and the previous page catch up with the finger. */
@@ -393,8 +509,8 @@ internal class PageTurnCatchUp(val next: Float, val previous: Float)
 
 /** One drag of the cover, from the touch down at [touchX] (px from the spine). */
 internal class PageTurnDrag(
-    private val state: PageTurnState,
-    private val faces: PageFaces,
+    val state: PageTurnState,
+    val faces: PageFaces,
     private val touchX: Float,
     private val pageWidth: Float,
     private val catchUp: PageTurnCatchUp,
@@ -447,6 +563,7 @@ internal class PageTurnDrag(
      */
     suspend fun release(
         velocityX: Float,
+        flingSpeed: Float,
         flingThreshold: Float,
         allowCommit: Boolean,
         onNext: () -> Unit,
@@ -466,9 +583,8 @@ internal class PageTurnDrag(
         }
         val start = state.angle
         val angularVelocity = angularVelocity(direction, velocityX)
-        val inDirection = if (direction == PageTurnDirection.Next) -velocityX else velocityX
         val commit = allowCommit &&
-            shouldCommit(turnProgress(direction, start), inDirection, flingThreshold, enabled(direction))
+            shouldCommit(turnProgress(direction, start), flingSpeed, flingThreshold, enabled(direction))
         if (commit) {
             val target = if (direction == PageTurnDirection.Next) faces.next else faces.previous
             state.pending = PendingTurn(faces.key, target)
@@ -498,9 +614,6 @@ internal class PageTurnDrag(
 
 /** A positive rotationY turns the right edge away from the camera; the page's free edge comes toward it. */
 private const val PAGE_ROTATION_SIGN = -1f
-
-/** A drag is the cover's only if it is at least this many times as far sideways as up or down. */
-private const val HORIZONTAL_DOMINANCE = 2f
 
 /** Caps the release spin from a flick right by the spine, where a pixel of finger is many degrees of page. */
 private const val MAX_ANGULAR_VELOCITY = 3000f

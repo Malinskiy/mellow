@@ -81,7 +81,9 @@ enum class PlayerLayout {
 /**
  * What swiping the cover does: left turns it like a record album page onto [nextImageUrl] and calls [onNext]; right
  * brings back the page of [previousImageUrl] and calls [onPrevious]. [trackKey] identifies the current track.
- * [pose] holds the page still mid-turn, for previews and screenshots.
+ * A drag down that starts on the cover goes to the sheet the player sits in through [onSheetDrag] (px, down positive)
+ * and [onSheetDragEnd] (px/s); null when the player isn't in a sheet. [onGestureLog] gets one line per gesture on the
+ * cover, for tuning (debug builds only). [pose] holds the page still mid-turn, for previews and screenshots.
  */
 @Immutable
 data class CoverSwipe(
@@ -93,6 +95,9 @@ data class CoverSwipe(
     val onNext: () -> Unit = {},
     val onPrevious: () -> Unit = {},
     val pose: PageTurnPose? = null,
+    val onSheetDrag: ((Float) -> Unit)? = null,
+    val onSheetDragEnd: (Float) -> Unit = {},
+    val onGestureLog: ((String) -> Unit)? = null,
 )
 
 @Composable
@@ -512,6 +517,9 @@ private fun PlayerCover(
         shape = MellowShapes.Large,
         fallbackIconSize = fallbackIconSize,
         pose = coverSwipe.pose,
+        onSheetDrag = coverSwipe.onSheetDrag,
+        onSheetDragEnd = coverSwipe.onSheetDragEnd,
+        onGestureLog = coverSwipe.onGestureLog,
     )
 }
 

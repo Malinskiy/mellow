@@ -1,6 +1,7 @@
 package dev.mellow.core.designsystem.component
 
 import kotlin.math.abs
+import androidx.compose.ui.geometry.Offset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -194,5 +195,22 @@ class PageTurnMathTest {
         assertTrue(high.width > low.width && high.alpha < low.alpha)
         assertEquals(0f, castShadow(120f, page, perspective).edge, 0f)
         assertEquals(0f, castShadow(180f, page, perspective).alpha, 1e-6f)
+    }
+
+    @Test
+    fun `a thumb arc's flick counts along the way it went`() {
+        // Released heading 77° down-left at 2900 px/s after a chord 63° down-left: sideways only 650 px/s.
+        val speed = turnFlingSpeed(PageTurnDirection.Next, Offset(-650f, 2830f), chord = Offset(-350f, 683f))
+        assertTrue("$speed", speed > 2500f)
+        assertFalse(shouldCommit(0.3f, velocityInDirection = 650f, flingThreshold = fling, enabled = true))
+        assertTrue(shouldCommit(0.3f, velocityInDirection = speed, flingThreshold = fling, enabled = true))
+    }
+
+    @Test
+    fun `a flick back against the turn is not a fling`() {
+        assertTrue(turnFlingSpeed(PageTurnDirection.Next, Offset(1500f, 200f), chord = Offset(-300f, 100f)) < 0f)
+        // The chord went the other way (a wobble past the start): only the sideways speed toward the page counts.
+        assertEquals(-800f, turnFlingSpeed(PageTurnDirection.Next, Offset(800f, 900f), chord = Offset(20f, 5f)), 0f)
+        assertEquals(400f, turnFlingSpeed(PageTurnDirection.Previous, Offset(400f, -50f), chord = Offset.Zero), 0f)
     }
 }

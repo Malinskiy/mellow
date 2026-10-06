@@ -11,6 +11,7 @@ import kotlin.math.max
 import kotlin.math.sign
 import kotlin.math.sin
 import kotlin.math.sqrt
+import androidx.compose.ui.geometry.Offset
 
 /*
  * The maths of the page turn: a stiff page hinged on its left edge (the spine), seen through a perspective camera
@@ -155,6 +156,18 @@ internal fun shouldCommit(
     flingThreshold: Float,
     enabled: Boolean,
 ): Boolean = enabled && (progress > 0.5f || (velocityInDirection > flingThreshold && progress > 0.1f))
+
+/**
+ * How fast (px/s) a released turn is flung toward its page: the finger's [velocity] along the way the gesture went
+ * ([chord], from the down point to the release), when that way is toward the page; else its sideways speed toward it.
+ * A thumb arc ends steeper than it started, so its sideways speed alone undersells a clear flick.
+ */
+internal fun turnFlingSpeed(direction: PageTurnDirection, velocity: Offset, chord: Offset): Float {
+    val toward = if (direction == PageTurnDirection.Next) -1f else 1f
+    val length = chord.getDistance()
+    if (length < 1f || chord.x * toward <= 0f) return velocity.x * toward
+    return (velocity.x * chord.x + velocity.y * chord.y) / length
+}
 
 /** The resting angle a cancelled turn falls back to, and the one a committed turn lands on. */
 internal fun restAngle(direction: PageTurnDirection): Float = if (direction == PageTurnDirection.Next) 0f else 180f

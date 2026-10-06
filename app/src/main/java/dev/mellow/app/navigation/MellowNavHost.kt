@@ -74,6 +74,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.util.Log
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -105,6 +106,7 @@ import androidx.navigation.navArgument
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.map
 import dev.mellow.app.AuthState
+import dev.mellow.app.BuildConfig
 import dev.mellow.app.MainViewModel
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.designsystem.component.LocalNavAnimatedVisibilityScope
@@ -1415,6 +1417,9 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         canGoPrevious = playbackState.hasPrevious,
                         onNext = { mainViewModel.player.skipNext() },
                         onPrevious = { mainViewModel.player.swipeToPrevious() },
+                        onSheetDrag = sheetState::dragBy,
+                        onSheetDragEnd = sheetState::endDrag,
+                        onGestureLog = if (BuildConfig.DEBUG) ::logCoverGesture else null,
                     ),
                     sidePanelContent = {
                         val pState = playbackState
@@ -2031,6 +2036,11 @@ private fun handleAppUpdateEvent(context: Context, event: AppUpdateEvent) {
         }
         // Otherwise nothing can handle it on this device; the dialog stays open with its other options.
     }
+}
+
+/** Debug builds: a gesture on the expanded cover, for tuning the swipe classifier (`adb logcat -s SwipeArbiter`). */
+private fun logCoverGesture(line: String) {
+    Log.d("SwipeArbiter", line)
 }
 
 /** A track's cover for in-app UI: its own image, or its album's (most tracks only have the album's). */
