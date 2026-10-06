@@ -37,6 +37,7 @@ class TabletopCoverPositionTest {
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     private var title by mutableStateOf("Help!")
+    private var favourite by mutableStateOf(false)
 
     @Test
     fun `the cover doesn't move when the title gets longer`() {
@@ -48,6 +49,18 @@ class TabletopCoverPositionTest {
         val long = coverBounds()
 
         assertEquals(short, long)
+    }
+
+    @Test
+    fun `the cover doesn't move when the track is favourited`() {
+        title = "The Continuing Story of Bungalow Bill"
+        show(topHeight = 395.dp)
+        val before = coverBounds()
+
+        favourite = true
+        composeTestRule.waitForIdle()
+
+        assertEquals(before, coverBounds())
     }
 
     @Test
@@ -87,6 +100,8 @@ class TabletopCoverPositionTest {
                         trackName = title,
                         artistName = "The Beatles",
                         albumName = "The Beatles (disc 1)",
+                        isFavorite = favourite,
+                        isDownloaded = true,
                     )
                 }
             }

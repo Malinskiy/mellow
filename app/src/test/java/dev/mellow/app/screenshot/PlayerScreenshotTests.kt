@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.junit.Test
 import dev.mellow.core.designsystem.component.ArtworkBackground
@@ -231,6 +233,71 @@ abstract class PlayerScreenshotTests : ScreenshotCapture() {
                     codec = "flac",
                 )
             }
+        }
+    }
+
+    /** A two-line title, a two-line album and the Downloaded check: the title clears the cover, the heart its line. */
+    @Test
+    fun playerLongTitle() = capture("player-long-title") { LongTitlePlayer(playerLayout) }
+
+    /** A title too long for two lines: it stops at two, with an ellipsis. */
+    @Test
+    fun playerVeryLongTitle() = capture("player-very-long-title") {
+        LongTitlePlayer(
+            playerLayout,
+            title = "Let the Water Wash Away Your Sins (Reinterpretation) " +
+                "[Live at the Royal Albert Hall, 2019 Remaster]",
+        )
+    }
+
+    @Test
+    fun playerLandscapeLongTitle() {
+        if (windowWidthClass == WindowWidthClass.Compact) return
+        capture("player-landscape-long-title") { LongTitlePlayer(PlayerLayout.Landscape) }
+    }
+
+    @Composable
+    private fun LongTitlePlayer(
+        layout: PlayerLayout,
+        title: String = "Let the Water Wash Away Your Sins (Reinterpretation)",
+    ) {
+        val density = LocalDensity.current
+        ExpandedSheet {
+            PlayerScreen(
+                embedded = true,
+                layout = layout,
+                tabletopTopHeight = 395.dp,
+                splitPaneWidth = if (foldableState.hasVerticalFold) {
+                    with(density) { foldableState.hingeBounds.left.toDp() }
+                } else {
+                    Dp.Unspecified
+                },
+                trackName = title,
+                artistName = "Hammock",
+                albumName = "Far Cry 5 Presents: We Will Rise Again (Original Game Soundtrack)",
+                albumImageUrl = "https://example.com/art.jpg",
+                isPlaying = true,
+                isFavorite = true,
+                isDownloaded = true,
+                progress = 0.4f,
+                positionMs = 120000L,
+                durationMs = 300000L,
+                codec = "flac",
+                sidePanelContent = if (layout == PlayerLayout.ExpandedWithQueue) {
+                    {
+                        QueueScreen(
+                            onBack = {},
+                            embedded = true,
+                            nowPlaying = ScreenshotData.queueNowPlaying,
+                            upNext = ScreenshotData.queueUpNext,
+                            currentAlbumName = "In Rainbows",
+                            modifier = Modifier.width(400.dp).fillMaxHeight(),
+                        )
+                    }
+                } else {
+                    null
+                },
+            )
         }
     }
 

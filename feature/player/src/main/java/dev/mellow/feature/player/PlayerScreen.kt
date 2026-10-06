@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -48,6 +49,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.HorizontalAlignmentLine
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.SpanStyle
@@ -75,6 +80,7 @@ import dev.mellow.core.designsystem.theme.MellowPalette
 import dev.mellow.core.designsystem.theme.MellowShapes
 import dev.mellow.core.designsystem.theme.MellowSpacing
 import dev.mellow.core.designsystem.theme.MellowTheme
+import kotlin.math.roundToInt
 
 enum class PlayerLayout {
     Compact,
@@ -504,23 +510,48 @@ private fun AlbumArt(
     artModifier: Modifier = Modifier,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = MellowSpacing.Sp8),
-    ) {
-        PlayerCover(
-            albumImageUrl = albumImageUrl,
-            coverSwipe = coverSwipe,
-            pageTurns = pageTurns,
-            modifier = artModifier
-                .sizeIn(maxWidth = artSize, maxHeight = artSize)
-                .aspectRatio(1f, matchHeightConstraintsFirst = true),
-            fallbackIconSize = 64.dp,
-        )
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        // Fixed gaps keep the cover off the top bar and the title: on a short phone the cover shrinks instead.
+        val gaps = compactCoverGapFraction(maxHeight)
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = MellowSpacing.Sp8,
+                    end = MellowSpacing.Sp8,
+                    top = COMPACT_COVER_GAP_ABOVE * gaps,
+                    bottom = COMPACT_COVER_GAP_BELOW * gaps,
+                ),
+        ) {
+            PlayerCover(
+                albumImageUrl = albumImageUrl,
+                coverSwipe = coverSwipe,
+                pageTurns = pageTurns,
+                modifier = artModifier
+                    .sizeIn(maxWidth = artSize, maxHeight = artSize)
+                    .aspectRatio(1f, matchHeightConstraintsFirst = true),
+                fallbackIconSize = 64.dp,
+            )
+        }
     }
 }
+
+/** Compact: the gap above the cover, which with the top bar's own bottom padding (Sp3) makes 24 dp… */
+private val COMPACT_COVER_GAP_ABOVE = MellowSpacing.Sp3
+
+/** …and the gap between the cover and the title. */
+private val COMPACT_COVER_GAP_BELOW = MellowSpacing.Sp6
+
+/** Compact: below this the cover would hardly be a cover (nor something to swipe), so the gaps give way first. */
+private val COMPACT_COVER_MIN = 120.dp
+
+/**
+ * Compact: the fraction of the gaps around the cover that fit in a slot [height] tall, 1 unless the screen is so short
+ * that the full gaps would leave the cover smaller than [COMPACT_COVER_MIN].
+ */
+internal fun compactCoverGapFraction(height: Dp): Float =
+    ((height - COMPACT_COVER_MIN) / (COMPACT_COVER_GAP_ABOVE + COMPACT_COVER_GAP_BELOW)).coerceIn(0f, 1f)
 
 /** The expanded player's cover: swipe it to turn to the next or previous track (see [CoverSwipe]). */
 @Composable
@@ -563,19 +594,69 @@ fun PlayerTrackInfo(
     onArtistClick: (String) -> Unit = {},
     onMoreArtistsClick: () -> Unit = {},
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    TitleWithHeart(
+        title = trackName.ifEmpty { "No track" },
+        titleStyle = MaterialTheme.typography.headlineLarge,
+        isFavorite = isFavorite,
+        isDownloaded = isDownloaded,
+        onFavoriteClick = onFavoriteClick,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp6),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        if (artists.size > 1) {
+            MultiArtistText(
+                artists = artists,
+                onArtistClick = onArtistClick,
+                onMoreArtistsClick = onMoreArtistsClick,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        } else {
+            Text(
+                artistName.ifEmpty { "Unknown artist" },
+                style = MaterialTheme.typography.titleLarge,
+                color = MellowTheme.colors.accentStrong,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+    }
+}
+
+/**
+ * The track [title] (at most two lines, then an ellipsis) with [below] under it, and to its right the favourite heart
+ * and, when [isDownloaded], the Downloaded check, both centred on the title's first line however many lines it takes.
+ */
+@Composable
+private fun TitleWithHeart(
+    title: String,
+    titleStyle: TextStyle,
+    isFavorite: Boolean,
+    isDownloaded: Boolean,
+    onFavoriteClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    below: @Composable ColumnScope.() -> Unit,
+) {
+    val titleLayout = remember { TextLayoutHolder() }
+    Row(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .alignBy(TitleFirstLineCentre),
+        ) {
+            Row {
                 Text(
-                    trackName.ifEmpty { "No track" },
-                    style = MaterialTheme.typography.headlineLarge,
+                    title,
+                    style = titleStyle,
                     color = MellowTheme.colors.foreground,
-                    modifier = Modifier.weight(1f, fill = false),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { titleLayout.result = it },
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .alignBy(TitleFirstLineCentre)
+                        .firstLineCentre(titleLayout),
                 )
                 if (isDownloaded) {
                     Spacer(Modifier.width(MellowSpacing.Sp2))
@@ -583,33 +664,45 @@ fun PlayerTrackInfo(
                         PhosphorIcons.CheckCircle,
                         contentDescription = "Downloaded",
                         tint = MellowTheme.colors.success,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier
+                            .size(18.dp)
+                            .alignBy { it.measuredHeight / 2 },
                     )
                 }
             }
-            if (artists.size > 1) {
-                MultiArtistText(
-                    artists = artists,
-                    onArtistClick = onArtistClick,
-                    onMoreArtistsClick = onMoreArtistsClick,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            } else {
-                Text(
-                    artistName.ifEmpty { "Unknown artist" },
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MellowTheme.colors.accentStrong,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
+            below()
         }
         AnimatedHeartIcon(
             isFavorite = isFavorite,
             onToggle = onFavoriteClick,
+            modifier = Modifier.alignBy { it.measuredHeight / 2 },
             iconSize = 24.dp,
         )
+    }
+}
+
+/** The vertical centre of the track title's first line, from [firstLineCentre]. */
+private val TitleFirstLineCentre = HorizontalAlignmentLine(merger = ::minOf)
+
+/** The latest layout of a [Text], set from its `onTextLayout`, which runs while the text is measured. */
+private class TextLayoutHolder {
+    var result: TextLayoutResult? = null
+}
+
+/**
+ * Provides [TitleFirstLineCentre] for the [Text] this modifies, from the layout in [holder]: the middle of its first
+ * line as laid out (so it follows font scaling and taller fallback fonts), or of the whole text before there is one.
+ */
+private fun Modifier.firstLineCentre(holder: TextLayoutHolder): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val text = holder.result
+    val centre = if (text != null && text.lineCount > 0) {
+        ((text.getLineTop(0) + text.getLineBottom(0)) / 2f).roundToInt()
+    } else {
+        placeable.height / 2
+    }
+    layout(placeable.width, placeable.height, mapOf(TitleFirstLineCentre to centre)) {
+        placeable.place(0, 0)
     }
 }
 
@@ -910,14 +1003,14 @@ private fun TabletopPlayerLayout(
                         fallbackIconSize = 48.dp,
                     )
                     Spacer(Modifier.width(gap))
-                    Column(modifier = Modifier.width(textSlot)) {
-                        Text(
-                            trackName,
-                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = MellowTheme.colors.foreground,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    TitleWithHeart(
+                        title = trackName,
+                        titleStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                        isFavorite = isFavorite,
+                        isDownloaded = isDownloaded,
+                        onFavoriteClick = onFavoriteClick,
+                        modifier = Modifier.width(textSlot),
+                    ) {
                         Spacer(Modifier.height(MellowSpacing.Sp1))
                         Text(
                             artistName,
