@@ -7,11 +7,15 @@ import android.graphics.Paint
 import android.graphics.Shader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import coil3.annotation.ExperimentalCoilApi
 import coil3.asImage
 import coil3.compose.AsyncImagePreviewHandler
@@ -22,10 +26,20 @@ import dev.mellow.core.designsystem.theme.MellowTheme
 import dev.mellow.feature.player.CoverSwipe
 import dev.mellow.feature.player.PlayerLayout
 import dev.mellow.feature.player.PlayerScreen
+import dev.mellow.feature.player.QueueScreen
 import org.junit.Test
 
 /** The now-playing cover held mid-turn: three distinct covers stand in for the current, next and previous tracks. */
 abstract class PageTurnScreenshotTests : ScreenshotCapture() {
+
+    /** The expanded player's layout on this device class. */
+    open val playerLayout: PlayerLayout = PlayerLayout.Compact
+
+    /** Tabletop: the height of the half above the hinge. */
+    open val tabletopTopHeight: Dp = 0.dp
+
+    /** A book-posture fold: the width of the pane left of the hinge. */
+    open val splitPaneWidth: Dp = Dp.Unspecified
 
     @Test
     fun turningToNext() = capture("player-cover-turn-next-45") {
@@ -63,7 +77,9 @@ abstract class PageTurnScreenshotTests : ScreenshotCapture() {
             ) {
                 PlayerScreen(
                     embedded = true,
-                    layout = PlayerLayout.Compact,
+                    layout = playerLayout,
+                    tabletopTopHeight = tabletopTopHeight,
+                    splitPaneWidth = splitPaneWidth,
                     trackName = "Reckoner",
                     artistName = "Radiohead",
                     albumName = "In Rainbows",
@@ -81,6 +97,20 @@ abstract class PageTurnScreenshotTests : ScreenshotCapture() {
                         canGoPrevious = true,
                         pose = pose,
                     ),
+                    sidePanelContent = if (playerLayout == PlayerLayout.ExpandedWithQueue) {
+                        {
+                            QueueScreen(
+                                onBack = {},
+                                embedded = true,
+                                nowPlaying = ScreenshotData.queueNowPlaying,
+                                upNext = ScreenshotData.queueUpNext,
+                                currentAlbumName = "In Rainbows",
+                                modifier = Modifier.width(400.dp).fillMaxHeight(),
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
             }
         }
