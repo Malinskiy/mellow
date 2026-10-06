@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -51,6 +52,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.HorizontalAlignmentLine
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.SpanStyle
@@ -592,13 +594,52 @@ fun PlayerTrackInfo(
     onArtistClick: (String) -> Unit = {},
     onMoreArtistsClick: () -> Unit = {},
 ) {
-    // The title wraps to at most two lines; the heart and the Downloaded check are centred on its first.
-    val titleLayout = remember { TextLayoutHolder() }
-    Row(
+    TitleWithHeart(
+        title = trackName.ifEmpty { "No track" },
+        titleStyle = MaterialTheme.typography.headlineLarge,
+        isFavorite = isFavorite,
+        isDownloaded = isDownloaded,
+        onFavoriteClick = onFavoriteClick,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp6),
     ) {
+        if (artists.size > 1) {
+            MultiArtistText(
+                artists = artists,
+                onArtistClick = onArtistClick,
+                onMoreArtistsClick = onMoreArtistsClick,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        } else {
+            Text(
+                artistName.ifEmpty { "Unknown artist" },
+                style = MaterialTheme.typography.titleLarge,
+                color = MellowTheme.colors.accentStrong,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+    }
+}
+
+/**
+ * The track [title] (at most two lines, then an ellipsis) with [below] under it, and to its right the favourite heart
+ * and, when [isDownloaded], the Downloaded check, both centred on the title's first line however many lines it takes.
+ */
+@Composable
+private fun TitleWithHeart(
+    title: String,
+    titleStyle: TextStyle,
+    isFavorite: Boolean,
+    isDownloaded: Boolean,
+    onFavoriteClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    below: @Composable ColumnScope.() -> Unit,
+) {
+    val titleLayout = remember { TextLayoutHolder() }
+    Row(modifier = modifier) {
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -606,8 +647,8 @@ fun PlayerTrackInfo(
         ) {
             Row {
                 Text(
-                    trackName.ifEmpty { "No track" },
-                    style = MaterialTheme.typography.headlineLarge,
+                    title,
+                    style = titleStyle,
                     color = MellowTheme.colors.foreground,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -629,23 +670,7 @@ fun PlayerTrackInfo(
                     )
                 }
             }
-            if (artists.size > 1) {
-                MultiArtistText(
-                    artists = artists,
-                    onArtistClick = onArtistClick,
-                    onMoreArtistsClick = onMoreArtistsClick,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            } else {
-                Text(
-                    artistName.ifEmpty { "Unknown artist" },
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MellowTheme.colors.accentStrong,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
+            below()
         }
         AnimatedHeartIcon(
             isFavorite = isFavorite,
@@ -978,14 +1003,14 @@ private fun TabletopPlayerLayout(
                         fallbackIconSize = 48.dp,
                     )
                     Spacer(Modifier.width(gap))
-                    Column(modifier = Modifier.width(textSlot)) {
-                        Text(
-                            trackName,
-                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = MellowTheme.colors.foreground,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    TitleWithHeart(
+                        title = trackName,
+                        titleStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                        isFavorite = isFavorite,
+                        isDownloaded = isDownloaded,
+                        onFavoriteClick = onFavoriteClick,
+                        modifier = Modifier.width(textSlot),
+                    ) {
                         Spacer(Modifier.height(MellowSpacing.Sp1))
                         Text(
                             artistName,

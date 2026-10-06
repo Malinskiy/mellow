@@ -15,10 +15,12 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -107,6 +109,39 @@ class PlayerTitleSpacingTest {
             splitPaneWidth = FOLD_HINGE,
         )
 
+    // Tabletop (Pixel 10 Pro Fold half-folded): the heart beside the title in the text slot
+
+    @Test
+    @Config(qualifiers = TABLETOP)
+    fun `tabletop - the heart lines up with a one-line title`() =
+        assertHeartOnFirstLine(PlayerLayout.Tabletop, SHORT_TITLE, lines = 1, downloaded = true)
+
+    @Test
+    @Config(qualifiers = TABLETOP)
+    fun `tabletop - the heart lines up with the first line of a two-line title`() =
+        assertHeartOnFirstLine(PlayerLayout.Tabletop, LONG_TITLE, lines = 2, downloaded = true)
+
+    @Test
+    @Config(qualifiers = TABLETOP)
+    fun `tabletop - a very long title stops at two lines`() {
+        show(PlayerLayout.Tabletop, VERY_LONG_TITLE, downloaded = true)
+
+        val text = textLayout(titleNode())
+        assertEquals("title lines", 2, text.lineCount)
+        assertTrue("second line not ellipsized", text.isLineEllipsized(1))
+        assertHeartOnFirstLine(text)
+    }
+
+    @Test
+    @Config(qualifiers = TABLETOP)
+    fun `tabletop - tapping the heart favourites the track`() {
+        show(PlayerLayout.Tabletop, LONG_TITLE)
+
+        heart().performClick()
+
+        assertEquals(1, favouriteClicks)
+    }
+
     // A title too long for two lines stops at two, with an ellipsis
 
     @Test
@@ -176,18 +211,25 @@ class PlayerTitleSpacingTest {
         )
     }
 
-    /** The heart: the clickable, unlabelled 43.2 dp box to the right of the title. */
     private fun heartBounds(title: DpRect): DpRect {
-        val candidates = composeTestRule.onAllNodes(hasClickAction(), useUnmergedTree = true)
-            .fetchSemanticsNodes()
-            .filter { it.config.getOrNull(SemanticsProperties.ContentDescription) == null }
-            .filter { it.config.getOrNull(SemanticsProperties.Text) == null }
-            .map { bounds(it) }
-            .filter { abs((it.right - it.left - HEART_BOX).value) < 0.5f }
-            .filter { abs((it.bottom - it.top - HEART_BOX).value) < 0.5f }
-            .filter { it.left >= title.right - 1.dp }
-        assertEquals("heart candidates: $candidates", 1, candidates.size)
-        return candidates.single()
+        val heart = bounds(heart().fetchSemanticsNode())
+        assertTrue("heart $heart not right of the title $title", heart.left >= title.right - 1.dp)
+        return heart
+    }
+
+    /** The heart: the one clickable, unlabelled 43.2 dp box. */
+    private fun heart(): SemanticsNodeInteraction {
+        val clickable = composeTestRule.onAllNodes(hasClickAction(), useUnmergedTree = true)
+        val hearts = clickable.fetchSemanticsNodes().withIndex()
+            .filter { it.value.config.getOrNull(SemanticsProperties.ContentDescription) == null }
+            .filter { it.value.config.getOrNull(SemanticsProperties.Text) == null }
+            .filter { (_, node) ->
+                val box = bounds(node)
+                abs((box.right - box.left - HEART_BOX).value) < 0.5f &&
+                    abs((box.bottom - box.top - HEART_BOX).value) < 0.5f
+            }
+        assertEquals("heart candidates: ${hearts.map { bounds(it.value) }}", 1, hearts.size)
+        return clickable[hearts.single().index]
     }
 
     private fun titleNode(): SemanticsNode =
@@ -210,6 +252,7 @@ class PlayerTitleSpacingTest {
     }
 
     private var currentTitle = ""
+    private var favouriteClicks = 0
 
     private fun show(
         layout: PlayerLayout,
@@ -218,7 +261,7 @@ class PlayerTitleSpacingTest {
         fontScale: Float = 1f,
         sidePanel: Boolean = false,
         splitPaneWidth: Dp = Dp.Unspecified,
-        systemBars: Boolean = true,
+        systemBars: Boolean = layout != PlayerLayout.Tabletop,
     ) {
         currentTitle = title
         composeTestRule.setContent {
@@ -231,12 +274,14 @@ class PlayerTitleSpacingTest {
                         PlayerScreen(
                             embedded = true,
                             layout = layout,
+                            tabletopTopHeight = TABLETOP_TOP_HEIGHT,
                             splitPaneWidth = splitPaneWidth,
                             artModifier = Modifier.testTag("cover"),
                             trackName = title,
                             artistName = "Hammock",
                             albumName = ALBUM,
                             isDownloaded = downloaded,
+                            onFavoriteClick = { favouriteClicks++ },
                             codec = "flac",
                             sidePanelContent = if (sidePanel) {
                                 { Box(Modifier.width(400.dp).fillMaxHeight()) }
@@ -265,6 +310,10 @@ class PlayerTitleSpacingTest {
         val COVER_MIN = 120.dp
         val STATUS_BAR = 32.dp
         val NAVIGATION_BAR = 48.dp
+
+        /** Pixel 10 Pro Fold half-folded, landscape, and the height above its hinge (1038 px at 420 dpi). */
+        const val TABLETOP = "w1023dp-h876dp-420dpi"
+        val TABLETOP_TOP_HEIGHT = 395.dp
 
         /** Pixel 10 Pro Fold, open: the hinge's x (1038 px at 420 dpi). */
         val FOLD_HINGE = 395.dp

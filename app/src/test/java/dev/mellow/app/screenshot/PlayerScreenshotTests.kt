@@ -277,6 +277,7 @@ abstract class PlayerScreenshotTests : ScreenshotCapture() {
                 albumName = "Far Cry 5 Presents: We Will Rise Again (Original Game Soundtrack)",
                 albumImageUrl = "https://example.com/art.jpg",
                 isPlaying = true,
+                isFavorite = true,
                 isDownloaded = true,
                 progress = 0.4f,
                 positionMs = 120000L,
