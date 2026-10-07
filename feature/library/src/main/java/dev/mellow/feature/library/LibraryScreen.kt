@@ -326,7 +326,7 @@ private fun LibraryTopBar(
         if (showViewToggle) {
             IconButton(onClick = onToggleView) {
                 Icon(
-                    imageVector = if (isGridView) PhosphorIcons.Rows else PhosphorIcons.SquaresFour,
+                    imageVector = if (isGridView) PhosphorIcons.ListBullets else PhosphorIcons.SquaresFour,
                     contentDescription = if (isGridView) "List view" else "Grid view",
                     tint = MellowTheme.colors.foreground,
                     modifier = Modifier.size(20.dp),
