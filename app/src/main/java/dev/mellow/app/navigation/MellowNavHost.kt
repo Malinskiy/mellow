@@ -120,7 +120,6 @@ import dev.mellow.core.designsystem.component.MellowNavigationRail
 import dev.mellow.core.player.PositionState
 import dev.mellow.core.designsystem.component.MellowNavDestination
 import dev.mellow.core.designsystem.component.MiniPlayer
-import dev.mellow.core.designsystem.component.ArtistPickerSheet
 import dev.mellow.core.designsystem.component.PickerArtist
 import dev.mellow.core.designsystem.component.TrackContextMenu
 import dev.mellow.core.designsystem.component.TrackMenuData
@@ -241,7 +240,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     val context = LocalContext.current
 
     val fullScreenRoutes = setOf("now_playing", "queue", "lyrics")
-    val edgeToEdgeContentRoutes = setOf("album/{albumId}?source={source}", "artist/{artistId}")
+    val edgeToEdgeContentRoutes = setOf(ALBUM_ROUTE, ARTIST_ROUTE)
     val isFullScreen = currentRoute in fullScreenRoutes
     val tabRoutes = MellowNavDestination.entries.map { it.route }.toSet()
     val baseRoute = currentRoute.substringBefore("?")
@@ -261,8 +260,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
     var trackInfoTrack by remember { mutableStateOf<Track?>(null) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var addToPlaylistTrackId by remember { mutableStateOf<String?>(null) }
-    var showArtistPicker by remember { mutableStateOf(false) }
-    var pickerArtists by remember { mutableStateOf<List<PickerArtist>>(emptyList()) }
+    val libraryLinks = rememberLibraryLinks(navController, sheetState) { a ->
+        PickerArtist(
+            id = a.id,
+            name = a.name,
+            imageUrl = if (serverUrl != null && a.imageTag != null) artworkUri(a.id) else null,
+            albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
+        )
+    }
     val playlistsVm: PlaylistsViewModel = hiltViewModel()
     val playlistsState by playlistsVm.uiState.collectAsState()
 
@@ -812,7 +817,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     )
                 }
                 composable(
-                    "album/{albumId}?source={source}",
+                    ALBUM_ROUTE,
                     arguments = listOf(
                         navArgument("albumId") { type = NavType.StringType },
                         navArgument("source") { type = NavType.StringType; defaultValue = "library" },
@@ -988,29 +993,13 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             val albumId = albumState.album?.id
                             val fallbackArtistId = albumState.album?.resolvedArtistId ?: albumState.album?.artistId
                             if (albumId != null) {
-                                scope.launch {
-                                    val artists = mainViewModel.getArtistsForAlbum(albumId)
-                                    if (artists.size <= 1) {
-                                        val artistId = artists.firstOrNull()?.id ?: fallbackArtistId
-                                        if (artistId != null) navController.navigate("artist/$artistId")
-                                    } else {
-                                        pickerArtists = artists.map { a ->
-                                            PickerArtist(
-                                                id = a.id,
-                                                name = a.name,
-                                                imageUrl = if (serverUrl != null && a.imageTag != null) artworkUri(a.id) else null,
-                                                albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
-                                            )
-                                        }
-                                        showArtistPicker = true
-                                    }
-                                }
+                                libraryLinks.openArtistOf(fallbackArtistId) { mainViewModel.getArtistsForAlbum(albumId) }
                             }
                         },
                     )
                     }
                 }
-                composable("artist/{artistId}") {
+                composable(ARTIST_ROUTE) {
                     val artistVm: ArtistDetailViewModel = hiltViewModel()
                     val artistState by artistVm.uiState.collectAsState()
 
@@ -1323,6 +1312,12 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
             mainViewModel.isTrackDownloaded(track.id)
         }.collectAsState(initial = false)
 
+        // Looked up once per track: the player's album and artist line open them only when they're in the library. A
+        // restored queue shows a placeholder (no album or artist ids) until the library's track replaces it.
+        val linkKey = listOf(track.id, track.albumId, track.resolvedArtistId, track.artistId)
+        var sheetLinks by remember(linkKey) { mutableStateOf(TrackLinkTargets.None) }
+        LaunchedEffect(linkKey) { sheetLinks = mainViewModel.linkTargetsOf(track) }
+
         ExpandablePlayerSheet(
             sheetState = sheetState,
             trackName = track.name,
@@ -1424,6 +1419,14 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         buttonNext = { mainViewModel.player.skipNext()?.toPageTurnTarget(serverUrl) },
                         buttonPrevious = { mainViewModel.player.skipPrevious()?.toPageTurnTarget(serverUrl) },
                     ),
+                    onArtistClick = if (sheetLinks.hasArtist) {
+                        {
+                            libraryLinks.openArtistOf(track.resolvedArtistId ?: track.artistId) {
+                                mainViewModel.getArtistsForTrack(track.id)
+                            }
+                        }
+                    } else null,
+                    onAlbumClick = sheetLinks.albumId?.let { albumId -> { libraryLinks.openAlbum(albumId) } },
                     sidePanelContent = {
                         val pState = playbackState
                         val currentIdx = pState.currentIndex
@@ -1741,30 +1744,13 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         showAddToPlaylistSheet = true
                     },
                     onGoToAlbum = {
-                        menuData.albumId?.let { navController.navigate("album/$it") }
+                        menuData.albumId?.let(libraryLinks::openAlbum)
                         contextMenuTrack = null
                     },
                     onGoToArtist = {
                         val trackId = menuData.id
-                        val fallbackArtistId = menuData.artistId
                         contextMenuTrack = null
-                        scope.launch {
-                            val artists = mainViewModel.getArtistsForTrack(trackId)
-                            if (artists.size <= 1) {
-                                val artistId = artists.firstOrNull()?.id ?: fallbackArtistId
-                                if (artistId != null) navController.navigate("artist/$artistId")
-                            } else {
-                                pickerArtists = artists.map { a ->
-                                    PickerArtist(
-                                        id = a.id,
-                                        name = a.name,
-                                        imageUrl = if (serverUrl != null && a.imageTag != null) artworkUri(a.id) else null,
-                                        albumCount = mainViewModel.countAlbumsByArtistCrossRef(a.id),
-                                    )
-                                }
-                                showArtistPicker = true
-                            }
-                        }
+                        libraryLinks.openArtistOf(menuData.artistId) { mainViewModel.getArtistsForTrack(trackId) }
                     },
                     onStartMix = {
                         mainViewModel.startMix(menuData.id)
@@ -1784,17 +1770,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
         }
     }
 
-    if (showArtistPicker) {
-        ArtistPickerSheet(
-            artists = pickerArtists,
-            onArtistClick = { artistId ->
-                navController.navigate("artist/$artistId")
-            },
-            onDismiss = {
-                showArtistPicker = false
-            },
-        )
-    }
+    ArtistPickerHost(libraryLinks)
 
     if (showAddToPlaylistSheet) {
         val playlistPickerItems = remember(playlistsState.playlists) {

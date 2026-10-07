@@ -3,6 +3,8 @@ package dev.mellow.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.mellow.app.navigation.TrackLinkTargets
+import dev.mellow.app.navigation.trackLinkTargets
 import dev.mellow.core.common.MellowResult
 import dev.mellow.core.data.SyncProgress
 import dev.mellow.core.data.preferences.DisplayPreferences
@@ -258,6 +260,15 @@ class MainViewModel @Inject constructor(
     suspend fun getArtistsForTrack(trackId: String): List<ArtistEntity> {
         return trackDao.getArtistsForTrack(trackId)
     }
+
+    /** What the expanded player can open for [track]: its album and its artists, when they're in the library. */
+    suspend fun linkTargetsOf(track: Track): TrackLinkTargets = trackLinkTargets(
+        albumId = track.albumId,
+        fallbackArtistId = track.resolvedArtistId ?: track.artistId,
+        hasArtists = { trackDao.getArtistsForTrack(track.id).isNotEmpty() },
+        albumExists = { (libraryRepository.getAlbum(it) as? MellowResult.Success)?.data != null },
+        artistExists = { (libraryRepository.getArtist(it) as? MellowResult.Success)?.data != null },
+    )
 
     /** The library's track [trackId], for lists that only keep the tracks on screen. */
     suspend fun getTrack(trackId: String): Track? =
