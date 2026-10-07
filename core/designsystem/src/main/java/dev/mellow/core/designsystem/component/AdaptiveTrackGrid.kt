@@ -33,6 +33,8 @@ private val MIN_COLUMN_WIDTH = 350.dp
  *
  * When [columnFirst] is true items flow top-to-bottom within each column before moving to the
  * next; otherwise they flow left-to-right across each row.
+ *
+ * [state] (scrollable grid only) lets a screen keep the grid's scroll position while the grid is away.
  */
 @Composable
 fun <T> AdaptiveTrackGrid(
@@ -43,6 +45,7 @@ fun <T> AdaptiveTrackGrid(
     minColumnWidth: Dp = MIN_COLUMN_WIDTH,
     nested: Boolean = false,
     columnFirst: Boolean = true,
+    state: LazyGridState = rememberLazyGridState(),
     itemContent: @Composable (index: Int, item: T, columns: Int) -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier) {
@@ -84,6 +87,7 @@ fun <T> AdaptiveTrackGrid(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
+                state = state,
                 contentPadding = contentPadding,
                 modifier = Modifier.fillMaxSize(),
             ) {

@@ -53,6 +53,7 @@ import dev.mellow.core.model.Album
 import dev.mellow.core.model.Track
 import dev.mellow.feature.home.FavoritesContent
 import dev.mellow.feature.library.ArtistDetailLayout
+import dev.mellow.feature.library.ArtistTrack
 import dev.mellow.feature.library.ArtistDetailScreen
 import dev.mellow.feature.library.LibraryScreen
 import dev.mellow.feature.library.TrackItem
@@ -230,25 +231,61 @@ class TabSwipeTest {
     }
 
     @Test
-    @Config(qualifiers = "w900dp-h600dp-xxhdpi") // The artist's tabs are on the wide, split-screen layout.
-    fun `the artist's tabs still switch by tap`() {
-        show {
-            ArtistDetailScreen(
-                onBack = {},
-                layout = ArtistDetailLayout.SplitScreen,
-                artistName = "Radiohead",
-                topTracks = ScreenshotData.artistTracks,
-                albums = ScreenshotData.artistAlbums,
-            )
-        }
+    @Config(qualifiers = WIDE) // The artist's tabs are on the wide, split-screen layout.
+    fun `swiping the artist's right pane switches between top tracks and discography`() {
+        showArtist(ScreenshotData.artistTracks)
         composeTestRule.onNodeWithText("Paranoid Android").assertIsDisplayed()
+
+        swipeArtistPane(left = true)
+
+        tab("Discography").assertIsSelected()
+        composeTestRule.onNodeWithText("The Bends").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Paranoid Android").assertIsNotDisplayed()
+        assertPillOn("Discography")
+
+        swipeArtistPane(left = false)
+
+        tab("Top Tracks").assertIsSelected()
+        composeTestRule.onNodeWithText("Paranoid Android").assertIsDisplayed()
+        assertPillOn("Top Tracks")
+    }
+
+    @Test
+    @Config(qualifiers = WIDE)
+    fun `the artist's tabs still switch by tap`() {
+        showArtist(ScreenshotData.artistTracks)
 
         tab("Discography").performClick()
         composeTestRule.waitForIdle()
 
         tab("Discography").assertIsSelected()
-        composeTestRule.onNodeWithText("Paranoid Android").assertDoesNotExist()
+        composeTestRule.onNodeWithText("The Bends").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Paranoid Android").assertIsNotDisplayed()
         assertPillOn("Discography")
+
+        tab("Top Tracks").performClick()
+        composeTestRule.waitForIdle()
+
+        tab("Top Tracks").assertIsSelected()
+        composeTestRule.onNodeWithText("Paranoid Android").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = WIDE)
+    fun `the artist's top tracks keep their scroll position while swiped away`() {
+        showArtist(List(60) { ArtistTrack("t$it", "Track $it", "3:00", "Album") })
+        val topTracks = hasScrollToIndexAction() and hasAnyDescendant(hasText("Track 0")) and
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)
+        composeTestRule.onNode(topTracks).performScrollToIndex(40)
+        composeTestRule.onNodeWithText("Track 40").assertIsDisplayed()
+
+        swipeArtistPane(left = true)
+        composeTestRule.onNodeWithText("The Bends").assertIsDisplayed()
+        swipeArtistPane(left = false)
+
+        tab("Top Tracks").assertIsSelected()
+        composeTestRule.onNodeWithText("Track 40").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("Track 0").assertIsNotDisplayedOrAbsent()
     }
 
     @Test
@@ -330,6 +367,28 @@ class TabSwipeTest {
         for (i in 0 until count) get(i).assertIsNotDisplayed()
     }
 
+    private fun showArtist(tracks: List<ArtistTrack>) = show {
+        ArtistDetailScreen(
+            onBack = {},
+            layout = ArtistDetailLayout.SplitScreen,
+            artistName = "Radiohead",
+            topTracks = tracks,
+            albums = ScreenshotData.artistAlbums,
+        )
+    }
+
+    /** A fling across the artist's right pane, the one with the tabs (the left pane is the artist). */
+    private fun swipeArtistPane(left: Boolean) {
+        composeTestRule.onRoot().performTouchInput {
+            if (left) {
+                swipeLeft(startX = width * 0.95f, endX = width * 0.5f)
+            } else {
+                swipeRight(startX = width * 0.5f, endX = width * 0.95f)
+            }
+        }
+        composeTestRule.waitForIdle()
+    }
+
     /** A fling across the pages, along the middle of the screen, where the content is. */
     private fun swipePages(left: Boolean) {
         composeTestRule.onRoot().performTouchInput {
@@ -374,4 +433,9 @@ class TabSwipeTest {
         id = "al1", name = "Favorite album", artistId = null, artistName = null, year = null, trackCount = 0,
         genres = emptyList(), imageId = null, isFavorite = true,
     )
+
+    private companion object {
+        /** A tablet-wide window, where the artist shows on the split-screen layout. */
+        const val WIDE = "w900dp-h600dp-xxhdpi"
+    }
 }

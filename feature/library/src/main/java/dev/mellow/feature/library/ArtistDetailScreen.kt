@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -64,6 +65,8 @@ import dev.mellow.core.designsystem.component.AnimatedPlayPauseButton
 import dev.mellow.core.designsystem.component.ErrorContent
 import dev.mellow.core.designsystem.component.LoadingContent
 import dev.mellow.core.designsystem.component.MellowTabBar
+import dev.mellow.core.designsystem.component.MellowTabPager
+import dev.mellow.core.designsystem.component.rememberMellowTabPagerState
 import dev.mellow.core.designsystem.component.TrackRow
 import dev.mellow.core.designsystem.theme.LocalMiniPlayerPadding
 import dev.mellow.core.designsystem.theme.MellowShapes
@@ -333,6 +336,10 @@ private fun ArtistDetailExpanded(
     onMore: () -> Unit,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = rememberMellowTabPagerState(ARTIST_TABS.size, selectedTab, onSelectedTabChange = { selectedTab = it })
+    // Each tab keeps its place while it's swiped away.
+    val topTracksState = rememberLazyGridState()
+    val discographyState = rememberLazyGridState()
 
     Row(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -451,53 +458,60 @@ private fun ArtistDetailExpanded(
         ) {
             MellowTabBar(
                 tabs = ARTIST_TABS,
-                selectedIndex = selectedTab,
-                onTabSelected = { selectedTab = it },
+                state = tabs,
                 modifier = Modifier.padding(top = MellowSpacing.Sp3, bottom = MellowSpacing.Sp3),
             )
 
-            when (selectedTab) {
-                0 -> {
-                    AdaptiveTrackGrid(
-                        items = topTracks,
-                        key = { it.id },
-                        contentPadding = PaddingValues(bottom = MellowSpacing.Sp16 + LocalMiniPlayerPadding.current),
-                        modifier = Modifier.fillMaxSize(),
-                    ) { index, track, _ ->
-                        TrackRow(
-                            title = track.title,
-                            subtitle = track.albumName,
-                            duration = track.duration,
-                            trackNumber = "${index + 1}",
-                            imageUrl = track.imageUrl,
-                            onClick = { onTrackClick(track.id) },
-                            onMenuClick = { onTrackMenuClick(track.id) },
-                            showDivider = false,
-                        )
+            MellowTabPager(state = tabs, modifier = Modifier.fillMaxSize()) { tab ->
+                when (tab) {
+                    0 -> {
+                        AdaptiveTrackGrid(
+                            items = topTracks,
+                            key = { it.id },
+                            contentPadding = PaddingValues(
+                                bottom = MellowSpacing.Sp16 + LocalMiniPlayerPadding.current,
+                            ),
+                            state = topTracksState,
+                            modifier = Modifier.fillMaxSize(),
+                        ) { index, track, _ ->
+                            TrackRow(
+                                title = track.title,
+                                subtitle = track.albumName,
+                                duration = track.duration,
+                                trackNumber = "${index + 1}",
+                                imageUrl = track.imageUrl,
+                                onClick = { onTrackClick(track.id) },
+                                onMenuClick = { onTrackMenuClick(track.id) },
+                                showDivider = false,
+                            )
+                        }
                     }
-                }
-                1 -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        contentPadding = PaddingValues(
-                            start = MellowSpacing.Sp4,
-                            end = MellowSpacing.Sp4,
-                            bottom = MellowSpacing.Sp16 + LocalMiniPlayerPadding.current,
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
-                        verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        gridItems(albums, key = { it.id }) { album ->
-                            AlbumCard(
-                                title = album.name,
-                                artist = album.year?.toString() ?: "",
-                                imageUrl = if (serverUrl != null && album.imageId != null) {
-                                    artworkUri(album.imageId)
-                                } else null,
-                                onClick = { onAlbumClick(album.id) },
-                        )
-                    }
+                    1 -> {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(4),
+                            state = discographyState,
+                            contentPadding = PaddingValues(
+                                start = MellowSpacing.Sp4,
+                                end = MellowSpacing.Sp4,
+                                bottom = MellowSpacing.Sp16 + LocalMiniPlayerPadding.current,
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp3),
+                            verticalArrangement = Arrangement.spacedBy(MellowSpacing.Sp4),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            gridItems(albums, key = { it.id }) { album ->
+                                AlbumCard(
+                                    title = album.name,
+                                    artist = album.year?.toString() ?: "",
+                                    imageUrl = if (serverUrl != null && album.imageId != null) {
+                                        artworkUri(album.imageId)
+                                    } else {
+                                        null
+                                    },
+                                    onClick = { onAlbumClick(album.id) },
+                                )
+                            }
+                        }
                     }
                 }
             }
