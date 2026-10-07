@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +52,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.HorizontalAlignmentLine
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -58,13 +62,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.constrainHeight
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -153,6 +153,8 @@ fun PlayerScreen(
     onPlayDownloadedClick: () -> Unit = {},
     codec: String? = null,
     coverSwipe: CoverSwipe = CoverSwipe(),
+    onArtistClick: (() -> Unit)? = null,
+    onAlbumClick: (() -> Unit)? = null,
     sidePanelContent: @Composable (() -> Unit)? = null,
 ) {
     val pageTurns = rememberPageTurnButtons()
@@ -211,6 +213,8 @@ fun PlayerScreen(
                 onFavoriteClick = onFavoriteClick,
                 codec = codec,
                 topHeight = tabletopTopHeight,
+                onArtistClick = onArtistClick,
+                onAlbumClick = onAlbumClick,
             )
         } else when (layout) {
             PlayerLayout.ExpandedWithQueue -> {
@@ -226,7 +230,7 @@ fun PlayerScreen(
                         modifier = leftModifier.fillMaxHeight(),
                     ) {
                         val hasSidePanel = sidePanelContent != null
-                        NowPlayingTopBar(albumName, onCollapse, onQueueClick, showQueueButton = !hasSidePanel)
+                        NowPlayingTopBar(albumName, onCollapse, onQueueClick, showQueueButton = !hasSidePanel, onAlbumClick = onAlbumClick)
                         Spacer(Modifier.weight(1f))
                         Box(
                             contentAlignment = Alignment.Center,
@@ -245,7 +249,7 @@ fun PlayerScreen(
                             )
                         }
                         Spacer(Modifier.weight(1f))
-                        PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                        PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick, onArtistClick)
                         PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
                         PlayerPlaybackControls(
                             isPlaying = isPlaying,
@@ -300,7 +304,9 @@ fun PlayerScreen(
                             if (albumName.isNotEmpty()) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(MellowSpacing.Sp2),
-                                    modifier = Modifier.padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp1),
+                                    modifier = Modifier
+                                        .padding(horizontal = MellowSpacing.Sp6, vertical = MellowSpacing.Sp1)
+                                        .opens("Open album $albumName", onAlbumClick, MellowTheme.colors.foreground),
                                 ) {
                                     Text(
                                         "Playing from",
@@ -315,7 +321,7 @@ fun PlayerScreen(
                                     )
                                 }
                             }
-                            PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                            PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick, onArtistClick)
                             PlayerProgressBar(progress, positionMs, durationMs, onSeekTo, compactVerticalPadding = true)
                             PlayerPlaybackControls(
                                 isPlaying = isPlaying,
@@ -345,7 +351,7 @@ fun PlayerScreen(
                 Column(
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    NowPlayingTopBar(albumName, onCollapse, onQueueClick)
+                    NowPlayingTopBar(albumName, onCollapse, onQueueClick, onAlbumClick = onAlbumClick)
                     AlbumArt(
                         albumImageUrl = albumImageUrl,
                         coverSwipe = coverSwipe,
@@ -353,7 +359,7 @@ fun PlayerScreen(
                         artModifier = artModifier,
                         modifier = Modifier.weight(1f),
                     )
-                    PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick)
+                    PlayerTrackInfo(trackName, artistName, isFavorite, isDownloaded, onFavoriteClick, onArtistClick)
                     PlayerProgressBar(progress, positionMs, durationMs, onSeekTo)
                     PlayerPlaybackControls(
                         isPlaying = isPlaying,
@@ -451,7 +457,13 @@ private fun PlaybackErrorOverlay(
 }
 
 @Composable
-fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: () -> Unit, showQueueButton: Boolean = true) {
+fun NowPlayingTopBar(
+    albumName: String,
+    onCollapse: () -> Unit,
+    onQueueClick: () -> Unit,
+    showQueueButton: Boolean = true,
+    onAlbumClick: (() -> Unit)? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -462,19 +474,21 @@ fun NowPlayingTopBar(albumName: String, onCollapse: () -> Unit, onQueueClick: ()
         IconButton(onClick = onCollapse) {
             Icon(PhosphorIcons.CaretDown, "Collapse", tint = MellowTheme.colors.foreground)
         }
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.weight(1f),
-        ) {
-            Text("PLAYING FROM", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
-            Text(
-                albumName.ifEmpty { "Unknown" },
-                style = MaterialTheme.typography.labelMedium,
-                color = MellowTheme.colors.foreground,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.opens("Open album $albumName", onAlbumClick, MellowTheme.colors.foreground),
+            ) {
+                Text("PLAYING FROM", style = MaterialTheme.typography.labelSmall, color = MellowTheme.colors.muted)
+                Text(
+                    albumName.ifEmpty { "Unknown" },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MellowTheme.colors.foreground,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (showQueueButton) {
             IconButton(onClick = onQueueClick) {
@@ -593,9 +607,7 @@ fun PlayerTrackInfo(
     isFavorite: Boolean,
     isDownloaded: Boolean,
     onFavoriteClick: () -> Unit = {},
-    artists: List<Pair<String, String>> = emptyList(),
-    onArtistClick: (String) -> Unit = {},
-    onMoreArtistsClick: () -> Unit = {},
+    onArtistClick: (() -> Unit)? = null,
 ) {
     TitleWithHeart(
         title = trackName.ifEmpty { "No track" },
@@ -607,25 +619,38 @@ fun PlayerTrackInfo(
             .fillMaxWidth()
             .padding(horizontal = MellowSpacing.Sp6),
     ) {
-        if (artists.size > 1) {
-            MultiArtistText(
-                artists = artists,
-                onArtistClick = onArtistClick,
-                onMoreArtistsClick = onMoreArtistsClick,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        } else {
-            Text(
-                artistName.ifEmpty { "Unknown artist" },
-                style = MaterialTheme.typography.titleLarge,
-                color = MellowTheme.colors.accentStrong,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
+        Text(
+            artistName.ifEmpty { "Unknown artist" },
+            style = MaterialTheme.typography.titleLarge,
+            color = MellowTheme.colors.accentStrong,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .opens("Open artist $artistName", onArtistClick, MellowTheme.colors.foreground),
+        )
     }
 }
+
+/**
+ * Makes what this modifies (the artist line, the album name) open what it names on a tap, with a [rippleColor] ripple
+ * (the default one follows the content colour, black here, and hardly shows on the dark player) and nothing else that
+ * shows, read by TalkBack as one button named [label]; plain text when [onClick] is null (nothing to open). A drag that
+ * starts on it still moves the sheet the player is in: a click doesn't take the drag.
+ */
+private fun Modifier.opens(label: String, onClick: (() -> Unit)?, rippleColor: Color): Modifier =
+    if (onClick == null) {
+        this
+    } else {
+        this
+            .clickable(
+                interactionSource = null,
+                indication = ripple(color = rippleColor),
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .clearAndSetSemantics { contentDescription = label }
+    }
 
 /**
  * The track [title] (at most two lines, then an ellipsis) with [below] under it, and to its right the favourite heart
@@ -737,55 +762,6 @@ private fun Modifier.firstLineCentre(holder: TextLayoutHolder): Modifier = layou
     layout(placeable.width, placeable.height, mapOf(TitleFirstLineCentre to centre)) {
         placeable.place(0, 0)
     }
-}
-
-@Composable
-private fun MultiArtistText(
-    artists: List<Pair<String, String>>,
-    onArtistClick: (String) -> Unit,
-    onMoreArtistsClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accentColor = MellowTheme.colors.accentStrong
-    val displayArtists = artists.take(2)
-    val remaining = artists.size - 2
-
-    val annotatedString = buildAnnotatedString {
-        displayArtists.forEachIndexed { index, (id, name) ->
-            if (index > 0) {
-                withStyle(SpanStyle(color = accentColor)) {
-                    append(", ")
-                }
-            }
-            pushStringAnnotation(tag = "artist", annotation = id)
-            withStyle(SpanStyle(color = accentColor)) {
-                append(name)
-            }
-            pop()
-        }
-        if (remaining > 0) {
-            withStyle(SpanStyle(color = accentColor)) {
-                append(" ")
-            }
-            pushStringAnnotation(tag = "more", annotation = "")
-            withStyle(SpanStyle(color = accentColor)) {
-                append("+$remaining more")
-            }
-            pop()
-        }
-    }
-
-    ClickableText(
-        text = annotatedString,
-        style = MaterialTheme.typography.titleLarge,
-        modifier = modifier,
-        onClick = { offset ->
-            annotatedString.getStringAnnotations("artist", offset, offset)
-                .firstOrNull()?.let { onArtistClick(it.item) }
-                ?: annotatedString.getStringAnnotations("more", offset, offset)
-                    .firstOrNull()?.let { onMoreArtistsClick() }
-        },
-    )
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -1005,6 +981,8 @@ private fun TabletopPlayerLayout(
     onFavoriteClick: () -> Unit,
     codec: String?,
     topHeight: Dp,
+    onArtistClick: (() -> Unit)?,
+    onAlbumClick: (() -> Unit)?,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -1015,7 +993,7 @@ private fun TabletopPlayerLayout(
                 .height(topHeight)
                 .padding(horizontal = MellowSpacing.Sp6),
         ) {
-            NowPlayingTopBar(albumName, onCollapse, onQueueClick)
+            NowPlayingTopBar(albumName, onCollapse, onQueueClick, onAlbumClick = onAlbumClick)
             Spacer(Modifier.weight(1f))
             // The cover, the gap and a fixed-width text slot stay centred as one unit: the cover never moves
             // when the title (and so the text's width) changes, e.g. mid page turn.
@@ -1051,6 +1029,11 @@ private fun TabletopPlayerLayout(
                             color = MellowTheme.colors.accentStrong,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.opens(
+                                "Open artist $artistName",
+                                onArtistClick,
+                                MellowTheme.colors.foreground,
+                            ),
                         )
                         if (albumName.isNotEmpty()) {
                             Spacer(Modifier.height(MellowSpacing.Sp1))
@@ -1060,6 +1043,11 @@ private fun TabletopPlayerLayout(
                                 color = MellowTheme.colors.muted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.opens(
+                                "Open album $albumName",
+                                onAlbumClick,
+                                MellowTheme.colors.foreground,
+                            ),
                             )
                         }
                     }
