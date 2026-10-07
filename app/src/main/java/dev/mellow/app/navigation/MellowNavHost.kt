@@ -156,6 +156,7 @@ import dev.mellow.feature.library.DetailChrome
 import dev.mellow.feature.library.AlbumDownloadEvent
 import dev.mellow.feature.library.AlbumDetailTrack
 import dev.mellow.feature.library.AlbumDetailViewModel
+import dev.mellow.feature.library.ARTIST_DISCOGRAPHY_SOURCE
 import dev.mellow.feature.library.ArtistAlbum
 import dev.mellow.feature.library.ArtistDetailLayout
 import dev.mellow.feature.library.ArtistDetailScreen
@@ -185,6 +186,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.Duration
+
+/** The album page for an album opened from the artist's discography, so its cover flies in from the grid. */
+internal fun artistAlbumRoute(albumId: String) = "album/$albumId?source=$ARTIST_DISCOGRAPHY_SOURCE"
 
 @Composable
 fun MellowNavHost(mainViewModel: MainViewModel = hiltViewModel()) {
@@ -1000,6 +1004,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                     }
                 }
                 composable(ARTIST_ROUTE) {
+                    CompositionLocalProvider(LocalNavAnimatedVisibilityScope provides this@composable) {
                     val artistVm: ArtistDetailViewModel = hiltViewModel()
                     val artistState by artistVm.uiState.collectAsState()
 
@@ -1059,7 +1064,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                         isSyncing = isSyncing,
                         error = artistState.error,
                         onRetry = { artistVm.retry() },
-                        onAlbumClick = { albumId -> navController.navigate("album/$albumId") },
+                        onAlbumClick = { albumId -> navController.navigate(artistAlbumRoute(albumId)) },
                         onTrackClick = { trackId ->
                             val tracks = artistState.topTracks
                             val idx = tracks.indexOfFirst { it.id == trackId }
@@ -1112,6 +1117,7 @@ private fun MainAppShell(serverId: String, mainViewModel: MainViewModel) {
                             artistState.topTracks.forEach { mainViewModel.player.addToQueue(it) }
                         },
                     )
+                    }
                 }
                 composable("playlist/{playlistId}") {
                     val playlistDetailVm: PlaylistDetailViewModel = hiltViewModel()

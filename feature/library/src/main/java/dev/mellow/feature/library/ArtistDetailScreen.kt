@@ -77,6 +77,14 @@ data class ArtistTrack(val id: String, val title: String, val duration: String, 
 
 data class ArtistAlbum(val id: String, val name: String, val year: Int?, val imageId: String?)
 
+/**
+ * The album page's `source` for an album opened from the artist's discography. The album page names its cover's
+ * shared element after it, so the discography's covers carry the same key and fly into the album page and back.
+ */
+const val ARTIST_DISCOGRAPHY_SOURCE = "artist"
+
+private fun discographyCoverKey(albumId: String) = "album_art_${ARTIST_DISCOGRAPHY_SOURCE}_$albumId"
+
 enum class ArtistDetailLayout {
     Stacked,
     SplitScreen,
@@ -228,6 +236,7 @@ fun ArtistDetailScreen(
                                             } else null,
                                             onClick = { onAlbumClick(album.id) },
                                             modifier = Modifier.weight(1f),
+                                            sharedElementKey = discographyCoverKey(album.id),
                                         )
                                     }
                                     if (row.size < 2) Spacer(Modifier.weight(1f))
@@ -487,6 +496,9 @@ private fun ArtistDetailExpanded(
                         }
                     }
                     1 -> {
+                        // The page stays composed next to Top Tracks; out of view, its covers mustn't catch an album
+                        // page's cover (an album opened from here, then its artist again) and pull it off-screen.
+                        val coversInView = tabs.pagerState.currentPage == 1
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(4),
                             state = discographyState,
@@ -509,6 +521,7 @@ private fun ArtistDetailExpanded(
                                         null
                                     },
                                     onClick = { onAlbumClick(album.id) },
+                                    sharedElementKey = if (coversInView) discographyCoverKey(album.id) else null,
                                 )
                             }
                         }
