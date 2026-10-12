@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -49,20 +47,15 @@ fun AppUpdateDialog(
                             color = MellowTheme.colors.foreground,
                             modifier = Modifier.padding(bottom = MellowSpacing.Sp2)
                         )
-                        Column(
-                            modifier = Modifier
-                                .weight(1f, fill = false)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            SelectionContainer {
-                                Text(
-                                    text = state.notes,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MellowTheme.colors.foreground,
-                                    maxLines = 12,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
+                        // No scroll of its own: MellowDialog scrolls the whole body, buttons stay pinned below it.
+                        SelectionContainer {
+                            Text(
+                                text = state.notes,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MellowTheme.colors.foreground,
+                                maxLines = 12,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                         TextButton(onClick = onOpenRelease, modifier = Modifier.padding(top = MellowSpacing.Sp1)) {
                             Text("View on GitHub")

@@ -42,6 +42,27 @@ abstract class UpdateDialogScreenshotTests : ScreenshotCapture() {
         )
     }
 
+    /** Release notes as long as a real release's; on a short screen the buttons must stay visible. */
+    @Test
+    fun dialogAvailable_longNotes() = capture("update-available-long-notes") {
+        AppUpdateDialog(
+            state = AppUpdateUiState.Available(
+                tag = "v1.2.3",
+                title = "v1.2.3",
+                notes = "What's New\n\nNow Playing\n" + (1..12).joinToString("\n") {
+                    "• Change number $it to the player, with a description long enough to wrap onto a second line " +
+                        "on a phone held upright"
+                },
+                htmlUrl = "https://github.com",
+                sizeBytes = 10000000,
+                verifierPresent = true,
+                alreadyDownloaded = false
+            ),
+            onDismiss = {}, onUpdate = {}, onInstall = {}, onSkip = {}, onCancelDownload = {},
+            onOpenRelease = {}, onOpenDeveloperOptions = {}, onCopyAdbCommand = {}, onMoreInfo = {}, onRetry = {}
+        )
+    }
+
     @Test
     fun dialogReadyToInstall() = capture("update-ready") {
         AppUpdateDialog(

@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,7 +58,13 @@ fun MellowDialog(
                 .background(MellowTheme.colors.surfaceElevated)
                 .border(1.dp, Color.White.copy(alpha = 0.04f), MellowShapes.ExtraLarge),
         ) {
-            Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp)) {
+            // Bounded and scrollable so the buttons below always get their height, even on a short screen.
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp),
+            ) {
                 Text(
                     title,
                     style = MaterialTheme.typography.titleLarge.copy(
