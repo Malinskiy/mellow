@@ -141,6 +141,9 @@ Body: { "Username": "...", "Pw": "..." }
 → AccessToken (session-scoped, persists across app restarts)
 ```
 
+Requests made outside the SDK (audio streams, downloads, artwork) send the token as `Authorization: MediaBrowser
+Token="..."`. Jellyfin 12 no longer accepts it as `api_key` in the URL.
+
 Token stored in EncryptedSharedPreferences. Multi-server support via Room (one row per server).
 
 ### 6. Image Strategy

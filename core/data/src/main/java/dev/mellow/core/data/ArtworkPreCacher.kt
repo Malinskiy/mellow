@@ -28,9 +28,11 @@ import dev.mellow.core.database.dao.PlaylistDao
 import dev.mellow.core.database.dao.ServerDao
 import dev.mellow.core.database.dao.TrackDao
 import dev.mellow.core.database.entity.ServerEntity
+import dev.mellow.core.network.AUTHORIZATION_HEADER
 import dev.mellow.core.network.ConnectionState
 import dev.mellow.core.network.NetworkPreferences
 import dev.mellow.core.network.NetworkStateObserver
+import dev.mellow.core.network.jellyfinAuthorization
 import dev.mellow.core.network.openHttpConnection
 
 /**
@@ -393,9 +395,10 @@ class ArtworkPreCacher @Inject constructor(
         var connection: HttpURLConnection? = null
         return try {
             connection = openHttpConnection(
-                URL(imageUrl(serverUrl, apiKey, itemId, tag)),
+                URL(imageUrl(serverUrl, itemId, tag)),
                 networkPreferences.isTrustSelfSignedSync(),
             )
+            connection.setRequestProperty(AUTHORIZATION_HEADER, jellyfinAuthorization(apiKey))
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
             connection.instanceFollowRedirects = true
@@ -453,9 +456,9 @@ class ArtworkPreCacher @Inject constructor(
         }
 
     /** With the image's tag, so no cache between app and server can answer with an older image. */
-    private fun imageUrl(serverUrl: String, apiKey: String, itemId: String, tag: String?): String {
+    private fun imageUrl(serverUrl: String, itemId: String, tag: String?): String {
         val tagParam = tag?.let { "&tag=" + URLEncoder.encode(it, "UTF-8") }.orEmpty()
-        return "$serverUrl/Items/$itemId/Images/Primary?maxWidth=600&quality=90&format=Webp$tagParam&api_key=$apiKey"
+        return "$serverUrl/Items/$itemId/Images/Primary?maxWidth=600&quality=90&format=Webp$tagParam"
     }
 
     /** Records the tag an item's image is for (`null`: unknown). Best effort: an untagged image is downloaded again. */

@@ -1,8 +1,6 @@
 package dev.mellow.core.network.datasource
 
 import dev.mellow.core.network.JellyfinClientWrapper
-import dev.mellow.core.network.NetworkPreferences
-import dev.mellow.core.network.createOkHttpClient
 import dev.mellow.core.network.di.IoDispatcher
 import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
@@ -11,6 +9,7 @@ import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.instantMixApi
 import org.jellyfin.sdk.api.client.extensions.artistsApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.api.client.extensions.lyricsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.playlistsApi
 import org.jellyfin.sdk.api.client.extensions.userApi
@@ -44,7 +43,6 @@ data class PagedItems(
 @Singleton
 class JellyfinDataSource @Inject constructor(
     private val client: JellyfinClientWrapper,
-    private val networkPreferences: NetworkPreferences,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
     // The Jellyfin SDK reads response bodies on the caller's dispatcher. Running every request on IO
@@ -265,35 +263,14 @@ class JellyfinDataSource @Inject constructor(
 
     suspend fun getLyrics(itemId: UUID): List<LyricsResult> = io {
         try {
-            val baseUrl = client.api.baseUrl?.trimEnd('/')
-                ?: return@io emptyList()
-            val token = client.api.accessToken
-                ?: return@io emptyList()
-            val url = "$baseUrl/Audio/$itemId/Lyrics"
-
-            val request = okhttp3.Request.Builder()
-                .url(url)
-                .header("Authorization", "MediaBrowser Token=\"$token\"")
-                .get()
-                .build()
-
-            val response = createOkHttpClient(networkPreferences.isTrustSelfSignedSync())
-                .newCall(request).execute()
-            if (!response.isSuccessful) return@io emptyList()
-
-            val body = response.body?.string() ?: return@io emptyList()
-            val json = org.json.JSONObject(body)
-            val lyricsArray = json.optJSONArray("Lyrics")
-                ?: return@io emptyList()
-
-            (0 until lyricsArray.length()).mapNotNull { i ->
-                val line = lyricsArray.getJSONObject(i)
-                val text = line.optString("Text", "")
-                if (text.isEmpty()) return@mapNotNull null
-                val startTicks = if (line.has("Start")) line.getLong("Start") else -1L
+            // A track without lyrics is a 404, which the SDK throws: caught below as "no lyrics".
+            val response by client.api.lyricsApi.getLyrics(itemId)
+            response.lyrics.mapNotNull { line ->
+                if (line.text.isEmpty()) return@mapNotNull null
+                val startTicks = line.start ?: -1L
                 LyricsResult(
                     startMs = if (startTicks >= 0) startTicks / 10_000 else -1L,
-                    text = text,
+                    text = line.text,
                 )
             }
         } catch (e: Exception) {

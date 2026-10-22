@@ -493,7 +493,6 @@ class MellowMediaService : MediaLibraryService() {
             return mediaItems
         }
         val serverUrl = server.url
-        val apiKey = server.accessToken
 
         var enrichedCount = 0
         var missCount = 0
@@ -512,7 +511,7 @@ class MellowMediaService : MediaLibraryService() {
                 enrichedCount++
                 MediaItem.Builder()
                     .setMediaId(trackId)
-                    .setUri(Uri.parse(jellyfinStreamUrl(serverUrl, trackId, apiKey)))
+                    .setUri(Uri.parse(jellyfinStreamUrl(serverUrl, trackId)))
                     .setCustomCacheKey(trackId)
                     .setMediaMetadata(
                         MediaMetadata.Builder()

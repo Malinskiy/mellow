@@ -13,8 +13,12 @@ import javax.inject.Singleton
 class MellowDataSourceFactory @Inject constructor(
     private val mellowCache: MellowCache,
     networkPreferences: NetworkPreferences,
+    authInterceptor: JellyfinAuthInterceptor,
 ) {
     private val okHttpClient = createOkHttpClient(networkPreferences.isTrustSelfSignedSync())
+        .newBuilder()
+        .addInterceptor(authInterceptor)
+        .build()
 
     private val networkDataSourceFactory: DataSource.Factory =
         OkHttpDataSource.Factory(okHttpClient)

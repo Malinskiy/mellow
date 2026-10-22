@@ -223,7 +223,14 @@ Route → ComponentGroup → Component
    - Mapping happens in `core/data` repository implementations
    - Never expose SDK types to feature modules
 
-3. **Images**:
+3. **Authentication outside the SDK** (streams, downloads, artwork):
+   - Send the token in the `Authorization` header (`jellyfinAuthorization(token)` in `core/network`), never in the URL.
+     Jellyfin 12 rejects `api_key=` and the `X-Emby-*` headers
+   - Player streams and downloads get it from `JellyfinAuthInterceptor` on the player's OkHttp client: build stream URLs
+     with `jellyfinStreamUrl()`, which has no token
+   - Prefer an SDK call over a hand-built request when the SDK has the endpoint
+
+4. **Images**:
    - Build image URLs: `${serverUrl}/Items/${itemId}/Images/Primary?maxWidth=600&quality=90`
    - Use `ImageBlurHashes` for progressive loading placeholders
 

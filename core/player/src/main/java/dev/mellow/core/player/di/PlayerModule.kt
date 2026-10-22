@@ -7,6 +7,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.mellow.core.network.NetworkPreferences
+import dev.mellow.core.player.cache.JellyfinAuthInterceptor
 import dev.mellow.core.player.cache.MellowCache
 import dev.mellow.core.player.cache.MellowDataSourceFactory
 import javax.inject.Singleton
@@ -25,7 +26,8 @@ object PlayerModule {
     fun provideMellowDataSourceFactory(
         cache: MellowCache,
         networkPreferences: NetworkPreferences,
+        authInterceptor: JellyfinAuthInterceptor,
     ): MellowDataSourceFactory =
-        MellowDataSourceFactory(cache, networkPreferences)
+        MellowDataSourceFactory(cache, networkPreferences, authInterceptor)
 
 }

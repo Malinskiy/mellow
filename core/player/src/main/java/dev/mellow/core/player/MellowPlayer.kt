@@ -86,7 +86,6 @@ class MellowPlayer @Inject constructor(
     private val reportingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var serverUrl: String = ""
-    private var apiKey: String = ""
     private var currentQueue: List<Track> = emptyList()
     private var downloadedTrackIds: Set<String> = emptySet()
     private var positionUpdateCount = 0
@@ -147,7 +146,6 @@ class MellowPlayer @Inject constructor(
             return
         }
         serverUrl = server.url
-        apiKey = server.accessToken
         currentQueue = tracks
 
         downloadedTrackIds = downloadDao.getDownloadedTrackIds().toSet()
@@ -391,7 +389,7 @@ class MellowPlayer @Inject constructor(
     }
 
     private fun Track.toMediaItem(): MediaItem {
-        val streamUri = Uri.parse(jellyfinStreamUrl(serverUrl, id, apiKey))
+        val streamUri = Uri.parse(jellyfinStreamUrl(serverUrl, id))
         val artItemId = albumId ?: id
         val artUri = Uri.parse("content://${context.packageName}.artwork/$artItemId")
         val isDownloaded = id in downloadedTrackIds
