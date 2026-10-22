@@ -7,13 +7,13 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.instantMixApi
-import org.jellyfin.sdk.api.client.extensions.artistsApi
-import org.jellyfin.sdk.api.client.extensions.itemsApi
-import org.jellyfin.sdk.api.client.extensions.lyricsApi
-import org.jellyfin.sdk.api.client.extensions.playStateApi
-import org.jellyfin.sdk.api.client.extensions.playlistsApi
-import org.jellyfin.sdk.api.client.extensions.userApi
-import org.jellyfin.sdk.api.client.extensions.userLibraryApi
+import org.jellyfin.sdk.api.client.extensions.artistApi
+import org.jellyfin.sdk.api.client.extensions.libraryApi
+import org.jellyfin.sdk.api.client.extensions.lyricApi
+import org.jellyfin.sdk.api.client.extensions.sessionApi
+import org.jellyfin.sdk.api.client.extensions.playlistApi
+import org.jellyfin.sdk.api.client.extensions.authenticationApi
+import org.jellyfin.sdk.api.client.extensions.userDataApi
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemFilter
@@ -50,7 +50,7 @@ class JellyfinDataSource @Inject constructor(
     private suspend fun <T> io(block: suspend CoroutineScope.() -> T): T = withContext(ioDispatcher, block)
 
     suspend fun authenticate(username: String, password: String): AuthResult = io {
-        val response by client.api.userApi.authenticateUserByName(
+        val response by client.api.authenticationApi.authenticateUserByName(
             data = AuthenticateUserByName(username = username, pw = password),
         )
         AuthResult(
@@ -62,7 +62,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getRecentlyAddedAlbums(userId: UUID, limit: Int = 50): List<BaseItemDto> = io {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
             recursive = true,
@@ -77,7 +77,7 @@ class JellyfinDataSource @Inject constructor(
 
     suspend fun getAlbumsByIds(userId: UUID, ids: List<UUID>): List<BaseItemDto> = io {
         if (ids.isEmpty()) return@io emptyList()
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             ids = ids,
             fields = listOf(ItemFields.GENRES, ItemFields.DATE_CREATED),
@@ -93,7 +93,7 @@ class JellyfinDataSource @Inject constructor(
         limit: Int = 200,
         minDateLastSaved: LocalDateTime? = null,
     ): PagedItems = io {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
             recursive = true,
@@ -113,7 +113,7 @@ class JellyfinDataSource @Inject constructor(
         startIndex: Int = 0,
         limit: Int = 200,
     ): PagedItems = io {
-        val response by client.api.artistsApi.getArtists(
+        val response by client.api.artistApi.getArtists(
             userId = userId,
             sortBy = listOf(ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.ASCENDING),
@@ -132,7 +132,7 @@ class JellyfinDataSource @Inject constructor(
         limit: Int = 500,
         minDateLastSaved: LocalDateTime? = null,
     ): PagedItems = io {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
             recursive = true,
@@ -150,7 +150,7 @@ class JellyfinDataSource @Inject constructor(
     /** The items among [ids] that still exist and the user can see, with the fields tracks are saved with. */
     suspend fun getTracksByIds(userId: UUID, ids: List<UUID>): List<BaseItemDto> = io {
         if (ids.isEmpty()) return@io emptyList()
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             ids = ids,
             fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS, ItemFields.DATE_CREATED),
@@ -160,7 +160,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getRecentlyPlayedItems(userId: UUID, limit: Int = 200): List<BaseItemDto> = io {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
             recursive = true,
@@ -175,7 +175,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getAlbumTracks(userId: UUID, albumId: UUID): List<BaseItemDto> = io {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             parentId = albumId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
@@ -188,9 +188,9 @@ class JellyfinDataSource @Inject constructor(
 
     suspend fun setFavorite(userId: UUID, itemId: UUID, isFavorite: Boolean): Unit = io {
         if (isFavorite) {
-            client.api.userLibraryApi.markFavoriteItem(userId = userId, itemId = itemId)
+            client.api.userDataApi.markFavoriteItem(userId = userId, itemId = itemId)
         } else {
-            client.api.userLibraryApi.unmarkFavoriteItem(userId = userId, itemId = itemId)
+            client.api.userDataApi.unmarkFavoriteItem(userId = userId, itemId = itemId)
         }
     }
 
@@ -212,7 +212,7 @@ class JellyfinDataSource @Inject constructor(
 
     suspend fun reportPlaybackStarted(itemId: UUID): Unit = io {
         try {
-            client.api.playStateApi.reportPlaybackStart(
+            client.api.sessionApi.reportPlaybackStart(
                 PlaybackStartInfo(
                     itemId = itemId,
                     canSeek = true,
@@ -230,7 +230,7 @@ class JellyfinDataSource @Inject constructor(
 
     suspend fun reportPlaybackProgress(itemId: UUID, positionTicks: Long): Unit = io {
         try {
-            client.api.playStateApi.reportPlaybackProgress(
+            client.api.sessionApi.reportPlaybackProgress(
                 PlaybackProgressInfo(
                     itemId = itemId,
                     positionTicks = positionTicks,
@@ -249,7 +249,7 @@ class JellyfinDataSource @Inject constructor(
 
     suspend fun reportPlaybackStopped(itemId: UUID, positionTicks: Long): Unit = io {
         try {
-            client.api.playStateApi.reportPlaybackStopped(
+            client.api.sessionApi.reportPlaybackStopped(
                 PlaybackStopInfo(
                     itemId = itemId,
                     positionTicks = positionTicks,
@@ -264,7 +264,7 @@ class JellyfinDataSource @Inject constructor(
     suspend fun getLyrics(itemId: UUID): List<LyricsResult> = io {
         try {
             // A track without lyrics is a 404, which the SDK throws: caught below as "no lyrics".
-            val response by client.api.lyricsApi.getLyrics(itemId)
+            val response by client.api.lyricApi.getLyrics(itemId)
             response.lyrics.mapNotNull { line ->
                 if (line.text.isEmpty()) return@mapNotNull null
                 val startTicks = line.start ?: -1L
@@ -286,7 +286,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getFavoriteAlbums(userId: UUID): List<BaseItemDto> = io {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.MUSIC_ALBUM),
             recursive = true,
@@ -300,7 +300,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getFavoriteArtists(userId: UUID): List<BaseItemDto> = io {
-        val response by client.api.artistsApi.getArtists(
+        val response by client.api.artistApi.getArtists(
             userId = userId,
             isFavorite = true,
             sortBy = listOf(ItemSortBy.SORT_NAME),
@@ -312,7 +312,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getFavoriteTracks(userId: UUID): List<BaseItemDto> = io {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.AUDIO),
             recursive = true,
@@ -326,7 +326,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getPlaylists(userId: UUID): List<BaseItemDto> = io {
-        val response by client.api.itemsApi.getItems(
+        val response by client.api.libraryApi.getItems(
             userId = userId,
             includeItemTypes = listOf(BaseItemKind.PLAYLIST),
             recursive = true,
@@ -339,7 +339,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun getPlaylistItems(playlistId: UUID, userId: UUID): List<BaseItemDto> = io {
-        val response by client.api.playlistsApi.getPlaylistItems(
+        val response by client.api.playlistApi.getPlaylistItems(
             playlistId = playlistId,
             userId = userId,
             fields = listOf(ItemFields.GENRES, ItemFields.MEDIA_STREAMS),
@@ -349,7 +349,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun createPlaylist(name: String, userId: UUID): String? = io {
-        val response by client.api.playlistsApi.createPlaylist(
+        val response by client.api.playlistApi.createPlaylist(
             CreatePlaylistDto(
                 name = name,
                 ids = emptyList(),
@@ -363,7 +363,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun addToPlaylist(playlistId: UUID, trackIds: List<UUID>, userId: UUID): Unit = io {
-        client.api.playlistsApi.addItemToPlaylist(
+        client.api.playlistApi.addItemToPlaylist(
             playlistId = playlistId,
             ids = trackIds,
             userId = userId,
@@ -371,7 +371,7 @@ class JellyfinDataSource @Inject constructor(
     }
 
     suspend fun removeFromPlaylist(playlistId: String, entryIds: List<String>): Unit = io {
-        client.api.playlistsApi.removeItemFromPlaylist(
+        client.api.playlistApi.removeItemFromPlaylist(
             playlistId = playlistId,
             entryIds = entryIds,
         )

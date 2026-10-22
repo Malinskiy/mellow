@@ -78,7 +78,7 @@ ANDROID_SERIAL=<emulator serial> ./gradlew :core:database:connectedDebugAndroidT
 
 If the wrapper is missing, generate it:
 ```bash
-gradle wrapper --gradle-version 8.12
+gradle wrapper --gradle-version 8.14.6
 ```
 
 ## Code Style Guidelines
@@ -345,11 +345,11 @@ Or use EMU MCP tools to test on emulator — see `.agents/skills/emu-testing/SKI
 
 ## Environment
 
-- Kotlin 2.1.10
-- AGP 8.8.2
+- Kotlin 2.4.21 (jellyfin-sdk-kotlin 1.9 needs 2.4 metadata support; R8 is pinned to 9.1.x in the root build for it)
+- AGP 8.13.2, Gradle 8.14.6
 - Compose BOM 2025.06.01
 - Media3 1.6.0
-- Hilt 2.56.2
+- Hilt 2.58 (last for AGP 8; `kotlin-metadata-jvm` forced to the Kotlin version in the root build)
 - Room 2.7.1
-- jellyfin-sdk-kotlin 1.8.7
-- minSdk 26, targetSdk 36
+- jellyfin-sdk-kotlin 1.9.2 (Jellyfin server 12.0+)
+- minSdk 26, targetSdk 36, compileSdk 37

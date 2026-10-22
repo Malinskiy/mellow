@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
@@ -8,7 +10,7 @@ plugins {
 
 android {
     namespace = "dev.mellow.core.database"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26
@@ -18,10 +20,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     testOptions {
@@ -55,6 +53,12 @@ tasks.withType<Test>().configureEach {
         // A benchmark has to run: never replay a cached or up-to-date result.
         outputs.cacheIf { false }
         outputs.upToDateWhen { false }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
     }
 }
 

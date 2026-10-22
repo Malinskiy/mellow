@@ -173,7 +173,7 @@ Coil handles memory + disk caching. `BaseItemDto.ImageBlurHashes` provides blurh
 
 ## Jellyfin SDK Integration
 
-Using `jellyfin-sdk-kotlin` v1.8.7 (official, generated from OpenAPI spec):
+Using `jellyfin-sdk-kotlin` v1.9.2 (official, generated from the Jellyfin 12.2 OpenAPI spec; needs server 12.0+):
 
 ```kotlin
 val jellyfin = Jellyfin {
