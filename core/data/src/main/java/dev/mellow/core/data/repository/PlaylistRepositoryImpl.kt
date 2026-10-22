@@ -179,10 +179,15 @@ class PlaylistRepositoryImpl @Inject constructor(
         return try {
             playlistDao.removeTrackFromPlaylist(playlistId, trackId)
 
-            jellyfinDataSource.removeFromPlaylist(
-                playlistId = playlistId,
-                entryIds = listOf(trackId),
-            )
+            // The server removes playlist entries by their own ID, not the track's: look them up.
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
+            val entryIds = jellyfinDataSource.getPlaylistItems(
+                playlistId = UUID.fromString(playlistId),
+                userId = UUID.fromString(server.userId),
+            ).filter { it.id.toString() == trackId }.mapNotNull { it.playlistItemId }
+            if (entryIds.isNotEmpty()) {
+                jellyfinDataSource.removeFromPlaylist(playlistId = playlistId, entryIds = entryIds)
+            }
             MellowResult.Success(Unit)
         } catch (e: Exception) {
             MellowResult.Error(e)
