@@ -76,7 +76,7 @@ class DownloadRepositoryImpl @Inject constructor(
             if (downloadDao.getDownload(track.id)?.isClaimed() == true) return MellowResult.Success(Unit)
             val now = System.currentTimeMillis()
             downloadDao.upsert(queuedEntity(track.id, track.albumId, serverId, quality, now))
-            downloadExecutor.startDownload(track.id, server.url, server.accessToken, quality)
+            downloadExecutor.startDownload(track.id, server.url, quality)
             MellowResult.Success(Unit)
         } catch (e: Exception) {
             MellowResult.Error(e)
@@ -102,7 +102,7 @@ class DownloadRepositoryImpl @Inject constructor(
             val missing = tracks.filter { it.id !in claimedIds }
             downloadDao.upsertAll(missing.map { queuedEntity(it.id, albumId, serverId, quality, now) })
             missing.forEach { track ->
-                downloadExecutor.startDownload(track.id, server.url, server.accessToken, quality)
+                downloadExecutor.startDownload(track.id, server.url, quality)
             }
             MellowResult.Success(Unit)
         } catch (e: Exception) {

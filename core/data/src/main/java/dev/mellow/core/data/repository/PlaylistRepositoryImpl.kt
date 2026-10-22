@@ -18,6 +18,7 @@ import dev.mellow.core.network.datasource.JellyfinDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import org.jellyfin.sdk.model.serializer.toUUIDOrNull
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -118,7 +119,8 @@ class PlaylistRepositoryImpl @Inject constructor(
             val server = serverDao.getActiveServer()
                 ?: return MellowResult.Error(IllegalStateException("No active server"))
             val userId = UUID.fromString(server.userId)
-            val newId = jellyfinDataSource.createPlaylist(name, userId)
+            // The server answers with the ID without dashes; Room has every ID with them, as sync stores them.
+            val newId = jellyfinDataSource.createPlaylist(name, userId)?.toUUIDOrNull()?.toString()
                 ?: return MellowResult.Error(IllegalStateException("Failed to create playlist"))
 
             playlistDao.upsert(
@@ -179,10 +181,15 @@ class PlaylistRepositoryImpl @Inject constructor(
         return try {
             playlistDao.removeTrackFromPlaylist(playlistId, trackId)
 
-            jellyfinDataSource.removeFromPlaylist(
-                playlistId = playlistId,
-                entryIds = listOf(trackId),
-            )
+            // The server removes playlist entries by their own ID, not the track's: look them up.
+            val server = serverDao.getActiveServer() ?: return MellowResult.Success(Unit)
+            val entryIds = jellyfinDataSource.getPlaylistItems(
+                playlistId = UUID.fromString(playlistId),
+                userId = UUID.fromString(server.userId),
+            ).filter { it.id.toString() == trackId }.mapNotNull { it.playlistItemId }
+            if (entryIds.isNotEmpty()) {
+                jellyfinDataSource.removeFromPlaylist(playlistId = playlistId, entryIds = entryIds)
+            }
             MellowResult.Success(Unit)
         } catch (e: Exception) {
             MellowResult.Error(e)

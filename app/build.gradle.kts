@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 import com.mikepenz.aboutlibraries.plugin.DuplicateMode
 import com.mikepenz.aboutlibraries.plugin.DuplicateRule
 import java.io.FileInputStream
@@ -19,7 +21,7 @@ plugins {
 
 android {
     namespace = "dev.mellow.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.malinskiy.mellow"
@@ -66,11 +68,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += "-opt-in=androidx.compose.animation.ExperimentalSharedTransitionApi"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -91,6 +88,13 @@ aboutLibraries {
             Pattern.compile("org\\.jetbrains\\.compose\\..*"),
             Pattern.compile("org\\.jetbrains\\.androidx\\..*"),
         )
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+        freeCompilerArgs.add("-opt-in=androidx.compose.animation.ExperimentalSharedTransitionApi")
     }
 }
 
@@ -132,7 +136,6 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk)
 
     debugImplementation(libs.bundles.compose.debug)
-
 
     testImplementation(libs.bundles.testing)
     testImplementation(libs.robolectric)

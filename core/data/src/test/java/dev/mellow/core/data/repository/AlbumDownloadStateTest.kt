@@ -176,11 +176,11 @@ class AlbumDownloadStateTest {
         assertEquals(MellowResult.Success(Unit), result)
         for (active in listOf("queued", "downloading", "completed")) {
             assertEquals("$active was reset", before[active], rows[active])
-            verify(exactly = 0) { executor.startDownload(active, any(), any(), any()) }
+            verify(exactly = 0) { executor.startDownload(active, any(), any()) }
         }
         for (queued in listOf("failed", "cancelled", "absent")) {
             assertEquals(DownloadEntity.STATUS_QUEUED, rows.getValue(queued).status)
-            verify(exactly = 1) { executor.startDownload(queued, URL, TOKEN, "original") }
+            verify(exactly = 1) { executor.startDownload(queued, URL, "original") }
         }
     }
 
@@ -193,8 +193,8 @@ class AlbumDownloadStateTest {
         val second = async { repository.downloadAlbum(ALBUM, tracks, SERVER, "original") }
         awaitAll(first, second)
 
-        verify(exactly = 1) { executor.startDownload("t1", any(), any(), any()) }
-        verify(exactly = 1) { executor.startDownload("t2", any(), any(), any()) }
+        verify(exactly = 1) { executor.startDownload("t1", any(), any()) }
+        verify(exactly = 1) { executor.startDownload("t2", any(), any()) }
     }
 
     @Test
@@ -211,7 +211,7 @@ class AlbumDownloadStateTest {
             fakeRepository().downloadTrack(track(row.trackId), SERVER, "original")
 
             assertEquals(row, rows[row.trackId])
-            verify(exactly = 0) { executor.startDownload(row.trackId, any(), any(), any()) }
+            verify(exactly = 0) { executor.startDownload(row.trackId, any(), any()) }
         }
     }
 
@@ -224,7 +224,7 @@ class AlbumDownloadStateTest {
         awaitAll(first, second)
 
         assertEquals(DownloadEntity.STATUS_QUEUED, rows.getValue("t1").status)
-        verify(exactly = 1) { executor.startDownload("t1", any(), any(), any()) }
+        verify(exactly = 1) { executor.startDownload("t1", any(), any()) }
     }
 
     /**

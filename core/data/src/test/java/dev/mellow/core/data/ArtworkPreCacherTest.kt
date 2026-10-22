@@ -195,6 +195,17 @@ class ArtworkPreCacherTest {
     }
 
     @Test
+    fun `image is requested with the token in the Authorization header, not the URL`() {
+        val server = FakeServer(mapOf(ALBUM_ID to ALBUM_BYTES))
+        library(server.url, albums = mapOf(ALBUM_ID to "t1"))
+
+        preCacher.resolveArtwork(server.url, API_KEY, ALBUM_ID)
+
+        assertEquals("MediaBrowser Token=\"$API_KEY\"", server.authorizations.single())
+        assertFalse(server.requestedPaths.single().contains("api_key"))
+    }
+
+    @Test
     fun `outdated image of a track with an album is served at once and replaced in the background`() {
         // The track's own image, cached without a tag (wrong, as it turns out); Room has its tag.
         cache(TRACK_ID, WRONG_BYTES)
@@ -667,6 +678,8 @@ class ArtworkPreCacherTest {
         private val concurrent = AtomicInteger()
         val url = "http://127.0.0.1:${socket.localPort}"
         val requestedPaths = ConcurrentLinkedQueue<String>()
+        /** The `Authorization` header of each image request, in [requestedPaths]' order. */
+        val authorizations = ConcurrentLinkedQueue<String>()
         val maxConcurrent = AtomicInteger()
         val received = CountDownLatch(1)
         val probes = AtomicInteger()
@@ -687,7 +700,14 @@ class ArtworkPreCacherTest {
             client.use {
                 val reader = it.getInputStream().bufferedReader()
                 val path = reader.readLine()?.split(' ')?.get(1) ?: return
-                while (!reader.readLine().isNullOrEmpty()) Unit
+                var authorization = ""
+                while (true) {
+                    val header = reader.readLine()
+                    if (header.isNullOrEmpty()) break
+                    if (header.startsWith("Authorization:", ignoreCase = true)) {
+                        authorization = header.substringAfter(':').trim()
+                    }
+                }
                 val out = it.getOutputStream()
                 if (!path.startsWith("/Items/")) {
                     probes.incrementAndGet()
@@ -699,6 +719,7 @@ class ArtworkPreCacherTest {
                     requests.incrementAndGet().also { if (it == closeAfter) socket.close() }
                 }
                 requestedPaths += path
+                authorizations += authorization
                 received.countDown()
                 val id = path.removePrefix("/Items/").substringBefore('/')
                 if (request > closeAfter || id in dropped) return

@@ -141,6 +141,9 @@ Body: { "Username": "...", "Pw": "..." }
 → AccessToken (session-scoped, persists across app restarts)
 ```
 
+Requests made outside the SDK (audio streams, downloads, artwork) send the token as `Authorization: MediaBrowser
+Token="..."`. Jellyfin 12 no longer accepts it as `api_key` in the URL.
+
 Token stored in EncryptedSharedPreferences. Multi-server support via Room (one row per server).
 
 ### 6. Image Strategy
@@ -170,7 +173,7 @@ Coil handles memory + disk caching. `BaseItemDto.ImageBlurHashes` provides blurh
 
 ## Jellyfin SDK Integration
 
-Using `jellyfin-sdk-kotlin` v1.8.7 (official, generated from OpenAPI spec):
+Using `jellyfin-sdk-kotlin` v1.9.2 (official, generated from the Jellyfin 12.2 OpenAPI spec; needs server 12.0+):
 
 ```kotlin
 val jellyfin = Jellyfin {

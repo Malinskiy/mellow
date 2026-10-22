@@ -99,7 +99,7 @@ class RecentlyPlayedAlbumsTest {
             ORDER BY t.maxPlayed DESC
             LIMIT ?
             """,
-            arrayOf(SERVER, limit),
+            arrayOf<Any>(SERVER, limit),
         )
         val ids = db.openHelper.readableDatabase.query(query).use { cursor ->
             buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
